@@ -1,0 +1,97 @@
+{
+  "platform": {
+    "base_url": "https://iot-test.ninebot.com",
+    "ota_api_prefix": "/service/iot-ota-console-api",
+    "console_api_prefix": "/service/iot-console-api",
+    "file_upload_prefix": "/service/file-upload",
+    "upload_host": "https://file-upload-test.ninebot.com",
+    "s3_region": "cn-northwest-1",
+    "s3_bucket": "file-upload-test",
+    "chunk_size": 5242880
+  },
+  "proxy": {
+    "socks5": "socks5h://127.0.0.1:1080"
+  },
+  "auth": {
+    "account": "dehao.zhang@ninebot.com",
+    "password": "1003070394ssXX!",
+    "operate_user": "dehao.zhang",
+    "cookie_file": "ninebot_cookies.json",
+    "auth_valid_seconds": 1800
+  },
+  "device": {
+    "default_serial": "A2TBVB2C27014459",
+    "ninebot_package": "com.ninebot.segway"
+  },
+  "page_tree": {
+    "outside": {
+      "edges": {
+        "home": {"action": "launch", "package": "com.ninebot.segway"}
+      }
+    },
+    "home": {
+      "edges": {
+        "more_functions": {"action": "tap_text", "text": "更多功能"}
+      }
+    },
+    "more_functions": {
+      "edges": {
+        "home": {"action": "back"},
+        "device_info": {"action": "scroll_tap_text", "text": "设备信息", "max_scroll": 6},
+        "battery": {"action": "scroll_tap_text", "text": "电池信息与设置", "max_scroll": 6},
+        "safety": {"action": "scroll_tap_text", "text": "安心守护", "max_scroll": 6},
+        "throttle": {"action": "scroll_tap_text", "text": "转把设置", "max_scroll": 6},
+        "lab": {"action": "scroll_tap_text", "text": "实验室", "max_scroll": 6}
+      }
+    },
+    "device_info": {
+      "edges": {
+        "more_functions": {"action": "back"},
+        "fota_page": {"action": "scroll_tap_text", "text": "检查固件更新", "max_scroll": 3}
+      }
+    },
+    "battery": {
+      "edges": {
+        "more_functions": {"action": "back"}
+      }
+    },
+    "safety": {
+      "edges": {
+        "more_functions": {"action": "back"}
+      }
+    },
+    "throttle": {
+      "edges": {
+        "more_functions": {"action": "back"}
+      }
+    },
+    "lab": {
+      "edges": {
+        "more_functions": {"action": "back"}
+      }
+    },
+    "fota_page": {
+      "edges": {
+        "device_info": {"action": "back"}
+      }
+    }
+  },
+  "module_mapping": {
+    "app_to_platform": {
+      "仪表控制器": "DIS",
+      "彩屏仪表": "TFT",
+      "中控": "ECU",
+      "电池": "BMS",
+      "电机控制器": "MCU",
+      "充电器": "CHG"
+    },
+    "platform_to_app": {
+      "DIS": "仪表控制器",
+      "TFT": "彩屏仪表",
+      "ECU": "中控",
+      "BMS": "电池",
+      "MCU": "电机控制器",
+      "CHG": "充电器"
+    }
+  }
+}
