@@ -318,7 +318,7 @@ def list_work(client, month=None):
         print(f"{w['reportDate']:<12}{status:<8}{w['workTime']:<8}{w['overtime']:<8}{wtype:<6}{summary}")
 
 
-def submit_work_interactive(client, date_str=None, project_id=None, work_hours=None, description=None):
+def submit_work_interactive(client, date_str=None, project_id=None, work_hours=None, description=None, summary=None):
     """交互式提交工时"""
     # 1. 获取项目列表
     projects = client.get_projects()
@@ -348,9 +348,16 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
 
     # 4. 输入工作内容
     if not description:
-        description = input("\n工作内容描述：").strip()
+        description = input("\n工作内容描述（详细内容，每行一条）：").strip()
         if not description:
             print("工作内容不能为空")
+            return False
+
+    # 4.2 输入工作流描述（简洁）
+    if not summary:
+        summary = input("\n工作流描述（简洁，如：测试 QDM559 版本）：").strip()
+        if not summary:
+            print("工作流描述不能为空")
             return False
 
     # 4.3 选择状态
@@ -369,7 +376,8 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
 
     # 5. 构建提交数据
     today = date_str or date.today().strftime("%Y-%m-%d")
-    summary_html = "".join([f"<p>{line}</p>" for line in description.split("\n") if line.strip()])
+    # summary 用简洁描述，description 用详细列表
+    summary_html = f"<p>{summary}</p>"
     payload = {
         "userId": "18178",
         "type": "2",
@@ -535,7 +543,8 @@ def main():
     ap.add_argument("--date", help="YYYY-MM-DD 指定日期")
     ap.add_argument("--project", help="项目 ID")
     ap.add_argument("--hours", help="工时 (小时)")
-    ap.add_argument("--desc", help="工作内容描述")
+    ap.add_argument("--desc", help="工作内容描述（详细）")
+    ap.add_argument("--summary", help="工作流描述（简洁）")
     ap.add_argument("--auto", action="store_true", help="自动模式（跳过确认）")
     ap.add_argument("--json", action="store_true", help="JSON 输出")
     a = ap.parse_args()
@@ -546,7 +555,7 @@ def main():
     if a.list:
         list_work(client, a.month)
     elif a.submit:
-        submit_work_interactive(client, a.date, a.project, a.hours, a.desc)
+        submit_work_interactive(client, a.date, a.project, a.hours, a.desc, a.summary)
     elif a.withdraw:
         withdraw_work(client, a.date)
     elif a.resubmit:
