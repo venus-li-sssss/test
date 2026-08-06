@@ -116,8 +116,20 @@ class WorkClient:
             return resp["data"]
         return None
 
+    def get_edit_detail(self, work_id):
+        """获取工时编辑详情（用于重新提交）"""
+        resp = self._get(f"/api/mh/work-info/update/{work_id}")
+        if resp.get("success"):
+            return resp["data"]
+        return None
+
+    def withdraw_work(self, work_id):
+        """撤销已提交的工时"""
+        resp = self._post(f"/api/mh/work-info/withdraw/{work_id}", {})
+        return resp
+
     def submit_work(self, payload):
-        """提交工时"""
+        """提交/重新提交工时"""
         resp = self._put("/api/mh/work-info/submit", payload)
         return resp
 

@@ -414,10 +414,123 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
         return False
 
 
+def withdraw_work(client, date_str=None):
+    """撤销已提交的工时"""
+    # 获取工时列表
+    start, end = get_month_range()
+    works = client.get_work_list(start, end)
+    
+    # 筛选已提交的工时 (status=2)
+    submitted = [w for w in works if w.get("status") == "2"]
+    if not submitted:
+        print("没有已提交的工时记录")
+        return False
+    
+    # 如果指定了日期，筛选该日期
+    if date_str:
+        submitted = [w for w in submitted if w["reportDate"] == date_str]
+    
+    if not submitted:
+        print(f"{'日期':<12}{'状态':<8}{'工时':<8}{'加班':<8}{'项目'}")
+        print("-" * 60)
+        for w in submitted:
+            print(f"{w['reportDate']:<12}{'已提交':<8}{w['workTime']:<8}{w['overtime']:<8}{w.get('summary', '')[:20]}")
+        return False
+    
+    print(f"{'日期':<12}{'状态':<8}{'工时':<8}{'加班':<8}{'项目'}")
+    print("-" * 60)
+    for i, w in enumerate(submitted, 1):
+        print(f"{i}. {w['reportDate']:<10}{'已提交':<8}{w['workTime']:<8}{w['overtime']:<8}{w.get('summary', '')[:20]}")
+    
+    idx = input("\n选择要撤销的记录 (输入序号，多个用逗号分隔): ").strip()
+    try:
+        indices = [int(x.strip()) for x in idx.split(",")]
+        selected = [submitted[i-1] for i in indices if 1 <= i <= len(submitted)]
+    except (ValueError, IndexError):
+        print("无效选择")
+        return False
+    
+    for w in selected:
+        print(f"\n撤销 {w['reportDate']} 的工时记录...")
+        resp = client.withdraw_work(w["id"])
+        if resp.get("success"):
+            print(f"  ✓ {w['reportDate']} 撤销成功")
+        else:
+            print(f"  ✗ {w['reportDate']} 撤销失败：{resp.get('msg', '未知错误')}")
+    
+    return True
+
+
+def resubmit_work(client, date_str=None):
+    """重新提交已撤销的工时"""
+    # 获取工时列表
+    start, end = get_month_range()
+    works = client.get_work_list(start, end)
+    
+    # 筛选未提交的工时 (status=1)
+    pending = [w for w in works if w.get("status") == "1"]
+    if not pending:
+        print("没有待提交的工时记录")
+        return False
+    
+    # 如果指定了日期，筛选该日期
+    if date_str:
+        pending = [w for w in pending if w["reportDate"] == date_str]
+    
+    if not pending:
+        print("没有匹配的待提交记录")
+        return False
+    
+    print(f"{'日期':<12}{'状态':<8}{'工时':<8}{'加班':<8}")
+    print("-" * 40)
+    for i, w in enumerate(pending, 1):
+        print(f"{i}. {w['reportDate']:<10}{'未提交':<8}{w['workTime']:<8}{w['overtime']:<8}")
+    
+    idx = input("\n选择要重新提交的记录 (输入序号，多个用逗号分隔): ").strip()
+    try:
+        indices = [int(x.strip()) for x in idx.split(",")]
+        selected = [pending[i-1] for i in indices if 1 <= i <= len(pending)]
+    except (ValueError, IndexError):
+        print("无效选择")
+        return False
+    
+    for w in selected:
+        print(f"\n重新提交 {w['reportDate']}...")
+        # 获取编辑详情
+        detail = client.get_edit_detail(w["id"])
+        if not detail:
+            print(f"  ✗ {w['reportDate']} 获取详情失败")
+            continue
+        
+        # 构建提交数据
+        payload = {
+            "id": w["id"],
+            "userId": w["userId"],
+            "type": w.get("type", "2"),
+            "summary": w.get("summary", ""),
+            "workTime": str(w.get("workTime", "0")),
+            "overTime": w.get("overtime", 0),
+            "remark": w.get("remark", ""),
+            "detailVos": detail.get("detailVos", []),
+            "status": "1",
+            "isBatch": False
+        }
+        
+        resp = client.submit_work(payload)
+        if resp.get("success"):
+            print(f"  ✓ {w['reportDate']} 重新提交成功")
+        else:
+            print(f"  ✗ {w['reportDate']} 重新提交失败：{resp.get('msg', '未知错误')}")
+    
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser(description="移远工时自动填写")
     ap.add_argument("--list", action="store_true", help="查看工时列表")
     ap.add_argument("--submit", action="store_true", help="提交工时")
+    ap.add_argument("--withdraw", action="store_true", help="撤销已提交的工时")
+    ap.add_argument("--resubmit", action="store_true", help="重新提交已撤销的工时")
     ap.add_argument("--month", help="YYYY-MM 指定月份")
     ap.add_argument("--date", help="YYYY-MM-DD 指定日期")
     ap.add_argument("--project", help="项目 ID")
@@ -434,6 +547,10 @@ def main():
         list_work(client, a.month)
     elif a.submit:
         submit_work_interactive(client, a.date, a.project, a.hours, a.desc)
+    elif a.withdraw:
+        withdraw_work(client, a.date)
+    elif a.resubmit:
+        resubmit_work(client, a.date)
     else:
         ap.print_help()
 

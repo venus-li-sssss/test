@@ -24,6 +24,18 @@ $PY workhours.py --submit
 # 提交指定日期的工时
 $PY workhours.py --submit --date 2026-08-06
 
+# 撤销已提交的工时
+$PY workhours.py --withdraw
+
+# 撤销指定日期的工时
+$PY workhours.py --withdraw --date 2026-08-05
+
+# 重新提交已撤销的工时
+$PY workhours.py --resubmit
+
+# 重新提交指定日期的工时
+$PY workhours.py --resubmit --date 2026-08-05
+
 # 批量提交本月所有未提交工时
 $PY workhours.py --submit --month 2026-08 --auto
 
@@ -53,7 +65,9 @@ $PY workhours.py --list --json
 |------|------|------|
 | `/api/mh/work-info/list` | POST | 获取工时列表 |
 | `/api/mh/project-info/project-name` | GET | 获取项目列表 |
-| `/api/mh/work-info/submit` | PUT | 提交工时 |
+| `/api/mh/work-info/submit` | PUT | 提交/重新提交工时 |
+| `/api/mh/work-info/withdraw/{id}` | POST | 撤销已提交的工时 |
+| `/api/mh/work-info/update/{id}` | GET | 获取工时编辑详情 |
 
 ## 文件
 
