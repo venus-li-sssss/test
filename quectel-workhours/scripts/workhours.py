@@ -270,8 +270,8 @@ def polish_description(desc: str, status: str = "已完成") -> str:
         for placeholder, value in placeholders.items():
             line = line.replace(placeholder, value)
 
-        # 添加序号和状态后缀
-        polished_lines.append(f"{i}.{line}---{status}")
+        # 添加序号和状态后缀（序号后加空格，确保 markdown 正确渲染为有序列表）
+        polished_lines.append(f"{i}. {line}---{status}")
 
     return "\n".join(polished_lines)
 
