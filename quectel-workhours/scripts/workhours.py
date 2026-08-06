@@ -382,17 +382,17 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
         "userId": "18178",
         "type": "2",
         "summary": summary_html,  # 工作总结：详细列表
-        "workTime": str(work_hours),
-        "overTime": 0,
+        "workTime": str(work_hours),  # 总时间（系统自动拆分标准工时和加班）
+        "overTime": 0,  # 不单独计算加班，让系统处理
         "remark": "",
         "detailVos": [{
             "projectId": project["id"],
             "productNameId": project["productNameId"],
             "projectName": project["projectName"],
-            "workTime": str(work_hours),
+            "workTime": str(work_hours),  # 总时间
             "projectPhase": project["projectPhase"],
             "productLine": project["productLineName"],
-            "overtime": "0.0",
+            "overtime": "0.0",  # 不单独计算
             "description": description,  # 工作描述：简洁
             "projectManager": project["projectManager"],
             "coManager": project.get("coManager", ""),
