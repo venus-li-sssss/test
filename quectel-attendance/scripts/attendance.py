@@ -92,7 +92,9 @@ def analyze_day(day: str, times, shift="", extra=None):
 
     span = l - f                                   # 在司时长
     lunch = overlap(f, l, LUNCH_S, LUNCH_E)        # 扣午休
-    dinner = overlap(f, l, DINNER_S, DINNER_E) if l > OT_START else timedelta()
+    # 晚餐扣除：从应下班时间（弹性补偿后）到 19:00，而非固定 18:00
+    dinner_start = max(DINNER_S, due_out)
+    dinner = overlap(f, l, dinner_start, DINNER_E) if l > OT_START else timedelta()
     work = span - lunch - dinner                   # 有效工作时长
 
     overtime = l - OT_START if l > OT_START else timedelta()  # 19:00 后算加班
