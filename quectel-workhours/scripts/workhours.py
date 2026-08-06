@@ -271,7 +271,7 @@ def polish_description(desc: str, status: str = "已完成") -> str:
             line = line.replace(placeholder, value)
 
         # 添加序号和状态后缀
-        polished_lines.append(f"{i}）{line}---{status}")
+        polished_lines.append(f"{i}.{line}---{status}")
 
     return "\n".join(polished_lines)
 
