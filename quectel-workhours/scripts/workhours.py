@@ -199,8 +199,13 @@ POLISH_MAP = {
 }
 
 
-def polish_description(desc: str) -> str:
-    """润色工作内容描述，使其更专业规范"""
+def polish_description(desc: str, status: str = "已完成") -> str:
+    """润色工作内容描述，使其更专业规范
+    
+    Args:
+        desc: 工作内容描述
+        status: 状态后缀，默认"已完成"，可选"进行中"、"未开始"等
+    """
     if not desc:
         return desc
 
@@ -215,6 +220,8 @@ def polish_description(desc: str) -> str:
         # 移除已有的序号
         line = re.sub(r'^\d+[\.\、\)]\s*', '', line)
         line = re.sub(r'^[\-\*\•]\s*', '', line)
+        # 移除已有的状态后缀
+        line = re.sub(r'---\S+$', '', line)
 
         # 使用占位符机制避免重复替换
         placeholders = {}
@@ -263,8 +270,8 @@ def polish_description(desc: str) -> str:
         for placeholder, value in placeholders.items():
             line = line.replace(placeholder, value)
 
-        # 添加序号
-        polished_lines.append(f"{i}）{line}")
+        # 添加序号和状态后缀
+        polished_lines.append(f"{i}）{line}---{status}")
 
     return "\n".join(polished_lines)
 
@@ -346,8 +353,14 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
             print("工作内容不能为空")
             return False
 
+    # 4.3 选择状态
+    print("\n可选状态：1) 已完成  2) 进行中  3) 未开始")
+    status_choice = input("选择状态 (默认 1): ").strip() or "1"
+    status_map = {"1": "已完成", "2": "进行中", "3": "未开始"}
+    status = status_map.get(status_choice, "已完成")
+
     # 4.5 润色工作内容
-    polished_desc = polish_description(description)
+    polished_desc = polish_description(description, status)
     print(f"\n原始描述：{description}")
     print(f"润色后：{polished_desc}")
     use_polished = input("\n使用润色后的描述？(y/n，默认 y): ").strip().lower()
