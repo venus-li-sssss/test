@@ -346,18 +346,18 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
     if not work_hours:
         work_hours = input(f"\n工时 (小时，默认 9.0): ").strip() or "9.0"
 
-    # 4. 输入工作内容
+    # 4. 输入工作描述（简洁）
     if not description:
-        description = input("\n工作内容描述（详细内容，每行一条）：").strip()
+        description = input("\n工作描述（简洁，如：测试 QDM559 版本）：").strip()
         if not description:
-            print("工作内容不能为空")
+            print("工作描述不能为空")
             return False
 
-    # 4.2 输入工作流描述（简洁）
+    # 4.2 输入工作总结（详细）
     if not summary:
-        summary = input("\n工作流描述（简洁，如：测试 QDM559 版本）：").strip()
+        summary = input("\n工作总结（详细内容，每行一条）：").strip()
         if not summary:
-            print("工作流描述不能为空")
+            print("工作总结不能为空")
             return False
 
     # 4.3 选择状态
@@ -366,22 +366,22 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
     status_map = {"1": "已完成", "2": "进行中", "3": "未开始"}
     status = status_map.get(status_choice, "已完成")
 
-    # 4.5 润色工作内容
-    polished_desc = polish_description(description, status)
-    print(f"\n原始描述：{description}")
-    print(f"润色后：{polished_desc}")
-    use_polished = input("\n使用润色后的描述？(y/n，默认 y): ").strip().lower()
+    # 4.5 润色工作总结
+    polished_summary = polish_description(summary, status)
+    print(f"\n原始总结：{summary}")
+    print(f"润色后：{polished_summary}")
+    use_polished = input("\n使用润色后的总结？(y/n，默认 y): ").strip().lower()
     if use_polished != "n":
-        description = polished_desc
+        summary = polished_summary
 
     # 5. 构建提交数据
     today = date_str or date.today().strftime("%Y-%m-%d")
-    # summary 用简洁描述，description 用详细列表
-    summary_html = f"<p>{summary}</p>"
+    # summary（工作总结）用详细列表，description（工作描述）用简洁描述
+    summary_html = "".join([f"<p>{line}</p>" for line in summary.split("\n") if line.strip()])
     payload = {
         "userId": "18178",
         "type": "2",
-        "summary": summary_html,
+        "summary": summary_html,  # 工作总结：详细列表
         "workTime": str(work_hours),
         "overTime": 0,
         "remark": "",
@@ -393,7 +393,7 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
             "projectPhase": project["projectPhase"],
             "productLine": project["productLineName"],
             "overtime": "0.0",
-            "description": description,
+            "description": description,  # 工作描述：简洁
             "projectManager": project["projectManager"],
             "coManager": project.get("coManager", ""),
             "options": []
