@@ -1,7 +1,7 @@
 ---
 name: 九号项目
 description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 1.7.7
+version: 1.7.8
 agent_created: true
 ---
 
@@ -19,7 +19,7 @@ agent_created: true
 
 配套文件：
 - `scripts/ninebot_ota.py` —— 平台 helper（查询/新增固件、真实上传、设备解析、FOTA 升级/回滚/状态、一站式 `fota`）。
-- `scripts/device_control.py` —— 设备端 APP UI 控制 helper（uiautomator2，相对定位）：`status`/`launch`/`tap`/`swipe`/`screenshot`/`dump`/`texts`/`wait`/`retry`/`get_device_info`/`get_battery_info`/`ble_upgrade_app`/`go_to_page`/`run`。**控制手机上九号 APP（如点击闪灯鸣笛、滑动屏幕、查设备版本信息、查电池数据、APP侧蓝牙升级）直接用它，不要走 dump+解析+input tap 的老流程。**
+- `scripts/device_control.py` —— 设备端 APP UI 控制 helper（uiautomator2，相对定位）：`status`/`launch`/`tap`/`tap_xy`/`swipe`/`screenshot`/`dump`/`texts`/`wait`/`retry`/`get_device_info`/`get_battery_info`/`ble_upgrade_app`/`go_to_page`/`setting`/`toggle_setting`/`run`。**控制手机上九号 APP（如点击闪灯鸣笛、滑动屏幕、查设备版本信息、查电池数据、APP侧蓝牙升级）直接用它，不要走 dump+解析+input tap 的老流程。**
 - `references/api_reference.md` —— 各接口完整请求/响应示例与字段说明。
 
 > 流程总览：平台侧 OTA 操作走 §1~§7（`ninebot_ota.py`）；**手机端 APP 点击/查看类操作走 §8（`device_control.py`）**。两者是不同场景，按需选用。
@@ -303,7 +303,7 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 `wait`（等某元素出现，或 `--gone` 等消失）用于组合指令里的页面跳转同步。
 
 ### 8.7 设计原则：脚本通用、只发指令；导航与操作严格分离
-- `device_control.py` 是**通用指令集**（status / launch / tap / swipe / screenshot / dump / texts / wait / retry / get_device_info / get_battery_info / ble_upgrade_app / go_to_page / setting / toggle_setting + `run` 组合），AI **只发指令、组合指令**来驱动，**不要每次为某个按钮新写 Python 脚本**。
+- `device_control.py` 是**通用指令集**（status / launch / tap / tap_xy / swipe / screenshot / dump / texts / wait / retry / get_device_info / get_battery_info / ble_upgrade_app / go_to_page / setting / toggle_setting + `run` 组合），AI **只发指令、组合指令**来驱动，**不要每次为某个按钮新写 Python 脚本**。
 - **导航与操作分离（v1.6.0 核心）**：
   - **去哪个页面**统一由「页面导航引擎」负责——`go_to_page --page <id>` 或业务命令内部调用 `navigate_to(d, target)`。它先看当前在哪（`detect_current_page`，按 activity 名优先判定，文字兜底），再在 `PAGE_TREE` 上 BFS 求最短路径并逐边执行（tap / scroll_tap / back / launch），与目标页无关、与具体操作无关。
   - **到了页面干什么**由各业务的 `extract_*` 负责（如 `extract_device_info`），假设"已在目标页"，只做提取/点击，不负责怎么过去。
@@ -529,11 +529,13 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 - 读开关状态一律以元素属性（`checked`）为准，截图仅供调试；APP 偶发"假超时/未刷新"时以平台下发指令（`commands --watch`，§9）为权威判据。
 - helper 选择器（`--text/--id/--xpath`）匹配不到目标控件时，走 §8.13 兜底。
 
-### 8.13 兜底方案：`adb shell uiautomator dump` → 解析 XML → 算中心 → `input tap`
+### 8.13 兜底方案（三级，逐级降级）
 
-**使用原则**：helper 已覆盖的功能一律走 helper；**只有某功能没有现成 helper 能一条指令完成时**，才用本兜底流程（慢、坐标依赖界面不变、易算错中心，故仅作兜底，不能作为首选）。
+**使用原则**：helper 已覆盖的功能一律走 helper（`tap --text/--id/--xpath`、`setting`、`toggle_setting`）；**只有某功能没有现成 helper 能一条指令完成时**，才按下面三级顺序降级。dump/图像兜底都慢、依赖界面不变、坐标易错，仅作兜底、**不能作为首选**。
 
-**标准步骤**：
+**Tier 1 — 相对定位（首选兜底）**：`device_control.py` 的 `tap --text/--id/--xpath`（自动上溯可点击祖先），不受列表滚动位移影响。
+
+**Tier 2 — `uiautomator dump` → 解析 XML → 算中心 → `input tap`**：
 ```bash
 SERIAL=A2TBV2C27014459
 # 1) 抓当前布局 XML 到设备，再拉回本机
@@ -547,6 +549,16 @@ adb -s $SERIAL shell input tap <cx> <cy>
 - 坐标来自**设备真实像素**（`input tap` 吃设备像素，与 density 无关）；界面位移/列表滚动会使坐标失效，故用完即弃。
 - 优先用 `device_control.py` 的 `dump`/`texts` 看元素，`tap --text/--id/--xpath` 相对定位（不受位移影响）；只有相对定位也匹配不到时，才手算坐标兜底。
 - 典型真实案例：首页「滑动开机」`svgaView` 控件 uiautomator2 完全忽略，必须用 `adb shell input swipe`（已封装进 `power_on`），见 §8.11。
+
+**Tier 3 — 图像兜底：截图 → 图像理解 → 像素点击（dump 抓不到控件时）**：
+当目标控件是 **canvas / SVGA / 游戏化视图 / 自定义绘制**（uiautomator2 的 dump 里根本没有对应节点，Tier 2 无从解析）时，改用图像方式：
+1. 截图：`$PY $SK screenshot --out shot.png`（输出**设备像素**图）。
+2. **用图像理解在截图里定位目标元素，得到它在图像上的像素坐标 (px, py)**（即「屏幕像素坐标」）。
+3. 像素点击（两条等价路径，坐标系一致）：
+   - helper：`$PY $SK tap_xy --x <px> --y <py>`（u2 `d.click`，吃设备像素）
+   - 原生：`adb -s $SERIAL shell input tap <px> <py>`
+- ⚠️ **分辨率映射**：`screenshot` 输出的是**设备像素**（与 `input tap` / `tap_xy` 同坐标系，1:1 直接可用）；若截图被缩放查看或用了非 1:1 的采样，需先把图像理解得到的坐标按「原图宽高 ÷ 显示宽高」缩放回设备像素再点。
+- ⚠️ 与 Tier 2 同样：坐标依赖界面不变，列表滚动/动画会改变位置，用完即弃；能回到 Tier 1/2 相对定位时优先回去。
 
 ---
 
