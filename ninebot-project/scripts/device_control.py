@@ -1156,6 +1156,30 @@ def do_setting(d, opts):
     return {"ok": ok, "opened": name, "message": msg, "current_page": detect_current_page(d)}
 
 
+def _locate_switch(d, name, scroll_tries=6):
+    """导航到 more_functions 并定位 name 行内开关，返回可点击的 switch xpath；找不到返回 None。
+    优先按 resource-id=com.ninebot.segway:id/switch_view 精确匹配（九号 APP 开关通用 id，class=android.widget.CompoundButton），
+    并兼容 class 兜底。⚠️ uiautomator2 的 xpath 必须用谓语形式 [@resource-id=...]/[@class=...]，
+    不能写 //android.widget.CompoundButton（class 当标签名在 u2 xpath 中无效，永远匹配不到）。"""
+    nav = navigate_to(d, "more_functions")
+    if not nav["ok"]:
+        return None
+    for _ in range(scroll_tries):
+        for n in range(1, 6):
+            xp = (f'//*[@text="{name}"]/ancestor::*[{n}]'
+                  f'//*[@resource-id="com.ninebot.segway:id/switch_view"]')
+            if d.xpath(xp).exists:
+                return xp
+        for n in range(1, 6):
+            xp = (f'//*[@text="{name}"]/ancestor::*[{n}]'
+                  f'//*[contains(@class,"CompoundButton") or @checkable="true"]')
+            if d.xpath(xp).exists:
+                return xp
+        do_swipe(d, {"direction": "up", "distance": 0.8, "times": 1})
+        time.sleep(0.4)
+    return None
+
+
 def do_toggle_setting(d, opts):
     """切换「更多功能」里某行内开关（如 驻车感应/低电量延长续航/电子刹车/自动锁车设置 等）。
     自动定位该行内的 CompoundButton，并 retry 到期望 checked 状态（应对 APP 短超时假失败）。
@@ -1172,25 +1196,8 @@ def do_toggle_setting(d, opts):
     if not nav["ok"]:
         return {"ok": False, "navigation": nav}
 
-    # 行内开关 xpath：从文字节点上溯若干层祖先，找第一个含 CompoundButton 的后代开关
-    switch_xpath = None
-    for n in range(1, 6):
-        xp = f'//*[@text="{name}"]/ancestor::*[{n}]//android.widget.CompoundButton'
-        if d.xpath(xp).exists:
-            switch_xpath = xp
-            break
-    if not switch_xpath:
-        # 当前屏没有，滚动查找
-        for _ in range(6):
-            do_swipe(d, {"direction": "up", "distance": 0.8, "times": 1})
-            time.sleep(0.4)
-            for n in range(1, 6):
-                xp = f'//*[@text="{name}"]/ancestor::*[{n}]//android.widget.CompoundButton'
-                if d.xpath(xp).exists:
-                    switch_xpath = xp
-                    break
-            if switch_xpath:
-                break
+    # 行内开关 xpath：导航到 more_functions，按 行内文字 上溯祖先再定位 switch_view（resource-id 精确匹配最稳）
+    switch_xpath = _locate_switch(d, name)
     if not switch_xpath:
         return {"ok": False, "message": f"未找到「{name}」对应的行内开关", "page": "more_functions"}
 
@@ -1202,8 +1209,11 @@ def do_toggle_setting(d, opts):
     final_ok, final_state = False, None
     for i in range(1, maxn + 1):
         if not _wait_until_exists(d, switch_xpath, settle):
-            history.append({"attempt": i, "action": "wait", "state": "switch-gone", "ok": False})
-            continue
+            # 开关临时消失（"正在设置..." 过渡 / 确认框推到子页）→ 重新定位后再等
+            switch_xpath = _locate_switch(d, name) or switch_xpath
+            if not _wait_until_exists(d, switch_xpath, settle):
+                history.append({"attempt": i, "action": "wait", "state": "switch-gone", "ok": False})
+                continue
         ok, st = _eval_expect(d, switch_xpath, expect)
         if ok:
             final_ok, final_state = True, st
@@ -1219,6 +1229,8 @@ def do_toggle_setting(d, opts):
                 d(text="确定").click()
                 confirmed = True
                 time.sleep(1.2)
+                # 确认框可能把页面推到子页/重渲染，重新定位开关再判定
+                switch_xpath = _locate_switch(d, name) or switch_xpath
                 continue
             if d.xpath(switch_xpath).exists:
                 ok2, st2 = _eval_expect(d, switch_xpath, expect)
@@ -1230,7 +1242,8 @@ def do_toggle_setting(d, opts):
             time.sleep(0.4)
         if final_ok:
             break
-        # 本轮末次判定
+        # 本轮末次判定：开关可能消失，先重新定位
+        switch_xpath = _locate_switch(d, name) or switch_xpath
         if d.xpath(switch_xpath).exists:
             ok3, st3 = _eval_expect(d, switch_xpath, expect)
             final_state = st3
