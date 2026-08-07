@@ -161,6 +161,19 @@ def do_tap(d, opts):
     return {"ok": ok, "message": f"{msg} ({strategy})", "target": anchor}
 
 
+def do_tap_xy(d, opts):
+    """按设备像素坐标点击（图像兜底用）。x/y 为设备像素，与 `adb input tap` 同坐标系。
+    典型场景：uiautomator dump 抓不到的 canvas/SVGA/游戏化/自定义绘制控件，
+    由图像理解（截图→识别元素像素位置）给出坐标后调用本命令落点。"""
+    try:
+        x = float(opts["x"])
+        y = float(opts["y"])
+    except (KeyError, TypeError, ValueError):
+        return {"ok": False, "message": "x/y 必填且为数字(设备像素)", "target": None}
+    d.click(int(x), int(y))
+    return {"ok": True, "message": f"clicked at ({int(x)},{int(y)})", "target": (int(x), int(y))}
+
+
 def do_screenshot(d, opts):
     path = opts.get("out") or "screenshot.png"
     d.screenshot(path)
@@ -1242,6 +1255,7 @@ HANDLERS = {
     "status": do_status,
     "launch": do_launch,
     "tap": do_tap,
+    "tap_xy": do_tap_xy,
     "screenshot": do_screenshot,
     "dump": do_dump,
     "texts": do_texts,
@@ -1279,6 +1293,10 @@ def build_parser():
     sp.add_argument("--xpath", help="按 xpath 定位（最强相对关系）")
     sp.add_argument("--up", type=int, default=None,
                     help="点第 N 层祖先(0=自身)；不填则自动上溯可点击祖先")
+
+    sp = sub.add_parser("tap_xy", help="按设备像素坐标点击（图像兜底：截图→图像理解得坐标→落点）")
+    sp.add_argument("--x", required=True, help="设备像素 X（与 adb input tap 同坐标系）")
+    sp.add_argument("--y", required=True, help="设备像素 Y")
 
     sp = sub.add_parser("screenshot", help="截图")
     sp.add_argument("--out", default="screenshot.png")
