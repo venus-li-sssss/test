@@ -1,7 +1,7 @@
 ---
 name: 九号项目
 description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 1.7.9
+version: 1.7.10
 agent_created: true
 ---
 
@@ -302,6 +302,14 @@ python scripts/ninebot_ota.py commands <IMEI或SN> --watch 30
 python scripts/ninebot_ota.py commands <IMEI或SN> --minutes 30
 ```
 > **规则**：`toggle_setting` 报 `switch-gone-after-toggle` / 未达期望状态时，**不要直接下"脚本失败"结论**，必须先跑一次 `commands --watch` 按上表定责，再写用例结果与缺陷归属。
+
+**当前测试设备（默认，勿用旧值）**
+- IMEI：`868105049574252`
+- SN：`48DGZ2602J0022`
+- deviceId：`1001232`，productKey：`kBwCVBq4`
+- ⚠️ 旧设备 `869004070113552 / 2HDEZ2447J0001` 已作废，不要再用。
+
+**实证记录（2026-08-07）**：连续 6 条下发中 4 条设备已回应（时延 1.0s~3.7s，波动大）、2 条超时无响应；开关指令为 `g:cmd`，`data=00010001` 开 / `00010000` 关。据此确认 `switch-gone-after-toggle` 属**设备侧无响应**（FAIL-设备侧），非脚本 bug；`--settle` 建议给 25~30s。
 
 ### 8.6 retry 指令：应对 APP 短超时（自动重试直到响应，最多 5 次）
 针对「APP 设置的超时时间太短 → 显示超时/失败，但实际已生效」这类问题：用 `retry` 指令反复下发同一操作，直到 APP 在超时(`settle`)内达到期望状态，最多 `max` 次（默认 5），最后只统计结果（`summary` / `final_state`）。
