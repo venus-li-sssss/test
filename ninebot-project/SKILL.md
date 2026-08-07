@@ -1,7 +1,7 @@
 ---
 name: 九号项目
 description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 1.7.5
+version: 1.7.7
 agent_created: true
 ---
 
@@ -218,7 +218,7 @@ python scripts/ninebot_ota.py download-tasks          # 固件下载任务列表
 
 当用户要「控制设备 APP / 点击某个按钮（如闪灯鸣笛、鸣笛、闪灯）/ 查看 APP 是否已启动 / 截屏看效果 / 列出界面文字」时，**走本机已连接的 Android 设备**，用 `scripts/device_control.py`（uiautomator2，相对定位）。
 
-🚀 **不要**再走 `adb shell uiautomator dump` → 解析 XML → 算中心 → `input tap` 的老流程（慢、易算错中心、依赖界面不变）。本 helper 一条指令完成，且坐标由框架动态计算。
+⚠️ **优先用 `device_control.py` 的 helper 命令（一条指令完成、坐标由框架动态算）。只有当某功能没有现成 helper 能一条指令完成时，才走兜底方案 `adb shell uiautomator dump` → 解析 XML → 算中心 → `input tap`（详见 §8.13）。** helper 已覆盖的功能（tap/swipe/screenshot/go_to_page/get_*/retry/run/组合指令）一律走 helper，不要手敲 adb 重走老路——除非真的没有对应 helper。
 
 ### 8.1 环境（一次性，已配好可跳过）
 - Python 用隔离 venv：`C:\Users\venus.li\.workbuddy\binaries\python\envs\default\Scripts\python.exe`
@@ -244,6 +244,8 @@ $PY $SK get_device_info                     # 一键进「设备信息」页并�
 $PY $SK get_battery_info                    # 一键进「电池信息」页并提取 主电池/电压/温度/应急电池 等数据
 $PY $SK go_to_page --page battery           # 导航到指定设备页(见 §8.8 页面树)：home/more_functions/device_info/battery/safety/throttle/lab/fota_page
 $PY $SK ble_upgrade_app --wait-task 30      # APP侧蓝牙升级刷写(需 ninebot_ota.py ble-upgrade 先下发+车辆蓝牙已连手机)
+$PY $SK setting --name "灯光设置"           # 一键打开「更多功能」里任意设置项(19项均可，见 §8.12)
+$PY $SK toggle_setting --name "驻车感应" --expect checked:true   # 行内开关：自动定位并 retry 到期望状态(关闭类确认框自动点确定)
 # 批量一步到位（JSON 指令列表，每条=[命令,{选项}]）：
 $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot",{"out":"shot.png"}]]'
 ```
@@ -261,7 +263,7 @@ $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot"
 - 设备「已连接」但 `app_start` 失败：确认包名正确、APP 已安装；非 exported 的 Activity 不要用 `am start`（会 SecurityException）。
 - **uiautomator2 选择器返回的 `Iter` 对象只能用 `for` 循环遍历**：`[e.info for e in d(className=...)]` 这种 list comprehension 会报 `'Iter' object is not iterable`，必须用 `for e in d(...): ...` 逐条 append。
 - **`d.swipe()` 的 `duration` 参数是「秒」不是毫秒**：传 `500` 会卡 500 秒被超时杀掉；CLI 层的 `--duration` 按毫秒语义，脚本内部已 `÷1000` 转换。
-- **判定"当前在哪个页面"要用 activity 名、别用可见文字**：九号 APP 各页 activity 不同且稳定（首页=`MainOversea`、更多功能=`DynamicListActivity`、设备信息=`DynamicDeviceInfoActivity`）。长列表页（如更多功能）的"设备信息"入口在折叠区、当前屏文字里根本看不到，光靠文字判定会误判成 `unknown` → 导航失灵。统一用 `detect_current_page` 按 activity 优先判定、文字兜底。
+- **判定"当前在哪个页面"= activity 名 + uiautomator2 完整 XML dump 双重判别**：先按 `d.app_current()` 的 activity 名粗判（九号各页 activity 不同且稳定：首页=`MainOversea`、更多功能根页=其二级子页=`DynamicListActivity`/`DynamicList2Activity`、设备信息=`DynamicDeviceInfoActivity`、电池/安心守护/固件=`NBReactActivity`）。遇到「一个 activity 承载多个页面」的情况（见下条），再用 `d.dump_hierarchy()`（等价于 `adb shell uiautomator dump`，但由 uiautomator2 直接取）解析出**全部 `text`/`content-desc`**（含标题栏、自定义控件，比只看 TextView 稳），按页面特征文字区分。长列表页（如更多功能）的"设备信息"入口在折叠区、当前屏文字看不到，光靠当前屏文字会误判 → 所以 activity 优先、完整 XML 文字兜底。统一走 `detect_current_page`，**不要自己手写判定**。
 - **设备信息页的「固件详情」只是区块标题、不可点击**：`tap --text "固件详情"` 会报 `target element not found (nearest clickable ancestor-or-self)`——它没有任何可点击祖先。各模块固件版本（仪表控制器/中控/彩屏仪表/电池/电机控制器/充电器）**直接显示在设备信息页内、"固件详情"标题下方滚动可见**，提取固件版本时**只需滚动页面收集文字，不要去 tap「固件详情」**。
 
 ### 8.5 读开关/勾选状态以元素为准（判定闭环）
@@ -301,7 +303,7 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 `wait`（等某元素出现，或 `--gone` 等消失）用于组合指令里的页面跳转同步。
 
 ### 8.7 设计原则：脚本通用、只发指令；导航与操作严格分离
-- `device_control.py` 是**通用指令集**（status / launch / tap / swipe / screenshot / dump / texts / wait / retry / get_device_info / go_to_page + `run` 组合），AI **只发指令、组合指令**来驱动，**不要每次为某个按钮新写 Python 脚本**。
+- `device_control.py` 是**通用指令集**（status / launch / tap / swipe / screenshot / dump / texts / wait / retry / get_device_info / get_battery_info / ble_upgrade_app / go_to_page / setting / toggle_setting + `run` 组合），AI **只发指令、组合指令**来驱动，**不要每次为某个按钮新写 Python 脚本**。
 - **导航与操作分离（v1.6.0 核心）**：
   - **去哪个页面**统一由「页面导航引擎」负责——`go_to_page --page <id>` 或业务命令内部调用 `navigate_to(d, target)`。它先看当前在哪（`detect_current_page`，按 activity 名优先判定，文字兜底），再在 `PAGE_TREE` 上 BFS 求最短路径并逐边执行（tap / scroll_tap / back / launch），与目标页无关、与具体操作无关。
   - **到了页面干什么**由各业务的 `extract_*` 负责（如 `extract_device_info`），假设"已在目标页"，只做提取/点击，不负责怎么过去。
@@ -318,7 +320,7 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 |---|---|---|---|
 | `outside` | 桌面/其他APP | （非九号包） | — |
 | `home` | 启动APP | `MainOversea` | 控车：闪灯鸣笛/感应解锁/安防设置/仪表盘；数据：电量/续航/最近骑行/总里程 |
-| `more_functions` | home→「更多功能」 | `DynamicListActivity` | 设备设置列表：能量回收/骑行模式/公英制/转把/倒车断电/安心守护/实验室/电池信息/设备信息 |
+| `more_functions` | home→「更多功能」 | `DynamicListActivity` | 设备设置列表（2026-08-07 实机全量 **19 项**）：安防设置/灯光设置/音效设置/NFC和密码设置/快捷功能定义/驻车感应/自动锁车设置/低电量延长续航/电子刹车/能量回收强度/骑行模式设置/公英制切换/转把设置/安心守护/实验室/电池信息与设置/设备信息/解绑车辆（含二级子页，见 §8.12） |
 | `device_info` | more_functions→「设备信息」(底部) | `DynamicDeviceInfoActivity` | 型号/车架号/总里程 + 各固件版本 + 「检查固件更新」入口 |
 | `battery` | more_functions→「电池信息与设置」 | `NBReactActivity` | 主电池/应急电池电量、电压、温度、充电上限（数据提取见 `get_battery_info`） |
 | `safety` | more_functions→「安心守护」 | `NBReactActivity` | 电子围栏（添加电子围栏） |
@@ -326,13 +328,17 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 | `lab` | more_functions→「实验室」 | `DynamicList2Activity` | 智能后仰抑制等实验功能 |
 | `fota_page` | device_info→「检查固件更新」(底部) | `NBReactActivity` | 固件升级：检测更新/下一步/确认升级/开始升级（蓝牙升级刷写页） |
 
-⚠️ **activity 同名必须按文字区分**：`NBReactActivity` 同时承载 `battery`/`safety`/`fota_page`，`DynamicList2Activity` 同时承载 `throttle`/`lab`。`detect_current_page` 已按页面文字做二次判定（见 `_detect_nbreact` / `_detect_list2`），**不要只看 activity**。
+⚠️ **activity 同名必须按文字区分**：`NBReactActivity` 同时承载 `battery`/`safety`/`fota_page`，`DynamicList2Activity` 同时承载 `throttle`/`lab` 根页 + 多个「更多功能」二级子页（灯光设置/音效设置/NFC和密码设置/快捷功能定义/安防设置/骑行模式设置 等也都是 `DynamicList2Activity`）。`detect_current_page` 已用 `d.dump_hierarchy()` 取完整 XML 文字做二次判定：`_detect_nbreact` / `_detect_list2` 命中根页特征词才返回对应根页 id，**任何不匹配的子页统一返回 `more_functions_sub`**（见 §8.8 下方），**不要只看 activity**。
 
-**更多功能里的「对话框/原地开关」（非独立页，用 `tap --text` 直接点即可）：**
+⚠️ **`more_functions` 根页与全部二级子页共用 `DynamicListActivity`/`DynamicList2Activity`**：但 `detect_current_page` 现在能区分——根页含「更多功能」标题或命中的已知设置项 ≥5 个 → `more_functions`；否则 → `more_functions_sub`。`navigate_to` 在起始页为 `more_functions_sub`（或任何非页面树节点）时会**自动先按返回退回根页再导航**，所以 `setting`/`toggle_setting` 即使从某子设置页发起也能正确工作，**无需手动回退**。（旧版曾踩坑：子页被误判为根页导致不回退、点到错误控件，已修复。）
+
+**更多功能里的「对话框/原地开关」（非独立页）：**
 - `能量回收强度`：底部弹窗，选项「标准/弱/关闭」
 - `骑行模式设置`：进入二级设置（自定义档位）
-- `倒车断电`：行内开关（车辆侧翻自动断电）
+- `驻车感应` / `低电量延长续航` / `电子刹车` / `倒车断电`：行内开关（用 `toggle_setting --name` 直达，关闭类弹确认框自动点确定）
 - `公英制切换`：公制/英制切换
+- 其余（`安防设置`/`灯光设置`/`音效设置`/`NFC和密码设置`/`快捷功能定义`/`安心守护`/`实验室`/`电池信息与设置`/`设备信息`）：打开即进入二级页
+- 完整 19 项清单与直达方式见 **§8.12**。
 
 **新增命令：**
 ```bash
@@ -344,7 +350,7 @@ $PY $SK power_off                         # 点击关机：点击首页「点击
 ```
 
 ### 8.9 swipe 滑动屏幕（v1.5.0 新增）
-用于长页面滚动（如「更多功能」页到底部找「设备信息」）。**不要再用 `adb shell input swipe`**，本命令坐标由框架按屏幕比例动态算，且已修正「duration 单位」坑（uiautomator2 的 `swipe` 的 `duration` 是**秒**，早期一度误传毫秒导致卡死）。
+用于长页面滚动（如「更多功能」页到底部找「设备信息」）。**优先用本命令**（坐标由框架按屏幕比例动态算，且已修正 `duration` 单位坑：uiautomator2 的 `swipe` 的 `duration` 是**秒**，早期一度误传毫秒导致卡死）；只有 helper 滚动不够用时，才回退到 `adb shell input swipe`（属 §8.13 兜底原则）。
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
@@ -450,6 +456,7 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 #### 滑动开机（`power_on`）— 必须用 `adb input swipe`，`uiautomator2` 通道无效
 - 首页「滑动开机」滑块是自定义 `svgaView` 控件，**uiautomator2 的 `d.touch`/`d.swipe` 被它完全忽略**（pill 红色中心死死不动，0 反应）；
 - 只有系统 `adb shell input swipe` 通道（带真实手指类型）能驱动它。命令内部已自动用 `adb -s <serial> shell input swipe` 执行。
+- 这正是「helper 通道无效、无现成一条指令可用 → 必须走 adb 兜底」的真实案例：脚本已把 adb 调用封装进 `power_on`，对外仍是一条指令（与 §8.13 兜底原则一致）。
 - 滑过去只到 **「开机中」过渡态**；**真正通电还需物理按整车电源按钮**（按后界面才显示「点击关机」）。自动化只能完成"滑过去"这一步 —— 这是设计如此，不是失败。
 - 成功判据：`滑动开机` 文字消失、`开机中` 出现（命令返回 `ok:true` 即代表滑块已滑过去）。
 - 坐标用**屏幕比例换算**（基准 1080×2400 实测）：起点 = 红色按钮(thumb)中心(最左) ≈ `w*0.4343, h*0.4783`；终点 = 拖到滑块右界之外使 thumb 被 clamp 到底 ≈ `w*0.7037`。不要改成像素写死。
@@ -463,6 +470,83 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 3. 需要关机时 `power_off` → 回到「滑动开机」。
 
 > ⚠️ 历史坑回顾（已写入记忆，勿重蹈）：曾误以为"滑块滑不动、必须手动"——根因是①错用 `u2.bounds()` 拿坐标（该控件报的是错误坐标系，偏左 236px）、②错把"出现点击关机"当成功标准（那要等整车按钮）、③用了 `d.swipe` 通道（被忽略）。正确路径就是 `adb input swipe` + 以「开机中」为滑过去判据。
+
+---
+
+### 8.12 APP 功能速查（按功能直达，优先用 helper）
+
+下表覆盖九号出行 APP **已实机核实**的全部主要功能（首页 + 更多功能 19 项）。**优先用 helper 命令一条指令直达**：
+- `setting --name "<设置项名>"`：自动 `go_to_page more_functions` + 点开任意设置项（打开二级列表/对话框/开关行）。
+- `toggle_setting --name "<开关名>" --expect checked:true|false`：自动定位该行内 `CompoundButton` 并 retry 到期望状态，**关闭类开关弹出的确认框（确定/取消）会自动点「确定」**（如 驻车感应关闭时弹"关闭后，会禁用自动锁车功能"）。
+
+任何"去页面"动作都先 `go_to_page`/`navigate_to`（见 §8.10），到了页面再操作；helper 匹配不到的控件才走兜底（§8.13）。
+
+#### 一、首页（home / `MainOversea`）
+| 功能 | 直达方式 |
+|---|---|
+| 闪灯鸣笛 / 鸣笛 / 闪灯 | `$PY $SK tap --text "闪灯鸣笛"` |
+| 感应解锁（开关） | `go_to_page home` → `retry --text "感应解锁" --expect checked:true/false` |
+| 安防设置 | `setting --name "安防设置"` |
+| 仪表盘数据（电量% / 续航 km / 最近骑行 / 总里程） | `texts` 或 `screenshot` 读文字；结构化整车数据走平台 `device-status`（§5.4） |
+| 滑动开机 / 点击关机 | `power_on` / `power_off`（见 §8.11） |
+
+#### 二、更多功能（more_functions）— 共 19 项（2026-08-07 实机全量抓取）
+
+**① 打开即进入二级页/列表（用 `setting --name` 直达）：**
+| 设置项 | 备注 / 二级页内容 |
+|---|---|
+| 安防设置 | 二级安全设置页 |
+| 灯光设置 | 含「延迟关闭大灯（关闭/开启）」等 |
+| 音效设置 | 音效/彩蛋皮肤开关 |
+| NFC和密码设置 | NFC 卡 / 密码管理 |
+| 快捷功能定义 | 自定义快捷按键 |
+| 骑行模式设置 | 自定义档位模式 |
+| 转把设置 | 油门与转把相关（同 `go_to_page throttle`） |
+| 安心守护 | 安全区域/电子围栏（同 `go_to_page safety`） |
+| 实验室 | 智能后仰抑制等实验功能（同 `go_to_page lab`） |
+| 电池信息与设置 | 主/应急电池电量、电压、温度、充电上限（同 `get_battery_info`） |
+| 设备信息 | 型号/车架号/各固件版本（同 `get_device_info`） |
+| 解绑车辆 | ⚠️ **危险操作**，仅确认需要时执行 |
+
+**② 行内开关（用 `toggle_setting --name` 直达，自动处理确认框）：**
+| 开关 | 说明 |
+|---|---|
+| 驻车感应 | 监测边撑是否收起；**关闭会弹确认框"关闭后，会禁用自动锁车功能"**（命令已自动点确定） |
+| 自动锁车设置 | 进入子页后有「离车自动上锁」开关，见 §8.5 / §8.6（`retry --id switch_view --expect`） |
+| 低电量延长续航 | 电量<20% 时自动调低车速上限 |
+| 电子刹车 | 行内开关 |
+
+**③ 弹窗/选项类（先 `setting --name` 打开，再 `tap` 选项）：**
+| 设置项 | 说明 |
+|---|---|
+| 能量回收强度 | 标准 / 弱 / 关闭（打开后弹窗选「标准」等） |
+| 公英制切换 | 公制 / 英制 |
+
+> 说明：②/③ 里的开关与选项名（如「延迟关闭大灯」「能量回收强度」）同样可用 `setting --name` 或 `toggle_setting --name` 直达；`toggle_setting` 专用于行内 `CompoundButton` 且需判定 `checked` 状态。凡"直达方式"是 `tap --text/--id` 的都可包进 `run --json` 组合；涉及开关状态判定的包一层 `retry`（§8.6）。
+
+#### 三、组合与判定
+- 多步串联：`run --json '[["setting",{"name":"灯光设置"}],["tap",{"text":"延迟关闭大灯"}],["retry",{"name":"延迟关闭大灯","expect":"checked:true"}]]'`（先打开设置页，再操作其中开关）。
+- 读开关状态一律以元素属性（`checked`）为准，截图仅供调试；APP 偶发"假超时/未刷新"时以平台下发指令（`commands --watch`，§9）为权威判据。
+- helper 选择器（`--text/--id/--xpath`）匹配不到目标控件时，走 §8.13 兜底。
+
+### 8.13 兜底方案：`adb shell uiautomator dump` → 解析 XML → 算中心 → `input tap`
+
+**使用原则**：helper 已覆盖的功能一律走 helper；**只有某功能没有现成 helper 能一条指令完成时**，才用本兜底流程（慢、坐标依赖界面不变、易算错中心，故仅作兜底，不能作为首选）。
+
+**标准步骤**：
+```bash
+SERIAL=A2TBV2C27014459
+# 1) 抓当前布局 XML 到设备，再拉回本机
+adb -s $SERIAL shell uiautomator dump /sdcard/ui.xml
+adb -s $SERIAL pull /sdcard/ui.xml ./ui.xml
+# 2) 解析目标节点 bounds（示例：找 text="某按钮" 的节点）
+#    bounds="[x1,y1][x2,y2]" → 中心 cx=((x1+x2)//2), cy=((y1+y2)//2)
+# 3) 用设备像素坐标点击
+adb -s $SERIAL shell input tap <cx> <cy>
+```
+- 坐标来自**设备真实像素**（`input tap` 吃设备像素，与 density 无关）；界面位移/列表滚动会使坐标失效，故用完即弃。
+- 优先用 `device_control.py` 的 `dump`/`texts` 看元素，`tap --text/--id/--xpath` 相对定位（不受位移影响）；只有相对定位也匹配不到时，才手算坐标兜底。
+- 典型真实案例：首页「滑动开机」`svgaView` 控件 uiautomator2 完全忽略，必须用 `adb shell input swipe`（已封装进 `power_on`），见 §8.11。
 
 ---
 
@@ -485,7 +569,7 @@ PAGE_TREE = {
 **导航四件套（脚本内函数）**：
 | 函数 | 作用 |
 |---|---|
-| `detect_current_page(d)` | **查询当前页面**：按 activity 名优先判定（各页 activity 不同且稳定），文字兜底。返回 `outside/home/more_functions/device_info/unknown` |
+| `detect_current_page(d)` | **查询当前页面**：先按 `d.app_current()` 的 activity 名粗判；遇到「一个 activity 承载多页」时，用 `d.dump_hierarchy()`（完整 XML，等价于 adb uiautomator dump）解析全部 text/content-desc 做二次区分。根页返回 `home/more_functions/device_info/battery/safety/throttle/lab/fota_page`；「更多功能」的任意二级子页（灯光/音效/NFC/安防…）返回 `more_functions_sub`；不在九号APP返回 `outside`；前台但无法识别返回 `unknown` |
 | `_bfs_path(start, target)` | 在 `PAGE_TREE` 上 BFS 求"当前页→目标页"最短路径（含两端） |
 | `_exec_nav_action(d, action)` | 执行单条导航边（launch / tap_text / scroll_tap_text / back） |
 | `navigate_to(d, target)` | **统一导航**：查当前页→求路径→逐边执行并校验到达（tap 类失败自动重试）→返回 `{ok, from, path, steps, final_page}` |
