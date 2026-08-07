@@ -47,6 +47,8 @@ import sys
 import time
 import subprocess
 import shutil
+import re
+import xml.etree.ElementTree as ET
 
 try:
     import uiautomator2 as u2
@@ -613,13 +615,38 @@ def _format_platform_version(app_version):
     return ("0" + hex_digits) if len(parts) == 3 else hex_digits
 
 
-def _collect_texts_list(d):
+def _all_texts_list(d):
+    """从完整 UI 层级 XML 提取全部可见文字（text + content-desc）。
+    等价于 `adb shell uiautomator dump` 后解析，但由 uiautomator2 的 d.dump_hierarchy() 直接获取，
+    比只取 TextView 类名更可靠：能拿到标题栏、自定义控件等所有文字，是页面识别/控件定位的基础。
+    返回去重、保序的列表。"""
+    try:
+        xml = d.dump_hierarchy()
+    except Exception:
+        return []
     out = []
-    for e in d(className="android.widget.TextView"):
-        t = e.info.get("text", "")
-        if t:
-            out.append(t.strip())
-    return out
+    try:
+        root = ET.fromstring(xml)
+        for node in root.iter():
+            for attr in ("text", "content-desc"):
+                v = node.get(attr) or ""
+                if v.strip():
+                    out.append(v.strip())
+    except Exception:
+        # 退化：正则抓取 text= / content-desc=
+        out = re.findall(r'(?:text|content-desc)="([^"]*)"', xml or "")
+        return [t.strip() for t in out if t.strip()]
+    seen, res = set(), []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            res.append(t)
+    return res
+
+
+def _collect_texts_list(d):
+    # 统一走完整 XML 提取（uiautomator2 dump_hierarchy + 解析），页面/控件识别更稳。
+    return _all_texts_list(d)
 
 
 def scroll_to_text(d, text, maxn=18, direction="up"):
@@ -653,14 +680,16 @@ def _detect_nbreact(d):
 
 
 def _detect_list2(d):
-    """DynamicList2Activity 同时承载 转把设置/实验室，按文字区分。"""
+    """DynamicList2Activity 既承载 转把设置(throttle)/实验室(lab) 两个根页，
+    也承载「更多功能」的二级子页（灯光设置/音效设置/NFC和密码设置/快捷功能定义/安防设置/骑行模式设置 等，
+    同样复用 DynamicList2Activity）。按文字区分根页；都不命中则判为 more_functions 子页。"""
     texts = _collect_texts_list(d)
     joined = "".join(texts)
     if "转把校准" in joined:
         return "throttle"
     if any(k in joined for k in ("实验室", "智能后仰抑制", "了解小组件")):
         return "lab"
-    return "throttle"  # 兜底
+    return "more_functions_sub"
 
 
 def detect_current_page(d):
@@ -679,7 +708,19 @@ def detect_current_page(d):
     if "DynamicDeviceInfoActivity" in act:
         return "device_info"
     if "DynamicListActivity" in act:
-        return "more_functions"
+        # 该 activity 同时承载「更多功能」根页与其所有二级设置子页（灯光/音效/安防/骑行模式…）。
+        # 根页标题为「更多功能」且列出全部设置项；子页只显示单个设置控件。用完整 XML 文字做判别：
+        #   命中标题「更多功能」 或 命中的已知设置项 >=5 个 -> 根页；否则 -> 二级子页。
+        # 否则子页会被误判为根页，导致 navigate_to 不回退、点到错误控件（历史踩坑）。
+        texts = _collect_texts_list(d)
+        known_items = [k for k in ("安防设置", "灯光设置", "音效设置", "NFC和密码设置",
+                                   "快捷功能定义", "驻车感应", "自动锁车设置", "低电量延长续航",
+                                   "电子刹车", "能量回收强度", "骑行模式设置", "公英制切换",
+                                   "转把设置", "安心守护", "实验室", "电池信息与设置",
+                                   "设备信息", "解绑车辆") if k in texts]
+        if "更多功能" in texts or len(known_items) >= 5:
+            return "more_functions"
+        return "more_functions_sub"  # 任意二级设置子页（非页面树节点，需先返回根页）
     if "NBReactActivity" in act:
         # 通用 React 容器：同时承载 固件升级页/电池页/安心守护页，须按文字区分
         return _detect_nbreact(d)
@@ -785,6 +826,13 @@ def navigate_to(d, target, max_reset=3):
     elif start == "outside":
         do_launch(d, {"package": NINEBOT_PKG})
         time.sleep(2)
+        start = detect_current_page(d)
+
+    # 1.5) 当前页不在页面树中（多为某页的二级子页，如「更多功能」的灯光设置页）：
+    # 先按返回回到可识别的根页，再走页面树导航。
+    if start not in PAGE_TREE and start not in ("outside", "unknown"):
+        d.press("back")
+        time.sleep(1.2)
         start = detect_current_page(d)
 
     # 2) 求最短路径
@@ -1068,6 +1116,128 @@ def do_ble_upgrade_app(d, opts):
     }
 
 
+def do_setting(d, opts):
+    """打开「更多功能」里任意设置项（一行直达）。navigate_to(more_functions) 后点对应文字。
+    适用：安防设置/灯光设置/音效设置/NFC和密码设置/快捷功能定义/驻车感应/自动锁车设置/
+    低电量延长续航/电子刹车/能量回收强度/骑行模式设置/公英制切换/转把设置/安心守护/实验室/
+    电池信息与设置/设备信息 等。打开后若是二级列表页/对话框，再用 tap/retry 操作。
+    """
+    name = opts.get("name")
+    if not name:
+        return {"ok": False, "message": "缺少 --name"}
+    nav = navigate_to(d, "more_functions")
+    if not nav["ok"]:
+        return {"ok": False, "navigation": nav}
+
+    anchor = _xpath_attr("text", name)
+    if not d.xpath(anchor).exists:
+        # 列表较长，向下滚动至多 6 次尝试定位
+        for _ in range(6):
+            do_swipe(d, {"direction": "up", "distance": 0.8, "times": 1})
+            time.sleep(0.4)
+            if d.xpath(anchor).exists:
+                break
+    if not d.xpath(anchor).exists:
+        return {"ok": False, "message": f"在「更多功能」未找到「{name}」", "page": "more_functions"}
+    ok, msg = click_target(d, f'{anchor}/ancestor-or-self::*[@clickable="true"][1]')
+    return {"ok": ok, "opened": name, "message": msg, "current_page": detect_current_page(d)}
+
+
+def do_toggle_setting(d, opts):
+    """切换「更多功能」里某行内开关（如 驻车感应/低电量延长续航/电子刹车/自动锁车设置 等）。
+    自动定位该行内的 CompoundButton，并 retry 到期望 checked 状态（应对 APP 短超时假失败）。
+    --name 必填；--expect 默认 checked:true；--max 默认 5；--settle 默认 20（关闭类开关会弹确认框并进入「正在设置...」过渡，建议给到 30）。
+    """
+    name = opts.get("name")
+    expect = opts.get("expect") or "checked:true"
+    maxn = int(opts.get("max") or 5)
+    settle = float(opts.get("settle") or 20)
+    if not name:
+        return {"ok": False, "message": "缺少 --name"}
+
+    nav = navigate_to(d, "more_functions")
+    if not nav["ok"]:
+        return {"ok": False, "navigation": nav}
+
+    # 行内开关 xpath：从文字节点上溯若干层祖先，找第一个含 CompoundButton 的后代开关
+    switch_xpath = None
+    for n in range(1, 6):
+        xp = f'//*[@text="{name}"]/ancestor::*[{n}]//android.widget.CompoundButton'
+        if d.xpath(xp).exists:
+            switch_xpath = xp
+            break
+    if not switch_xpath:
+        # 当前屏没有，滚动查找
+        for _ in range(6):
+            do_swipe(d, {"direction": "up", "distance": 0.8, "times": 1})
+            time.sleep(0.4)
+            for n in range(1, 6):
+                xp = f'//*[@text="{name}"]/ancestor::*[{n}]//android.widget.CompoundButton'
+                if d.xpath(xp).exists:
+                    switch_xpath = xp
+                    break
+            if switch_xpath:
+                break
+    if not switch_xpath:
+        return {"ok": False, "message": f"未找到「{name}」对应的行内开关", "page": "more_functions"}
+
+    # retry 逻辑（针对该行内开关）：点击后进入 settle 窗口内的轮询，期间
+    #   - 若弹出确认框（确定/取消），自动点「确定」完成确认（关闭类开关常见）；
+    #   - 容忍「正在设置...」过渡期间开关被临时移除；
+    # 直到达到期望 checked 状态。关闭类/长过渡请把 --settle 给大（建议 25~30）。
+    history = []
+    final_ok, final_state = False, None
+    for i in range(1, maxn + 1):
+        if not _wait_until_exists(d, switch_xpath, settle):
+            history.append({"attempt": i, "action": "wait", "state": "switch-gone", "ok": False})
+            continue
+        ok, st = _eval_expect(d, switch_xpath, expect)
+        if ok:
+            final_ok, final_state = True, st
+            history.append({"attempt": i, "action": "pre-check", "state": st, "ok": True})
+            break
+        # 当前状态不符 → 点击开关（每次尝试只点一次）
+        d.xpath(switch_xpath).click()
+        confirmed = False
+        deadline = time.time() + settle
+        while time.time() < deadline:
+            # 确认框可能在点击后任意时刻弹出，出现即自动确认
+            if d(text="确定").exists and d(text="取消").exists:
+                d(text="确定").click()
+                confirmed = True
+                time.sleep(1.2)
+                continue
+            if d.xpath(switch_xpath).exists:
+                ok2, st2 = _eval_expect(d, switch_xpath, expect)
+                if ok2:
+                    final_ok, final_state = True, st2
+                    history.append({"attempt": i, "action": "tap+settle", "state": st2,
+                                    "ok": True, "confirmed_dialog": confirmed})
+                    break
+            time.sleep(0.4)
+        if final_ok:
+            break
+        # 本轮末次判定
+        if d.xpath(switch_xpath).exists:
+            ok3, st3 = _eval_expect(d, switch_xpath, expect)
+            final_state = st3
+            history.append({"attempt": i, "action": "tap", "state": st3,
+                            "ok": ok3, "confirmed_dialog": confirmed})
+        else:
+            history.append({"attempt": i, "action": "tap", "state": "switch-gone-after-toggle",
+                            "ok": False, "confirmed_dialog": confirmed})
+    return {
+        "ok": final_ok,
+        "setting": name,
+        "expect": expect,
+        "attempts": len(history),
+        "max_retries": maxn,
+        "final_state": final_state,
+        "summary": "success" if final_ok else f"failed after {maxn} retries",
+        "history": history,
+    }
+
+
 HANDLERS = {
     "status": do_status,
     "launch": do_launch,
@@ -1084,6 +1254,8 @@ HANDLERS = {
     "go_to_page": do_go_to_page,
     "power_on": do_power_on,
     "power_off": do_power_off,
+    "setting": do_setting,
+    "toggle_setting": do_toggle_setting,
 }
 
 
@@ -1169,12 +1341,21 @@ def build_parser():
     sp = sub.add_parser("power_on", help="APP 滑动开机：用 adb input swipe 把首页「滑动开机」滑块滑过去(thumb转右→「开机中」)；真正通电还需物理按整车电源按钮")
     sp = sub.add_parser("power_off", help="APP 点击关机：点击首页「点击关机」红色按钮，回到「滑动开机」关机态")
 
+    sp = sub.add_parser("setting", help="一键打开「更多功能」里任意设置项（安防设置/灯光设置/音效设置/NFC和密码设置/快捷功能定义/驻车感应/自动锁车设置/低电量延长续航/电子刹车/能量回收强度/骑行模式设置/公英制切换/转把设置/安心守护/实验室/电池信息与设置/设备信息 等）")
+    sp.add_argument("--name", required=True, help="设置项名称（与 APP 中文字完全一致）")
+
+    sp = sub.add_parser("toggle_setting", help="切换「更多功能」里某行内开关（驻车感应/低电量延长续航/电子刹车/自动锁车设置 等），自动定位行内 CompoundButton 并 retry 到期望状态")
+    sp.add_argument("--name", required=True, help="开关所在行的文字（如 驻车感应）")
+    sp.add_argument("--expect", default="checked:true", help="期望状态: checked:true | checked:false（默认 checked:true）")
+    sp.add_argument("--max", type=int, default=5, help="最多重试次数（默认 5）")
+    sp.add_argument("--settle", type=float, default=20, help="每次操作后等待开关重现并判定状态的秒数（默认 20，关闭类长操作请给到 30）")
+
     return p
 
 
 def opts_from_args(args):
     """把 argparse 的子命令参数转成 opts 字典。"""
-    keys = ["package", "text", "desc", "id", "xpath", "up", "out",
+    keys = ["package", "text", "desc", "id", "xpath", "up", "out", "name",
             "check_text", "check_desc", "check_id", "check_xpath",
             "expect", "max", "settle", "timeout", "gone",
             "direction", "distance", "times", "duration", "page", "wait_task"]
