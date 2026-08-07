@@ -1,7 +1,7 @@
 ---
 name: 九号项目
 description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 1.7.8
+version: 1.7.9
 agent_created: true
 ---
 
@@ -269,8 +269,39 @@ $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot"
 ### 8.5 读开关/勾选状态以元素为准（判定闭环）
 - 验证「是否开启」**必须读元素属性，不要看截图**：开关是 `android.widget.CompoundButton`（`resourceId=com.ninebot.segway:id/switch_view`，通用），用 `d(resourceId=SW).info['checked']` 取布尔值；开启后 `checked=True` 并可能多出配置行（如"自动上锁时间"）。
 - **⚠️ 点开关会进入"正在设置..."进度态，`switch_view` 被隐藏（`exists=false`）**：读 `checked` 前必须先轮询等它重新出现并稳定，否则会误判成失败。时长因操作而异：**开启(ON)约 5 秒；关闭(OFF)约 26 秒**（实测）。OFF 远长于 APP 自身短超时 → 这就是"APP 显示超时/失败但实际已生效"的根因。
-- 「自动锁车设置」是导航行（`tv_title`，不可点），点开子页"离车自动上锁"才是真正开关；开/关都发 BLE 指令给车，关闭是否生效取决于车辆在线/开机态（车辆关机"滑动开机"态下关闭指令可能被回退为开启）。
+- 「自动锁车设置」是导航行（`tv_title`，不可点），点开子页"离车自动上锁"才是真正开关。
 - 元素级判定模板见工作区 `test_autolock_v2.py`（读 checked + 轮询等"正在设置..."结束 + 平台链路核验）。
+
+#### 8.5.1 ⚠️ 蓝牙不是设置类功能的前置条件（勿再写错）
+首页横幅「请先连接蓝牙」**只针对感应解锁 / NFC / APP侧BLE刷写**这类必须 BLE 直连的功能。
+**更多功能里的绝大部分设置（灯光设置、音效设置、驻车感应、低电量延长续航、电子刹车、安防设置、自动锁车设置…）走 4G 云通道，不需要蓝牙**——已实机验证：首页持续显示「请先连接蓝牙」时，`go_to_page --page more_functions` 仍 `verified:true`，`toggle_setting` 照常翻转成功。
+- 不要因为看到该横幅就判 BLOCKED，也不要把它写成设置类的前置条件。
+- 真正需要 BLE 的只有：感应解锁、NFC 钥匙、`ble_upgrade_app`（APP 侧固件刷写）。
+- 若导航失败，先怀疑 **uiautomator2 服务端残态**（报 `AccessibilityService already registered` / `Remote end closed connection`），而不是蓝牙。恢复方式：
+  ```bash
+  adb shell am force-stop com.github.uiautomator
+  adb shell am force-stop com.github.uiautomator.test
+  # 切勿 pm clear com.github.uiautomator（会把服务端彻底清掉，更难恢复）
+  ```
+
+#### 8.5.2 开关操作失败的三段归因（必须用平台指令下发页定责）
+**开关点了没生效 ≠ 脚本 bug。** 九号这类设置有大概率出现「开启后设备无响应」。判定顺序固定为：
+
+| 现象 | 平台侧（`commands --watch`） | 结论 | 该记的用例结果 |
+|---|---|---|---|
+| 点击后无任何变化 | **无下发记录** | APP/脚本没点到 → 脚本或定位问题 | 重试/修脚本 |
+| 点击后 APP 转圈/超时 | **有下发、无响应** | **设备无响应**（设备侧问题，非脚本） | FAIL（设备无响应） |
+| 点击后 APP 无变化 | **有下发、有响应** | 指令链路正常 → **APP 显示问题** | FAIL（APP 未刷新） |
+| APP 状态正确翻转 | 有下发、有响应 | 正常 | PASS |
+
+操作方法（对应平台「原始数据 → 指令下发」页，接口 `GET /service/iot-console-api/device/command`）：
+```bash
+# 在 APP 点开关的同时/紧随其后执行，实时等平台下发与设备回应
+python scripts/ninebot_ota.py commands <IMEI或SN> --watch 30
+# 事后复盘拉长时间窗
+python scripts/ninebot_ota.py commands <IMEI或SN> --minutes 30
+```
+> **规则**：`toggle_setting` 报 `switch-gone-after-toggle` / 未达期望状态时，**不要直接下"脚本失败"结论**，必须先跑一次 `commands --watch` 按上表定责，再写用例结果与缺陷归属。
 
 ### 8.6 retry 指令：应对 APP 短超时（自动重试直到响应，最多 5 次）
 针对「APP 设置的超时时间太短 → 显示超时/失败，但实际已生效」这类问题：用 `retry` 指令反复下发同一操作，直到 APP 在超时(`settle`)内达到期望状态，最多 `max` 次（默认 5），最后只统计结果（`summary` / `final_state`）。
@@ -526,7 +557,7 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 
 #### 三、组合与判定
 - 多步串联：`run --json '[["setting",{"name":"灯光设置"}],["tap",{"text":"延迟关闭大灯"}],["retry",{"name":"延迟关闭大灯","expect":"checked:true"}]]'`（先打开设置页，再操作其中开关）。
-- 读开关状态一律以元素属性（`checked`）为准，截图仅供调试；APP 偶发"假超时/未刷新"时以平台下发指令（`commands --watch`，§9）为权威判据。
+- 读开关状态一律以元素属性（`checked`）为准，截图仅供调试；APP 偶发"假超时/未刷新"时以平台下发指令（`commands --watch`，§9）为权威判据，按 §8.5.2 三段归因定责（无下发=脚本问题 / 有下发无响应=设备无响应 / 有下发有响应但APP无变化=APP问题）。
 - helper 选择器（`--text/--id/--xpath`）匹配不到目标控件时，走 §8.13 兜底。
 
 ### 8.13 兜底方案（三级，逐级降级）
