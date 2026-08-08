@@ -45,6 +45,7 @@ device_control.py —— 基于 uiautomator2 的 Android 设备控制脚本
         （setting/toggle_setting 是 v1.8.0 的按指令写死的旧实现，仅作兜底/兼容，新任务一律用 cmd）
   - 组合：run --json '[["status",{}],["cmd",{"target":"驻车感应","action":"toggle"}],...]'
   - 导航：go_to_page —— 仅负责"去 home/more_functions 等稳定 hub 页"，业务指令本身不写页面结构
+  - 精准续航：precise_range_status —— 回首页截图并裁剪出「续航」数字+图标区域（§8.5.4）
   - 蓝牙升级：ble_upgrade_app —— APP侧固件刷写(配合 ninebot_ota.py 的 ble-upgrade 平台下发)
   - 重试：retry —— 针对 APP 超时太短导致的「假失败」：反复下发同一操作，
           直到 APP 在超时(settle, 默认12s)内达到期望状态(如开关 checked:false)，最多 max 次，最后统计结果。
@@ -187,6 +188,49 @@ def do_screenshot(d, opts):
     path = opts.get("out") or "screenshot.png"
     d.screenshot(path)
     return {"saved": path}
+
+
+def do_precise_range_status(d, opts):
+    """精准续航状态取证：回首页截图并裁剪出「续航」数字+图标区域。
+
+    判据（由人眼观察 crop 图）：
+      - 「续航 XXX km」右侧出现小图标 → 精准续航已开启
+      - 「续航 XXX km」右侧无该图标 → 精准续航未开启
+    脚本只做「回首页 + 截图 + 裁剪关键区域」，不做图像识别/文字断言，
+    因此 APP 图标样式变化也不会影响脚本稳定性。
+    """
+    navigate_to(d, "home")
+    time.sleep(0.8)
+    full = opts.get("out") or "precise_range_home.png"
+    d.screenshot(full)
+
+    crop_path = opts.get("crop")
+    if not crop_path:
+        if full.lower().endswith(".png"):
+            crop_path = full[:-4] + "_crop.png"
+        else:
+            crop_path = full + "_crop.png"
+
+    try:
+        from PIL import Image
+        im = Image.open(full)
+        w, h = im.size
+        # 经验区域：首页左上角续航卡片，覆盖「续航」文字及其右侧图标
+        box = (0, int(h * 0.11), int(w * 0.60), int(h * 0.27))
+        im.crop(box).save(crop_path)
+    except Exception as e:
+        crop_path = None
+        crop_error = str(e)
+    else:
+        crop_error = None
+
+    return {
+        "ok": True,
+        "full_shot": full,
+        "crop_shot": crop_path,
+        "crop_error": crop_error,
+        "hint": "判据：crop 图中『续航』数字右侧是否有精准续航小图标；有=开启，无=未开启"
+    }
 
 
 def do_dump(d, opts):
@@ -1446,7 +1490,7 @@ def do_toggle_setting(d, opts):
 
 
 # =========================================================================== #
-# 通用指令执行器（v1.9.0 主推）—— 同一套方法执行【所有】指令
+# 通用指令执行器（v1.9.1 主推）—— 同一套方法执行【所有】指令
 # --------------------------------------------------------------------------- #
 # 设计动机：之前每条指令都写死成独立命令（toggle_setting/setting + PAGE_TREE），
 # 一旦 APP 元素变化或新增指令没录入，执行就会失败。本模块改用【通用方法】：
@@ -1670,7 +1714,7 @@ def _cmd_toggle(d, ctrl, want, confirm_text, evidence, label):
 
 
 def do_cmd(d, opts):
-    """⭐ 通用指令执行器（v1.9.0 主推）—— 用 dump XML 通用定位 + 截图取证，
+    """⭐ 通用指令执行器（v1.9.1 主推）—— 用 dump XML 通用定位 + 截图取证，
     一套方法执行【所有】指令，不在脚本里写死任何业务指令。
 
     参数：
@@ -1790,6 +1834,7 @@ HANDLERS = {
     "setting": do_setting,
     "toggle_setting": do_toggle_setting,
     "cmd": do_cmd,
+    "precise_range_status": do_precise_range_status,
 }
 
 
@@ -1891,7 +1936,11 @@ def build_parser():
     sp.add_argument("--confirm-text", dest="confirm_text", default=None,
                     help="确认框按钮文字（诊断报 dialog_pending 时按提示填，如 确定/开启/我知道了）")
 
-    sp = sub.add_parser("cmd", help="⭐ 通用指令执行（v1.9.0 主推）：dump XML 通用定位 + 截图取证，一套方法执行所有指令，不写死任何业务指令")
+    sp = sub.add_parser("precise_range_status", help="精准续航状态取证：回首页截图并裁剪『续航』数字+图标区域；人眼判据：有图标=开启，无图标=未开启")
+    sp.add_argument("--out", default="precise_range_home.png", help="首页完整截图路径")
+    sp.add_argument("--crop", default=None, help="裁剪后的续航区域截图路径（默认在 out 路径加 _crop）")
+
+    sp = sub.add_parser("cmd", help="⭐ 通用指令执行（v1.9.1 主推）：dump XML 通用定位 + 截图取证，一套方法执行所有指令，不写死任何业务指令")
     sp.add_argument("--target", help="单个目标文字（在起点 hub 页内查找并操作）")
     sp.add_argument("--path", help="下钻路径，逗号/中文逗号/斜杠分隔，最后一个是操作目标（如 '更多功能,音效设置,提示音'）")
     sp.add_argument("--action", default="tap",
@@ -1912,7 +1961,8 @@ def opts_from_args(args):
             "check_text", "check_desc", "check_id", "check_xpath",
             "expect", "max", "settle", "timeout", "gone",
             "direction", "distance", "times", "duration", "page", "wait_task",
-            "target", "path", "action", "confirm_text", "evidence", "scroll", "start"]
+            "target", "path", "action", "confirm_text", "evidence", "scroll", "start",
+            "crop"]
     return {k: getattr(args, k, None) for k in keys if getattr(args, k, None) is not None}
 
 
