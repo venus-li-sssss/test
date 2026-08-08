@@ -32,10 +32,19 @@ device_control.py —— 基于 uiautomator2 的 Android 设备控制脚本
 
 可选：--serial 指定设备序列号；不传则连第一个设备。
 
-  设计理念：脚本保持「通用指令集」，AI 只发指令、组合指令来驱动，不每次写新脚本。
-  - 单步：tap / status / screenshot / dump / texts / launch
-  - 组合：run --json '[["status",{}],["tap",{"text":"x"}],...]'
-  - 导航：go_to_page / get_device_info / get_battery_info —— 统一页面树(PAGE_TREE)管理"去哪个页面"
+  设计理念：脚本只保留【不怎么变】的稳定基元；"执行哪条指令、点哪个文字"在运行时由
+  调用方（Agent 读屏）以参数传入，脚本本身不存任何业务指令清单——这样 APP 元素怎么变、
+  新增多少指令都无需改脚本。
+  - ⭐ 通用执行（主推）：cmd —— dump XML 通用定位 + 截图取证，一套方法执行所有指令
+        python device_control.py cmd --target "驻车感应" --action toggle --evidence ./ev
+        python device_control.py cmd --path "更多功能,音效设置,提示音" --action on --evidence ./ev
+        python device_control.py cmd --target "闪灯鸣笛" --action tap --start home
+  - 稳定基元（辅助）：tap / status / screenshot / dump / texts / launch /
+        swipe / wait / retry / run / go_to_page / get_device_info / get_battery_info /
+        ble_upgrade_app / setting / toggle_setting / power_on / power_off
+        （setting/toggle_setting 是 v1.8.0 的按指令写死的旧实现，仅作兜底/兼容，新任务一律用 cmd）
+  - 组合：run --json '[["status",{}],["cmd",{"target":"驻车感应","action":"toggle"}],...]'
+  - 导航：go_to_page —— 仅负责"去 home/more_functions 等稳定 hub 页"，业务指令本身不写页面结构
   - 蓝牙升级：ble_upgrade_app —— APP侧固件刷写(配合 ninebot_ota.py 的 ble-upgrade 平台下发)
   - 重试：retry —— 针对 APP 超时太短导致的「假失败」：反复下发同一操作，
           直到 APP 在超时(settle, 默认12s)内达到期望状态(如开关 checked:false)，最多 max 次，最后统计结果。
@@ -1436,6 +1445,331 @@ def do_toggle_setting(d, opts):
     return result
 
 
+# =========================================================================== #
+# 通用指令执行器（v1.9.0 主推）—— 同一套方法执行【所有】指令
+# --------------------------------------------------------------------------- #
+# 设计动机：之前每条指令都写死成独立命令（toggle_setting/setting + PAGE_TREE），
+# 一旦 APP 元素变化或新增指令没录入，执行就会失败。本模块改用【通用方法】：
+#   1) dump XML（d.dump_hierarchy）→ 按文字通用定位，不依赖任何指令清单；
+#   2) 截图取证（操作前/点击后/结果 三张，红框标控件、橙条标用例）→ 以图为证；
+#   3) 脚本只保留【不怎么变】的稳定基元（dump/截图标注/按文字点按或翻转/导航到 hub/
+#      平台指令下发核验）；"执行哪条指令、点哪个文字"在运行时由调用方（Agent 读屏）
+#      以参数传入，脚本本身不存任何业务指令。
+# 适用：开关、按钮、列表项进入子页、弹窗确认 —— 全部走 do_cmd 一条路径。
+# =========================================================================== #
+def _norm_text(s):
+    """归一化文字：去所有空白，便于做『包含』匹配。"""
+    return re.sub(r"\s+", "", s or "")
+
+
+def _xpath_label(label):
+    """返回一个 xpath：匹配 text 或 content-desc 『包含』label 的节点。
+    用 contains + 单引号包裹（中文标签一般不含单引号）；引号冲突时退化为模糊匹配。"""
+    v = label.replace("\\", "\\\\").replace("'", "&apos;")
+    return (f"//*[contains(@text,'{v}') or "
+            f"contains(@content-desc,'{v}')]")
+
+
+def _find_label_xpath(d, label, scroll_tries=8):
+    """在当前页面（含滚动）找含 label 文字的节点，返回 (xpath, found)。"""
+    xp = _xpath_label(label)
+    for t in range(scroll_tries + 1):
+        if d.xpath(xp).exists:
+            return xp, True
+        if t < scroll_tries:
+            do_swipe(d, {"direction": "up", "distance": 0.8, "times": 1})
+            time.sleep(0.4)
+    return xp, False
+
+
+def _resolve_control(d, label_xpath):
+    """给定一个文字标签 xpath，解析出『可操作控件』xpath 与类型。
+    优先级：行内开关(可勾选后代) > 标签自身可点(按钮) > 最近可点祖先(导航/激活) > 标签本身。"""
+    switch_preds = [
+        '*[@checkable="true"]',
+        '*[contains(@resource-id,"switch_view")]',
+        '*[contains(@class,"CompoundButton")]',
+    ]
+    # 1) 行内开关：上溯 1~4 层祖先，看其后代是否含可勾选控件（开关与文字同在一行）
+    for n in range(1, 5):
+        for sp in switch_preds:
+            xp = f"{label_xpath}/ancestor::*[{n}]//{sp}"
+            if d.xpath(xp).exists:
+                return {"xpath": xp, "kind": "switch"}
+    # 2) 标签节点自身是否可点（按钮）
+    if d.xpath(label_xpath).exists:
+        try:
+            if d.xpath(label_xpath).info.get("clickable"):
+                return {"xpath": label_xpath, "kind": "button"}
+        except Exception:
+            pass
+    # 3) 最近可点祖先（用于『点整行进入子页』或『点tile激活』）
+    for n in range(1, 5):
+        xp = f"{label_xpath}/ancestor::*[{n}]"
+        if d.xpath(xp).exists:
+            try:
+                if d.xpath(xp).info.get("clickable"):
+                    return {"xpath": xp, "kind": "tap"}
+            except Exception:
+                pass
+    # 4) 兜底：标签节点本身（可能为不可点文字，仍尝试点它触发父级响应）
+    if d.xpath(label_xpath).exists:
+        return {"xpath": label_xpath, "kind": "tap"}
+    return None
+
+
+def _read_state(d, ctrl):
+    """读取控件当前状态（exists/checked/enabled/text）。"""
+    try:
+        ele = d.xpath(ctrl["xpath"])
+        if not ele.exists:
+            return {"exists": False}
+        info = ele.info or {}
+        return {
+            "exists": True,
+            "checked": bool(info.get("checked")),
+            "enabled": info.get("enabled", True),
+            "text": info.get("text") or info.get("contentDescription"),
+        }
+    except Exception as e:
+        return {"exists": False, "error": str(e)}
+
+
+def _annotate_shot(src, title, box):
+    """给截图加证据标注：顶部橙色标题条 + 红框标控件。PIL 缺失则原样返回。
+    坐标 box=(left,top,right,bottom) 为设备像素，与 d.screenshot 输出同坐标系。"""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return src
+    try:
+        img = Image.open(src).convert("RGB")
+        W, H = img.size
+        draw = ImageDraw.Draw(img)
+        bar_h = max(34, H // 22)
+        draw.rectangle([0, 0, W, bar_h], fill=(255, 140, 0))
+        try:
+            fnt = ImageFont.truetype("msyh.ttc", max(16, bar_h // 2))
+        except Exception:
+            fnt = ImageFont.load_default()
+        draw.text((12, bar_h // 2 - 11), title, fill=(255, 255, 255), font=fnt)
+        if box:
+            x1, y1, x2, y2 = [int(v) for v in box]
+            draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0),
+                           width=max(3, W // 240))
+        img.save(src)
+    except Exception:
+        pass
+    return src
+
+
+def _cmd_snap(d, evidence_dir, title, xpath):
+    """截图并标注，返回文件路径；evidence_dir 为空则返回 None。"""
+    if not evidence_dir:
+        return None
+    import os
+    os.makedirs(evidence_dir, exist_ok=True)
+    safe = re.sub(r"[^A-Za-z0-9一-龥._-]", "_", title)
+    raw = os.path.join(evidence_dir, safe + ".png")
+    try:
+        d.screenshot(raw)
+    except Exception:
+        return None
+    box = None
+    if xpath:
+        try:
+            ele = d.xpath(xpath)
+            if ele.exists:
+                b = ele.info.get("bounds")
+                if isinstance(b, dict):
+                    box = (b.get("left"), b.get("top"),
+                           b.get("right"), b.get("bottom"))
+        except Exception:
+            pass
+    return _annotate_shot(raw, title, box)
+
+
+def _cmd_ensure_start(d, start):
+    """确保九号 APP 在前台，并到达起点 hub（home / more_functions）。"""
+    try:
+        cur = d.app_current()
+    except Exception:
+        cur = {}
+    if NINEBOT_PKG not in (cur.get("package") or ""):
+        try:
+            d.app_start(NINEBOT_PKG, stop=False)
+            time.sleep(2)
+        except Exception as e:
+            return {"ok": False, "message": f"APP 启动失败: {e}"}
+    if start in ("home", "more_functions"):
+        return navigate_to(d, start)
+    return {"ok": True, "from": "current"}
+
+
+def _cmd_drill(d, label, scroll_tries):
+    """下钻一步：找到 label 并点击进入（用于 --path 的中间层级）。"""
+    lab_xp, found = _find_label_xpath(d, label, scroll_tries)
+    if not found:
+        return {"ok": False, "message": f"找不到『{label}』"}
+    ctrl = _resolve_control(d, lab_xp) or {"xpath": lab_xp, "kind": "tap"}
+    try:
+        d.xpath(ctrl["xpath"]).click()
+        time.sleep(1.0)
+        return {"ok": True, "xpath": ctrl["xpath"]}
+    except Exception as e:
+        return {"ok": False, "message": str(e)}
+
+
+def _cmd_toggle(d, ctrl, want, confirm_text, evidence, label):
+    """通用翻转开关：读当前态→必要时点击→处理确认框→轮询验证→截图。won't blindly retry。"""
+    shots = []
+    xp = ctrl["xpath"]
+    cur = _read_state(d, ctrl).get("checked")
+    target_on = (not cur) if want is None else want
+    need_click = (cur != target_on)
+
+    if need_click:
+        try:
+            d.xpath(xp).click()
+        except Exception as e:
+            return {"ok": False, "reason": "click_error", "message": str(e),
+                    "evidence": shots}
+        if evidence:
+            shots.append(_cmd_snap(d, evidence, f"tap:{label}", xp))
+        # settle 窗口：容忍『正在设置…』开关暂时消失；出现确认框则点确认
+        deadline = time.time() + 25
+        confirmed = None
+        while time.time() < deadline:
+            clicked = _try_confirm_dialog(d, confirm_text)
+            if clicked:
+                confirmed = clicked
+                time.sleep(1.0)
+                continue
+            if d.xpath(xp).exists:
+                if _read_state(d, ctrl).get("checked") == target_on:
+                    break
+            time.sleep(0.4)
+        if evidence:
+            shots.append(_cmd_snap(d, evidence, f"after:{label}", None))
+    else:
+        if evidence:
+            shots.append(_cmd_snap(d, evidence, f"already:{label}", xp))
+
+    final = _read_state(d, ctrl).get("checked")
+    ok = (final == target_on)
+    out = {"ok": ok, "want": target_on, "before_checked": cur,
+           "after_checked": final, "confirmed_dialog": confirmed,
+           "evidence": shots}
+    if not ok:
+        # 失败不重试，直接归因（复用既有诊断器）
+        out["diagnosis"] = _diagnose_toggle(
+            d, label, xp, f"checked:{target_on}",
+            {"confirmed_dialog": confirmed,
+             "confirm_text_arg": confirm_text})
+    return out
+
+
+def do_cmd(d, opts):
+    """⭐ 通用指令执行器（v1.9.0 主推）—— 用 dump XML 通用定位 + 截图取证，
+    一套方法执行【所有】指令，不在脚本里写死任何业务指令。
+
+    参数：
+      --target <文字>           单个目标（在当前 hub 页内查找并操作）
+      --path   <a,b,c>         下钻路径（逗号/中文逗号/斜杠分隔），最后一个是操作目标，
+                                前面都是导航层级（如 "更多功能,音效设置,提示音"）
+      --action tap|toggle|on|off|state   默认 tap；on/off/toggle 用于开关
+      --confirm-text           确认框按钮文字（诊断报 dialog_pending 时按提示填）
+      --evidence <目录>        输出 3 张分步截图（操作前/点击后/结果）的目录；不给则不截图
+      --scroll                单页最多滚动次数（默认 8）
+      --start  home|more_functions|current   起点 hub，默认 more_functions
+
+    返回 JSON：{ok, target, action, before_state, after_state, evidence[], diagnosis?}
+    """
+    target = (opts.get("target") or "").strip()
+    path = opts.get("path") or ""
+    if path:
+        labels = [p.strip() for p in re.split(r"[,，/]", path) if p.strip()]
+    elif target:
+        labels = [target]
+    else:
+        return {"ok": False, "message": "必须提供 --target 或 --path"}
+
+    action = (opts.get("action") or "tap").lower()
+    if action in ("on", "off", "toggle"):
+        want = True if action == "on" else (False if action == "off" else None)
+        action_kind = "toggle"
+    elif action == "state":
+        action_kind = "state"
+        want = None
+    else:
+        action_kind = "tap"
+        want = None
+
+    confirm_text = opts.get("confirm_text") or opts.get("confirm-text")
+    evidence = opts.get("evidence")
+    scroll_tries = int(opts.get("scroll") or 8)
+    start = (opts.get("start") or "more_functions").lower()
+
+    # 1) 起点 hub
+    nav = _cmd_ensure_start(d, start)
+    if not nav["ok"]:
+        return {"ok": False, "message": "无法进入起点页面", "navigation": nav}
+
+    # 2) 逐级下钻（中间层级只负责导航）
+    for lab in labels[:-1]:
+        r = _cmd_drill(d, lab, scroll_tries)
+        if not r["ok"]:
+            return {"ok": False, "reason": "drill_failed",
+                    "stage": f"导航到『{lab}』失败",
+                    "message": r["message"],
+                    "page_texts": _all_texts_list(d)[:40]}
+
+    # 3) 解析最终控件
+    final_label = labels[-1]
+    lab_xp, found = _find_label_xpath(d, final_label, scroll_tries)
+    if not found:
+        return {"ok": False, "reason": "target_not_found",
+                "message": (f"当前页面找不到含『{final_label}』的控件"
+                             f"（已滚动 {scroll_tries} 次）"),
+                "page_texts": _all_texts_list(d)[:50],
+                "next_action": "确认起点页面是否正确；或先 `texts` 列出当前页条目核对文字。"}
+    ctrl = _resolve_control(d, lab_xp)
+    if not ctrl:
+        return {"ok": False, "reason": "control_unresolved",
+                "message": f"找到『{final_label}』但无法确定可操作控件",
+                "page_texts": _all_texts_list(d)[:50]}
+
+    before_state = _read_state(d, ctrl)
+    result = {"ok": False, "target": final_label, "action": action_kind,
+              "before_state": before_state}
+
+    # 4) 执行 + 取证
+    if action_kind == "state":
+        if evidence:
+            result["evidence"] = [_cmd_snap(d, evidence, f"state:{final_label}",
+                                            ctrl["xpath"])]
+        result["ok"] = before_state.get("exists", False)
+    elif action_kind == "toggle":
+        result.update(_cmd_toggle(d, ctrl, want, confirm_text, evidence, final_label))
+        result["before_state"] = before_state
+    else:  # tap
+        if evidence:
+            result["evidence"] = [_cmd_snap(d, evidence, f"before:{final_label}",
+                                            ctrl["xpath"])]
+        try:
+            d.xpath(ctrl["xpath"]).click()
+            result["ok"] = True
+        except Exception as e:
+            result["reason"] = "click_error"
+            result["message"] = str(e)
+        if evidence:
+            result["evidence"] = (result.get("evidence") or []) + [
+                _cmd_snap(d, evidence, f"tap:{final_label}", ctrl["xpath"]),
+                _cmd_snap(d, evidence, f"after:{final_label}", None),
+            ]
+    return result
+
+
 HANDLERS = {
     "status": do_status,
     "launch": do_launch,
@@ -1455,6 +1789,7 @@ HANDLERS = {
     "power_off": do_power_off,
     "setting": do_setting,
     "toggle_setting": do_toggle_setting,
+    "cmd": do_cmd,
 }
 
 
@@ -1556,6 +1891,18 @@ def build_parser():
     sp.add_argument("--confirm-text", dest="confirm_text", default=None,
                     help="确认框按钮文字（诊断报 dialog_pending 时按提示填，如 确定/开启/我知道了）")
 
+    sp = sub.add_parser("cmd", help="⭐ 通用指令执行（v1.9.0 主推）：dump XML 通用定位 + 截图取证，一套方法执行所有指令，不写死任何业务指令")
+    sp.add_argument("--target", help="单个目标文字（在起点 hub 页内查找并操作）")
+    sp.add_argument("--path", help="下钻路径，逗号/中文逗号/斜杠分隔，最后一个是操作目标（如 '更多功能,音效设置,提示音'）")
+    sp.add_argument("--action", default="tap",
+                    help="tap(默认) | toggle | on | off | state（on/off/toggle 用于开关）")
+    sp.add_argument("--confirm-text", dest="confirm_text", default=None,
+                    help="确认框按钮文字（诊断报 dialog_pending 时按提示填）")
+    sp.add_argument("--evidence", default=None, help="输出 3 张分步截图（操作前/点击后/结果）的目录；不给则不截图")
+    sp.add_argument("--scroll", type=int, default=8, help="单页最多滚动次数（默认 8）")
+    sp.add_argument("--start", default="more_functions",
+                    help="起点 hub：home | more_functions | current（默认 more_functions）")
+
     return p
 
 
@@ -1564,7 +1911,8 @@ def opts_from_args(args):
     keys = ["package", "text", "desc", "id", "xpath", "up", "out", "name",
             "check_text", "check_desc", "check_id", "check_xpath",
             "expect", "max", "settle", "timeout", "gone",
-            "direction", "distance", "times", "duration", "page", "wait_task"]
+            "direction", "distance", "times", "duration", "page", "wait_task",
+            "target", "path", "action", "confirm_text", "evidence", "scroll", "start"]
     return {k: getattr(args, k, None) for k in keys if getattr(args, k, None) is not None}
 
 
