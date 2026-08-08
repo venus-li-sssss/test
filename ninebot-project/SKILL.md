@@ -399,34 +399,45 @@ $PY $SK toggle_setting --name "自动驻车" --expect checked:false --settle 25
 $PY $SK toggle_setting --name "自动驻车" --expect checked:false --confirm-text "关闭"
 ```
 
-#### 8.5.4 精准续航状态判定：以首页「续航」图标为准（v1.9.1 新增）
+#### 8.5.4 精准续航状态判定：两层判据（v1.9.2 修订）
 
-**不要看开关 `checked`，也不要看 XML 里的文字；唯一判据是首页截图中「续航 XXX km」右侧有没有精准续航小图标。**
+精准续航是否开启有**两层判据**，按测试用例要求选用：
 
+| 判据 | 适用场景 | 方法 |
+|---|---|---|
+| **① 首页图标**（主判据，测试用例明确要求看主页面时必用） | 用例步骤含「查看主页面 / 首页 / 仪表」 | 回首页看「续航 XXX km」右侧是否有精准续航小图标 |
+| **② 开关 `checked`**（一般情况首选，只看开关即可） | 用例只要求验证开关翻转/状态 | 读「更多功能 → 精准续航」行内 `CompoundButton.checked` |
+
+**① 首页图标判据**（测试用例要求看主页面时用）：
 - **已开启**：首页左上角显示「续航 74.0 km」，且数字右侧出现精准续航图标（小圆圈/叶片状标记）。
 - **未开启**：首页左上角显示「续航 101.1 km」，数字右侧**没有**该图标。
+- ⚠️ 开启/关闭后 APP 会重新计算续航数值（开启后通常变短、关闭后通常变长），**不能仅凭数值大小判定**，必须看图标。
+- 操作命令（脚本只做不变的三件事：回首页、截图、裁剪续航区域；最终判定交给人眼）：
+  ```bash
+  $PY $SK precise_range_status --out ./ev/pr_home.png --crop ./ev/pr_home_crop.png
+  ```
+  返回：`{"ok": true, "full_shot": "...", "crop_shot": "...", "hint": "有图标=开启，无图标=未开启"}`。
 
-APP 会在开启/关闭后重新计算并刷新续航数值：通常开启后里程变短（按实际能耗估算），关闭后里程变长（按标称估算）。因此**不能仅凭续航数值大小判定是否开启**，必须看图标。
+**② 开关 `checked` 判据**（一般情况首选）：
+- 直接进入「更多功能 → 精准续航」行，读行内 `CompoundButton.checked`（`resourceId=com.ninebot.segway:id/switch_view`）：`true`=开启、`false`=关闭。
+- 用通用 `cmd` 读状态（不点击，只取证）：
+  ```bash
+  $PY $SK cmd --target "精准续航" --action state --evidence ./ev/pr_state
+  ```
+  返回里含 `before_state`/`after_state`，即开关 `checked` 布尔值。
 
-操作命令（脚本只做不变的三件事：回首页、截图、裁剪续航区域；最终判定交给人眼）：
+> **选择原则**：用例步骤明确写「查看主页面 / 首页」→ 用判据①（图标截图）作为结论证据；用例只要求「开启/关闭某功能」→ 用判据②（开关 checked）即可，更快更稳，无需回首页截图。两层结论应一致；若不一致，以判据①为准（首页是用户最终可见的真实状态），并按 §8.5.2 查平台定责。
+
+执行流程示例：
 
 ```bash
-$PY $SK precise_range_status --out ./ev/pr_home.png --crop ./ev/pr_home_crop.png
-```
-
-返回：`{"ok": true, "full_shot": "...", "crop_shot": "...", "hint": "有图标=开启，无图标=未开启"}`。
-
-执行「精准续航」开关测试的推荐流程：
-
-```bash
-# 1) 操作前取证：看首页当前图标状态
+# 用例要看主页面：操作前后都用首页图标判据
 $PY $SK precise_range_status --out ./ev/pr_before.png --crop ./ev/pr_before_crop.png
-
-# 2) 翻转开关（通用 cmd）
 $PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
-
-# 3) 操作后再取证：回首页看图标是否变化
 $PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.png
+
+# 用例只验证开关：直接读 checked
+$PY $SK cmd --target "精准续航" --action state --evidence ./ev/pr_state
 ```
 
 若出现「APP 内开关已翻但首页图标未变」：先等待 5~10 秒让 APP 刷新；仍不变则按 §8.5.2 查平台指令下发页定责（有下发有响应但 APP 没刷新 = APP 显示问题）。
