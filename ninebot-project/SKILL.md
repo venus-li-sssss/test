@@ -246,9 +246,48 @@ $PY $SK go_to_page --page battery           # 导航到指定设备页(见 §8.8
 $PY $SK ble_upgrade_app --wait-task 30      # APP侧蓝牙升级刷写(需 ninebot_ota.py ble-upgrade 先下发+车辆蓝牙已连手机)
 $PY $SK setting --name "灯光设置"           # 一键打开「更多功能」里任意设置项(19项均可，见 §8.12)
 $PY $SK toggle_setting --name "驻车感应" --expect checked:true   # 行内开关：自动定位并 retry 到期望状态(关闭类确认框自动点确定)
+$PY $SK cmd --target "驻车感应" --action toggle --evidence ./ev   # ⭐ v1.9.0 主推：通用执行（dump XML+截图），不写死任何指令，新任务一律用这个
 # 批量一步到位（JSON 指令列表，每条=[命令,{选项}]）：
 $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot",{"out":"shot.png"}]]'
 ```
+
+### 8.2.5 ⭐ 通用指令执行 `cmd`（v1.9.0 主推：dump XML + 截图，一套方法执行所有指令）
+
+**为什么要有它**：之前每条指令都写死成独立命令（`toggle_setting` / `setting` + 页面树 `PAGE_TREE`），一旦 APP 元素变化、或新增指令没录入，执行就失败。本命令改用**通用方法**——`dump UI 层级 XML` 按文字通用定位 + `截图取证`，**所有指令（开关 / 按钮 / 进子页 / 弹窗确认）都走这一条路径**，脚本里**不再存任何"指令清单"**。
+
+**核心原则（v1.9.0 铁律）**：脚本只保留【不怎么变】的稳定基元（dump / 截图标注 / 按文字点按或翻转 / 导航到 hub / 平台核验）；"执行哪条指令、点哪个文字"在**运行时由调用方（Agent 读屏）以参数传入**。这样 APP 元素怎么变、新增多少指令都**无需改脚本**。
+
+```bash
+PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
+SK=C:/Users/venus.li/.workbuddy/skills/ninebot-project/scripts/device_control.py
+
+# 通用开关：自动 dump XML 找「驻车感应」行内开关并翻转，同时存 3 张分步截图到 ./ev
+$PY $SK cmd --target "驻车感应" --action toggle --evidence ./ev
+# 想开/想关明确指定（不写则自动翻到相反态）
+$PY $SK cmd --target "自动驻车" --action on  --evidence ./ev
+$PY $SK cmd --target "自动驻车" --action off --evidence ./ev
+
+# 进入子页再操作其中开关（--path 逗号分隔，最后一个是操作目标）
+$PY $SK cmd --path "更多功能,音效设置,提示音" --action on --evidence ./ev
+
+# 首页控件（起点 hub 用 --start home）
+$PY $SK cmd --target "闪灯鸣笛" --action tap --start home
+
+# 只读当前状态（不点击），同样出取证截图
+$PY $SK cmd --target "驻车感应" --action state --evidence ./ev
+```
+
+**工作机制（`do_cmd`，脚本内单一实现）**：
+1. **确保 APP 在前台**并进入起点 hub（`--start`：默认 `more_functions`；首页控件用 `home`；`current` 不导航）。
+2. **逐级下钻**：`--path` 的中间层级按文字 `tap` 进入子页（通用，无需预录页面结构）。
+3. **dump XML 通用定位**：`d.dump_hierarchy()` 解析全部 `text/content-desc`，按「包含」匹配目标文字；找不到就自动滚动重找。再据控件类型自动判定：行内开关（可勾选后代）→ 翻转；可点按钮/整行 → 点击（导航或激活）。
+4. **截图取证（3 张）**：操作前 / 点击后 / 结果，自动加**橙色标题条（用例+步骤+时间）+ 红框标控件**，存入 `--evidence` 目录。**图即证据，文字仅辅助**。
+5. **失败不重试、先归因**：开关未达期望 → 自动 `_diagnose_toggle` 输出 `diagnosis` + 诊断截图（`dialog_pending` / 确认框文案 / 过渡态 / APP 报错 / 开关禁用 …），按 §8.5.3 处置；确认框按钮按词库或 `--confirm-text` 指定点击。
+6. 返回 JSON：`{ok, target, action, before_state, after_state, evidence[], diagnosis?}`，可直接贴回测试用例 Excel 的 P/Q/R 列。
+
+> 与 §9 联动：开关类失败先跑 `ninebot_ota.py commands <SN> --watch 30` 用平台下发页定责（无下发=脚本问题 / 有下发无响应=设备无响应 / 有下发有响应但 APP 不变=APP 问题），再写用例结论。
+
+⚠️ **`setting` / `toggle_setting` 自 v1.9.0 起降为兼容兜底**：它们是按指令写死的旧实现，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**。
 
 ### 8.3 关键设计（为何更快/更稳）
 - **相对定位**：用 `text` / `content-desc` / `resource-id` / `xpath` 做锚点，对元素对象 `.click()`，坐标由框架动态算，**绝不要写死像素坐标**。
@@ -386,7 +425,8 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 `wait`（等某元素出现，或 `--gone` 等消失）用于组合指令里的页面跳转同步。
 
 ### 8.7 设计原则：脚本通用、只发指令；导航与操作严格分离
-- `device_control.py` 是**通用指令集**（status / launch / tap / tap_xy / swipe / screenshot / dump / texts / wait / retry / get_device_info / get_battery_info / ble_upgrade_app / go_to_page / setting / toggle_setting + `run` 组合），AI **只发指令、组合指令**来驱动，**不要每次为某个按钮新写 Python 脚本**。
+- `device_control.py` 是**通用指令集**：底层稳定基元（status / launch / tap / tap_xy / swipe / screenshot / dump / texts / wait / retry / go_to_page / get_device_info / get_battery_info / ble_upgrade_app / power_on / power_off）+ 通用执行器 `cmd` + `run` 组合。**所有业务指令统一走 `cmd`**（dump XML 通用定位 + 截图取证，见 §8.2.5），不要在脚本里为每个按钮新写 Python、也不要依赖写死的指令清单。
+- 旧写法 `setting` / `toggle_setting` 是按指令写死的兼容兜底，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**，避免"指令没录入就执行不了"的问题。
 - **导航与操作分离（v1.6.0 核心）**：
   - **去哪个页面**统一由「页面导航引擎」负责——`go_to_page --page <id>` 或业务命令内部调用 `navigate_to(d, target)`。它先看当前在哪（`detect_current_page`，按 activity 名优先判定，文字兜底），再在 `PAGE_TREE` 上 BFS 求最短路径并逐边执行（tap / scroll_tap / back / launch），与目标页无关、与具体操作无关。
   - **到了页面干什么**由各业务的 `extract_*` 负责（如 `extract_device_info`），假设"已在目标页"，只做提取/点击，不负责怎么过去。
@@ -558,7 +598,7 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 
 ### 8.12 APP 功能速查（按功能直达，优先用 helper）
 
-下表覆盖九号出行 APP **已实机核实**的全部主要功能（首页 + 更多功能 19 项）。**优先用 helper 命令一条指令直达**：
+下表覆盖九号出行 APP **已实机核实**的全部主要功能（首页 + 更多功能 19 项）。**新任务一律用通用执行器 `cmd`（见 §8.2.5）**，不再逐条写死指令；表中 `setting`/`toggle_setting` 仅作兼容参考：
 - `setting --name "<设置项名>"`：自动 `go_to_page more_functions` + 点开任意设置项（打开二级列表/对话框/开关行）。
 - `toggle_setting --name "<开关名>" --expect checked:true|false`：自动定位该行内 `CompoundButton` 并 retry 到期望状态，**关闭类开关弹出的确认框（确定/取消）会自动点「确定」**（如 驻车感应关闭时弹"关闭后，会禁用自动锁车功能"）。
 
