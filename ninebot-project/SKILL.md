@@ -292,6 +292,8 @@ $PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.p
 
 > **Excel 取证截图尺寸铁律（v1.9.3 新增）**：回贴到测试用例 Excel 的 P/Q/R 列时，截图必须**完整落在用例所在行内，不得溢出到相邻行**（否则分不清归属）。统一做法：用 PIL `im.thumbnail((150, 230))` 等比缩放到「宽≤150、高≤230」框内，再把该行 `row_dimensions[r].height` 设为 **250**。整屏截图（高约 500+px）会被自动压到 230 高，3 张并排仍清晰可辨且互不串行。回填脚本（`fill_precise_range.py` / `fill_evidence_screenshots.py`）已内置此尺寸，新用例一律复用、不要再用 240 宽无高度上限的旧写法。
 
+> **Blocked / 未执行用例不得塞执行截图（v1.9.4 新增）**：只有**真正执行过**的用例（PASS / FAIL）才在 P/Q/R 嵌执行过程截图；`Blocked-NoRun` / `Blocked-NonSupport` 等未执行用例**一律不嵌图**，只在 P 列写 `[未执行：<原因简写>，无操作截图]`、在 K 列写 Blocked 原因、L 列写记录即可。这样能在 Excel 里一眼区分「有截图=执行过」与「无截图=未执行」，避免把佐证图（如首页/平台状态图）误当成某用例的执行证据。**教训**：早期 `fill_precise_range.py` 对所有用例统一填了 3 张图，导致精准续航的 Blocked 行（01-003/005/006）也顶着首页/平台状态截图，与 PASS 行混淆——已修正。
+
 > 与 §9 联动：开关类失败先跑 `ninebot_ota.py commands <SN> --watch 30` 用平台下发页定责（无下发=脚本问题 / 有下发无响应=设备无响应 / 有下发有响应但 APP 不变=APP 问题），再写用例结论。
 
 ⚠️ **`setting` / `toggle_setting` 自 v1.9.1 起降为兼容兜底**：它们是按指令写死的旧实现，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**。
