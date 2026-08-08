@@ -1156,6 +1156,163 @@ def do_setting(d, opts):
     return {"ok": ok, "opened": name, "message": msg, "current_page": detect_current_page(d)}
 
 
+# ── 确认弹窗 / 失败归因 ─────────────────────────────────────────────
+# 九号 APP 的开关确认框按钮文案并不统一（确定/确认/开启/关闭/继续/我知道了…），
+# 只认「确定」会导致弹窗卡住 → 脚本以为点了没反应 → 无脑重试。
+CONFIRM_WORDS = ["确定", "确认", "继续", "同意", "我知道了", "知道了", "好的",
+                 "是", "开启", "关闭", "OK", "Confirm", "Yes"]
+CANCEL_WORDS = ["取消", "再想想", "暂不", "不了", "否", "Cancel", "No"]
+# 页面出现这些字样 = APP 已明确报错/给出前置条件，重试没有意义
+ERROR_HINTS = ["失败", "超时", "请稍后", "网络异常", "异常", "无法", "不支持",
+               "请先", "未连接", "离线", "请重试", "错误", "关机", "未开机"]
+# 过渡态：APP 已把指令发出去、正在等车辆回应。此时"重试点击"只会叠加指令，必须先定责。
+PENDING_HINTS = ["正在设置", "设置中", "加载中", "请稍候", "正在处理", "同步中", "正在获取"]
+
+
+def _clickable_nodes(d, limit=40):
+    """解析当前层级里所有 clickable=true 节点（文字/desc/id/bounds），用于诊断。"""
+    try:
+        xml = d.dump_hierarchy()
+    except Exception:
+        return []
+    out = []
+    for tag in re.findall(r"<node [^>]*/?>", xml):
+        if 'clickable="true"' not in tag:
+            continue
+
+        def _a(k):
+            m = re.search(k + r'="([^"]*)"', tag)
+            return m.group(1) if m else ""
+        label = _a("text") or _a("content-desc") or _a("resource-id")
+        out.append({"label": label, "bounds": _a("bounds"),
+                    "enabled": _a("enabled") != "false"})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _visible_dialog(d):
+    """检测当前是否存在确认弹窗。返回 {confirm_candidates, cancel_candidates} 或 None。
+    判据：存在【可点击】的确认类或取消类按钮。只看页面文字会把普通文案误判成按钮。"""
+    clickables = _clickable_nodes(d)
+    labels = [c["label"] for c in clickables if c["label"]]
+    confirms = [l for l in labels if l.strip() in CONFIRM_WORDS]
+    cancels = [l for l in labels if l.strip() in CANCEL_WORDS]
+    if not confirms and not cancels:
+        return None
+    return {"confirm_candidates": confirms, "cancel_candidates": cancels,
+            "all_clickable_labels": labels[:20]}
+
+
+def _try_confirm_dialog(d, confirm_text=None):
+    """若存在确认弹窗则点确认按钮。返回实际点击的按钮文字，未点返回 None。"""
+    words = [confirm_text] if confirm_text else CONFIRM_WORDS
+    for w in words:
+        if not w:
+            continue
+        ele = d(text=w)
+        if ele.exists and ele.info.get("clickable", True):
+            try:
+                ele.click()
+                return w
+            except Exception:
+                continue
+    return None
+
+
+def _diagnose_toggle(d, name, switch_xpath, expect, ctx):
+    """开关未达期望状态时的**失败归因取证**：不重试，只采集证据并给出结论。
+    返回 {reason, explain, next_action, evidence...}。"""
+    diag = {"setting": name, "expect": expect, "context": ctx}
+    try:
+        diag["activity"] = (d.app_current() or {}).get("activity")
+    except Exception as e:
+        diag["activity"] = f"<err:{e}>"
+
+    try:
+        texts = _all_texts_list(d)
+    except Exception:
+        texts = []
+    diag["page_texts"] = texts[:50]
+    diag["error_hints"] = sorted({t for t in texts
+                                  if any(h in t for h in ERROR_HINTS)})
+    diag["pending_hints"] = sorted({t for t in texts
+                                    if any(h in t for h in PENDING_HINTS)})
+    dlg = _visible_dialog(d)
+    diag["dialog"] = dlg
+
+    # 开关现况（先按原 xpath，失效则重新定位）
+    sw = {"exists": False}
+    xp = switch_xpath
+    ele = d.xpath(xp)
+    if not ele.exists:
+        xp = _locate_switch(d, name, scroll_tries=2) or xp
+        ele = d.xpath(xp)
+    if ele.exists:
+        info = ele.info or {}
+        sw = {"exists": True, "checked": bool(info.get("checked")),
+              "enabled": info.get("enabled", True), "xpath": xp}
+    diag["switch"] = sw
+
+    # 诊断截图
+    try:
+        shot = f"diag_{re.sub(r'[^A-Za-z0-9一-龥]', '', name)}_{int(time.time())}.png"
+        d.screenshot(shot)
+        diag["screenshot"] = shot
+    except Exception:
+        pass
+
+    # ── 归因（按优先级，命中即停）──
+    if dlg and dlg.get("confirm_candidates"):
+        diag["reason"] = "dialog_pending"
+        diag["explain"] = ("弹出了确认框但未被确认（脚本没点中确认按钮）。"
+                           f"页面可点确认按钮候选：{dlg['confirm_candidates']}")
+        diag["next_action"] = ("用 --confirm-text \"<按钮文字>\" 指定确认按钮后重跑一次；"
+                               "不要盲目重试点开关，否则会反复弹框。")
+    elif dlg and dlg.get("cancel_candidates"):
+        diag["reason"] = "dialog_unknown_buttons"
+        diag["explain"] = ("存在弹窗（检测到取消类按钮）但确认按钮文案不在词库里。"
+                           f"当前可点元素：{dlg.get('all_clickable_labels')}")
+        diag["next_action"] = "从上面 all_clickable_labels 里挑出确认按钮，用 --confirm-text 指定。"
+    elif diag["pending_hints"]:
+        diag["reason"] = "still_pending"
+        diag["explain"] = (f"APP 仍停在过渡态 {diag['pending_hints']}，说明指令已下发、"
+                           "正在等待车辆回应，settle 窗口内未等到结果。"
+                           "这是【设备响应慢或无响应】的典型征兆。")
+        diag["next_action"] = ("禁止再点开关（会叠加重复指令）。按 §8.5.2 跑 "
+                               "`ninebot_ota.py commands <IMEI> --minutes 5` 看该指令："
+                               "有下发无回应=FAIL(设备侧无响应)；有下发有回应但APP仍转圈"
+                               "=FAIL(APP侧未刷新)。确需重试请加大 --settle 至 40~60。")
+    elif diag["error_hints"]:
+        diag["reason"] = "app_error_hint"
+        diag["explain"] = f"APP 已明确给出错误/前置条件提示：{diag['error_hints']}"
+        diag["next_action"] = "先满足前置条件（车辆开机/在线/连接等），重试无意义。"
+    elif not sw["exists"]:
+        diag["reason"] = "switch_missing"
+        diag["explain"] = (f"操作后「{name}」开关从页面消失，当前 activity="
+                           f"{diag['activity']}，页面可能已跳转或重渲染未完成。")
+        diag["next_action"] = "检查是否被推到子页；确认页面稳定后再单次重试（勿连点）。"
+    elif not sw.get("enabled", True):
+        diag["reason"] = "switch_disabled"
+        diag["explain"] = f"「{name}」开关处于不可用(enabled=false)状态，属前置条件不满足。"
+        diag["next_action"] = "检查车辆开机/在线状态，重试无意义。"
+    elif ctx.get("confirmed_dialog"):
+        diag["reason"] = "confirmed_but_unchanged"
+        diag["explain"] = (f"确认框已点「{ctx.get('confirmed_dialog')}」，但开关仍为 "
+                           f"checked={sw.get('checked')}，未变为期望值。")
+        diag["next_action"] = ("按 §8.5.2 三段归因跑 "
+                               "`ninebot_ota.py commands <IMEI> --watch 30` 定责："
+                               "无下发=脚本 / 有下发无响应=设备无响应(FAIL-设备侧) / "
+                               "有下发有响应但APP不变=APP侧缺陷(FAIL-APP侧)。")
+    else:
+        diag["reason"] = "state_unchanged_no_dialog"
+        diag["explain"] = (f"已点击开关，无弹窗、无错误提示，但状态仍为 "
+                           f"checked={sw.get('checked')}。")
+        diag["next_action"] = ("按 §8.5.2 跑 `commands --watch 30` 看平台是否有下发："
+                               "无下发说明点击未生效(脚本问题)，有下发说明设备/APP 侧问题。")
+    return diag
+
+
 def _locate_switch(d, name, scroll_tries=6):
     """导航到 more_functions 并定位 name 行内开关，返回可点击的 switch xpath；找不到返回 None。
     优先按 resource-id=com.ninebot.segway:id/switch_view 精确匹配（九号 APP 开关通用 id，class=android.widget.CompoundButton），
@@ -1181,87 +1338,102 @@ def _locate_switch(d, name, scroll_tries=6):
 
 
 def do_toggle_setting(d, opts):
-    """切换「更多功能」里某行内开关（如 驻车感应/低电量延长续航/电子刹车/自动锁车设置 等）。
-    自动定位该行内的 CompoundButton，并 retry 到期望 checked 状态（应对 APP 短超时假失败）。
-    --name 必填；--expect 默认 checked:true；--max 默认 5；--settle 默认 20（关闭类开关会弹确认框并进入「正在设置...」过渡，建议给到 30）。
+    """切换「更多功能」里某行内开关（如 驻车感应/自动驻车/低电量延长续航/电子刹车 等）。
+
+    ⚠️ 行为准则（v1.8.0 起）：**失败不重试，先归因**。
+    默认 --max 1，即只点一次；未达期望状态立即停止并输出 `diagnosis`
+    （弹窗未确认 / 按钮文案不识别 / APP 报错 / 开关禁用 / 已确认但未变化 …）+ 诊断截图。
+    只有在明确知道属于"过渡态未稳定"时，才用 --max >1 显式开启有限重试。
+
+    参数：
+      --name  必填，开关行文字
+      --expect  默认 checked:true
+      --settle  默认 20（关闭类带确认框建议 25~30）
+      --max     默认 1（不重试）
+      --confirm-text  指定确认框按钮文字（诊断报 dialog_pending 时按提示填）
     """
     name = opts.get("name")
     expect = opts.get("expect") or "checked:true"
-    maxn = int(opts.get("max") or 5)
+    maxn = int(opts.get("max") or 1)
     settle = float(opts.get("settle") or 20)
+    confirm_text = opts.get("confirm_text") or opts.get("confirm-text")
     if not name:
         return {"ok": False, "message": "缺少 --name"}
 
     nav = navigate_to(d, "more_functions")
     if not nav["ok"]:
-        return {"ok": False, "navigation": nav}
+        return {"ok": False, "message": "无法进入更多功能页", "navigation": nav}
 
-    # 行内开关 xpath：导航到 more_functions，按 行内文字 上溯祖先再定位 switch_view（resource-id 精确匹配最稳）
     switch_xpath = _locate_switch(d, name)
     if not switch_xpath:
-        return {"ok": False, "message": f"未找到「{name}」对应的行内开关", "page": "more_functions"}
+        return {"ok": False, "reason": "switch_not_found",
+                "message": f"未找到「{name}」对应的行内开关",
+                "next_action": "确认开关名称是否准确；或先用 `texts` 列出当前页所有条目。",
+                "page_texts": _all_texts_list(d)[:40]}
 
-    # retry 逻辑（针对该行内开关）：点击后进入 settle 窗口内的轮询，期间
-    #   - 若弹出确认框（确定/取消），自动点「确定」完成确认（关闭类开关常见）；
-    #   - 容忍「正在设置...」过渡期间开关被临时移除；
-    # 直到达到期望 checked 状态。关闭类/长过渡请把 --settle 给大（建议 25~30）。
     history = []
-    final_ok, final_state = False, None
+    final_ok, final_state, confirmed = False, None, None
+
     for i in range(1, maxn + 1):
-        if not _wait_until_exists(d, switch_xpath, settle):
-            # 开关临时消失（"正在设置..." 过渡 / 确认框推到子页）→ 重新定位后再等
-            switch_xpath = _locate_switch(d, name) or switch_xpath
-            if not _wait_until_exists(d, switch_xpath, settle):
-                history.append({"attempt": i, "action": "wait", "state": "switch-gone", "ok": False})
-                continue
+        if not _wait_until_exists(d, switch_xpath, min(settle, 8)):
+            switch_xpath = _locate_switch(d, name, scroll_tries=2) or switch_xpath
+
         ok, st = _eval_expect(d, switch_xpath, expect)
         if ok:
             final_ok, final_state = True, st
             history.append({"attempt": i, "action": "pre-check", "state": st, "ok": True})
             break
-        # 当前状态不符 → 点击开关（每次尝试只点一次）
-        d.xpath(switch_xpath).click()
-        confirmed = False
+
+        # 点击开关（一轮只点一次）
+        try:
+            d.xpath(switch_xpath).click()
+        except Exception as e:
+            history.append({"attempt": i, "action": "tap", "state": f"click-error:{e}", "ok": False})
+            break
+
+        # settle 窗口内轮询：确认框出现即按词库/指定文案确认；容忍过渡态开关暂时消失
         deadline = time.time() + settle
         while time.time() < deadline:
-            # 确认框可能在点击后任意时刻弹出，出现即自动确认
-            if d(text="确定").exists and d(text="取消").exists:
-                d(text="确定").click()
-                confirmed = True
+            clicked = _try_confirm_dialog(d, confirm_text)
+            if clicked:
+                confirmed = clicked
                 time.sleep(1.2)
-                # 确认框可能把页面推到子页/重渲染，重新定位开关再判定
-                switch_xpath = _locate_switch(d, name) or switch_xpath
+                switch_xpath = _locate_switch(d, name, scroll_tries=2) or switch_xpath
                 continue
             if d.xpath(switch_xpath).exists:
                 ok2, st2 = _eval_expect(d, switch_xpath, expect)
                 if ok2:
                     final_ok, final_state = True, st2
-                    history.append({"attempt": i, "action": "tap+settle", "state": st2,
-                                    "ok": True, "confirmed_dialog": confirmed})
                     break
             time.sleep(0.4)
+
+        history.append({"attempt": i, "action": "tap+settle",
+                        "state": final_state if final_ok else "not-reached",
+                        "ok": final_ok, "confirmed_dialog": confirmed})
         if final_ok:
             break
-        # 本轮末次判定：开关可能消失，先重新定位
-        switch_xpath = _locate_switch(d, name) or switch_xpath
-        if d.xpath(switch_xpath).exists:
-            ok3, st3 = _eval_expect(d, switch_xpath, expect)
-            final_state = st3
-            history.append({"attempt": i, "action": "tap", "state": st3,
-                            "ok": ok3, "confirmed_dialog": confirmed})
-        else:
-            history.append({"attempt": i, "action": "tap", "state": "switch-gone-after-toggle",
-                            "ok": False, "confirmed_dialog": confirmed})
-    return {
+
+    result = {
         "ok": final_ok,
         "setting": name,
         "expect": expect,
         "attempts": len(history),
         "max_retries": maxn,
         "final_state": final_state,
-        "summary": "success" if final_ok else f"failed after {maxn} retries",
+        "confirmed_dialog": confirmed,
         "history": history,
     }
+    if final_ok:
+        result["summary"] = "success"
+        return result
+
+    # ── 失败：立即归因取证，不再重试 ──
+    result["summary"] = "failed - see diagnosis (未重试，已转入归因)"
+    result["diagnosis"] = _diagnose_toggle(
+        d, name, switch_xpath, expect,
+        {"attempts": len(history), "confirmed_dialog": confirmed,
+         "confirm_text_arg": confirm_text})
+    return result
 
 
 HANDLERS = {
@@ -1375,11 +1547,14 @@ def build_parser():
     sp = sub.add_parser("setting", help="一键打开「更多功能」里任意设置项（安防设置/灯光设置/音效设置/NFC和密码设置/快捷功能定义/驻车感应/自动锁车设置/低电量延长续航/电子刹车/能量回收强度/骑行模式设置/公英制切换/转把设置/安心守护/实验室/电池信息与设置/设备信息 等）")
     sp.add_argument("--name", required=True, help="设置项名称（与 APP 中文字完全一致）")
 
-    sp = sub.add_parser("toggle_setting", help="切换「更多功能」里某行内开关（驻车感应/低电量延长续航/电子刹车/自动锁车设置 等），自动定位行内 CompoundButton 并 retry 到期望状态")
+    sp = sub.add_parser("toggle_setting", help="切换「更多功能」里某行内开关（驻车感应/自动驻车/低电量延长续航/电子刹车 等）。失败不重试，直接输出 diagnosis 归因+截图")
     sp.add_argument("--name", required=True, help="开关所在行的文字（如 驻车感应）")
     sp.add_argument("--expect", default="checked:true", help="期望状态: checked:true | checked:false（默认 checked:true）")
-    sp.add_argument("--max", type=int, default=5, help="最多重试次数（默认 5）")
+    sp.add_argument("--max", type=int, default=1,
+                    help="尝试次数（默认 1 = 不重试）。失败会自动归因，只有确认是过渡态未稳定才调大")
     sp.add_argument("--settle", type=float, default=20, help="每次操作后等待开关重现并判定状态的秒数（默认 20，关闭类长操作请给到 30）")
+    sp.add_argument("--confirm-text", dest="confirm_text", default=None,
+                    help="确认框按钮文字（诊断报 dialog_pending 时按提示填，如 确定/开启/我知道了）")
 
     return p
 
