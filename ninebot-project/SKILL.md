@@ -246,16 +246,16 @@ $PY $SK go_to_page --page battery           # 导航到指定设备页(见 §8.8
 $PY $SK ble_upgrade_app --wait-task 30      # APP侧蓝牙升级刷写(需 ninebot_ota.py ble-upgrade 先下发+车辆蓝牙已连手机)
 $PY $SK setting --name "灯光设置"           # 一键打开「更多功能」里任意设置项(19项均可，见 §8.12)
 $PY $SK toggle_setting --name "驻车感应" --expect checked:true   # 行内开关：自动定位并 retry 到期望状态(关闭类确认框自动点确定)
-$PY $SK cmd --target "驻车感应" --action toggle --evidence ./ev   # ⭐ v1.9.0 主推：通用执行（dump XML+截图），不写死任何指令，新任务一律用这个
+$PY $SK cmd --target "驻车感应" --action toggle --evidence ./ev   # ⭐ v1.9.1 主推：通用执行（dump XML+截图），不写死任何指令，新任务一律用这个
 # 批量一步到位（JSON 指令列表，每条=[命令,{选项}]）：
 $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot",{"out":"shot.png"}]]'
 ```
 
-### 8.2.5 ⭐ 通用指令执行 `cmd`（v1.9.0 主推：dump XML + 截图，一套方法执行所有指令）
+### 8.2.5 ⭐ 通用指令执行 `cmd`（v1.9.1 主推：dump XML + 截图，一套方法执行所有指令）
 
 **为什么要有它**：之前每条指令都写死成独立命令（`toggle_setting` / `setting` + 页面树 `PAGE_TREE`），一旦 APP 元素变化、或新增指令没录入，执行就失败。本命令改用**通用方法**——`dump UI 层级 XML` 按文字通用定位 + `截图取证`，**所有指令（开关 / 按钮 / 进子页 / 弹窗确认）都走这一条路径**，脚本里**不再存任何"指令清单"**。
 
-**核心原则（v1.9.0 铁律）**：脚本只保留【不怎么变】的稳定基元（dump / 截图标注 / 按文字点按或翻转 / 导航到 hub / 平台核验）；"执行哪条指令、点哪个文字"在**运行时由调用方（Agent 读屏）以参数传入**。这样 APP 元素怎么变、新增多少指令都**无需改脚本**。
+**核心原则（v1.9.1 铁律）**：脚本只保留【不怎么变】的稳定基元（dump / 截图标注 / 按文字点按或翻转 / 导航到 hub / 平台核验）；"执行哪条指令、点哪个文字"在**运行时由调用方（Agent 读屏）以参数传入**。这样 APP 元素怎么变、新增多少指令都**无需改脚本**。
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
@@ -275,6 +275,11 @@ $PY $SK cmd --target "闪灯鸣笛" --action tap --start home
 
 # 只读当前状态（不点击），同样出取证截图
 $PY $SK cmd --target "驻车感应" --action state --evidence ./ev
+
+# 精准续航：先首页截图裁剪出续航/图标区域，再翻转开关，最后再截图对比（见 §8.5.4）
+$PY $SK precise_range_status --out ./ev/pr_before.png --crop ./ev/pr_before_crop.png
+$PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
+$PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.png
 ```
 
 **工作机制（`do_cmd`，脚本内单一实现）**：
@@ -287,7 +292,7 @@ $PY $SK cmd --target "驻车感应" --action state --evidence ./ev
 
 > 与 §9 联动：开关类失败先跑 `ninebot_ota.py commands <SN> --watch 30` 用平台下发页定责（无下发=脚本问题 / 有下发无响应=设备无响应 / 有下发有响应但 APP 不变=APP 问题），再写用例结论。
 
-⚠️ **`setting` / `toggle_setting` 自 v1.9.0 起降为兼容兜底**：它们是按指令写死的旧实现，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**。
+⚠️ **`setting` / `toggle_setting` 自 v1.9.1 起降为兼容兜底**：它们是按指令写死的旧实现，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**。
 
 ### 8.3 关键设计（为何更快/更稳）
 - **相对定位**：用 `text` / `content-desc` / `resource-id` / `xpath` 做锚点，对元素对象 `.click()`，坐标由框架动态算，**绝不要写死像素坐标**。
@@ -393,6 +398,38 @@ $PY $SK toggle_setting --name "自动驻车" --expect checked:false --settle 25
 # 诊断报 dialog_pending 后，指定确认按钮再跑一次
 $PY $SK toggle_setting --name "自动驻车" --expect checked:false --confirm-text "关闭"
 ```
+
+#### 8.5.4 精准续航状态判定：以首页「续航」图标为准（v1.9.1 新增）
+
+**不要看开关 `checked`，也不要看 XML 里的文字；唯一判据是首页截图中「续航 XXX km」右侧有没有精准续航小图标。**
+
+- **已开启**：首页左上角显示「续航 74.0 km」，且数字右侧出现精准续航图标（小圆圈/叶片状标记）。
+- **未开启**：首页左上角显示「续航 101.1 km」，数字右侧**没有**该图标。
+
+APP 会在开启/关闭后重新计算并刷新续航数值：通常开启后里程变短（按实际能耗估算），关闭后里程变长（按标称估算）。因此**不能仅凭续航数值大小判定是否开启**，必须看图标。
+
+操作命令（脚本只做不变的三件事：回首页、截图、裁剪续航区域；最终判定交给人眼）：
+
+```bash
+$PY $SK precise_range_status --out ./ev/pr_home.png --crop ./ev/pr_home_crop.png
+```
+
+返回：`{"ok": true, "full_shot": "...", "crop_shot": "...", "hint": "有图标=开启，无图标=未开启"}`。
+
+执行「精准续航」开关测试的推荐流程：
+
+```bash
+# 1) 操作前取证：看首页当前图标状态
+$PY $SK precise_range_status --out ./ev/pr_before.png --crop ./ev/pr_before_crop.png
+
+# 2) 翻转开关（通用 cmd）
+$PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
+
+# 3) 操作后再取证：回首页看图标是否变化
+$PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.png
+```
+
+若出现「APP 内开关已翻但首页图标未变」：先等待 5~10 秒让 APP 刷新；仍不变则按 §8.5.2 查平台指令下发页定责（有下发有响应但 APP 没刷新 = APP 显示问题）。
 
 ### 8.6 retry 指令：应对 APP 短超时（自动重试直到响应，最多 5 次）
 针对「APP 设置的超时时间太短 → 显示超时/失败，但实际已生效」这类问题：用 `retry` 指令反复下发同一操作，直到 APP 在超时(`settle`)内达到期望状态，最多 `max` 次（默认 5），最后只统计结果（`summary` / `final_state`）。
@@ -611,6 +648,7 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 | 感应解锁（开关） | `go_to_page home` → `retry --text "感应解锁" --expect checked:true/false` |
 | 安防设置 | `setting --name "安防设置"` |
 | 仪表盘数据（电量% / 续航 km / 最近骑行 / 总里程） | `texts` 或 `screenshot` 读文字；结构化整车数据走平台 `device-status`（§5.4） |
+| 精准续航（开启/关闭/判定） | `precise_range_status`（首页截图裁剪续航图标区域）+ `cmd --target "精准续航" --action on/off/toggle`；判定标准见 §8.5.4 |
 | 滑动开机 / 点击关机 | `power_on` / `power_off`（见 §8.11） |
 
 #### 二、更多功能（more_functions）— 共 19 项（2026-08-07 实机全量抓取）
