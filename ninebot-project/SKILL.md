@@ -290,6 +290,8 @@ $PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.p
 5. **失败不重试、先归因**：开关未达期望 → 自动 `_diagnose_toggle` 输出 `diagnosis` + 诊断截图（`dialog_pending` / 确认框文案 / 过渡态 / APP 报错 / 开关禁用 …），按 §8.5.3 处置；确认框按钮按词库或 `--confirm-text` 指定点击。
 6. 返回 JSON：`{ok, target, action, before_state, after_state, evidence[], diagnosis?}`，可直接贴回测试用例 Excel 的 P/Q/R 列。
 
+> **Excel 取证截图尺寸铁律（v1.9.3 新增）**：回贴到测试用例 Excel 的 P/Q/R 列时，截图必须**完整落在用例所在行内，不得溢出到相邻行**（否则分不清归属）。统一做法：用 PIL `im.thumbnail((150, 230))` 等比缩放到「宽≤150、高≤230」框内，再把该行 `row_dimensions[r].height` 设为 **250**。整屏截图（高约 500+px）会被自动压到 230 高，3 张并排仍清晰可辨且互不串行。回填脚本（`fill_precise_range.py` / `fill_evidence_screenshots.py`）已内置此尺寸，新用例一律复用、不要再用 240 宽无高度上限的旧写法。
+
 > 与 §9 联动：开关类失败先跑 `ninebot_ota.py commands <SN> --watch 30` 用平台下发页定责（无下发=脚本问题 / 有下发无响应=设备无响应 / 有下发有响应但 APP 不变=APP 问题），再写用例结论。
 
 ⚠️ **`setting` / `toggle_setting` 自 v1.9.1 起降为兼容兜底**：它们是按指令写死的旧实现，仅在没有 `cmd` 覆盖的极端场景使用；**新任务一律用 `cmd`**。
