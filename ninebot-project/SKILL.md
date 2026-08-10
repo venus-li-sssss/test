@@ -1,7 +1,7 @@
 ---
 name: 九号项目
 description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 1.9.9
+version: 2.0.0
 agent_created: true
 ---
 
@@ -247,6 +247,76 @@ python scripts/ninebot_ota.py download-tasks          # 固件下载任务列表
 
 > **需要蓝牙(BLE)的功能 —— 当前测试环境不连蓝牙，一律跳过、不执行、不标 Blocked（留空即可）**：详见 §8.5.1。遇到这些模块直接跳过，不写 PASS/FAIL、不写 Blocked 原因、整行留空。
 
+#### 8.0.1 ⭐ 测试用例执行循环（读→执行→回填→下一条，同用例合并）
+
+把上面 4 步套进一个**机械循环**，用配套脚本 `scripts/execute_testcases.py` 管 Excel 的读/写/分组/贴图，Agent 只负责「按步骤在真机执行 + 截图」这一件需要判断的事。
+
+**循环（每个用例组走一遍）：**
+1. `next` → 脚本找出**第一条 J 列仍为空**的用例组（按「用例编号」分组），打印它的 模块/测试项/步骤/期望。**同一条用例被拆成多行（相同用例编号）时，归为一组，只执行一次。**
+2. **执行**：Agent 按该用例的「前置/步骤」翻译成 `device_control.py` 指令——先 `go_to_page --page <id>` 或 `cmd --path` 导航到功能所在页（功能位置见 §8.5.6，例如「精准续航」在 `more_functions` 中层），再 `cmd --target "功能名" --action on/off/toggle/state` 操作并 `--evidence` 出分步截图；要看主页面的用 `precise_range_status`（见 §8.5.4）。**严格按 §8.5.6 的页面位置导航，不要在首页瞎点乱搜。**
+   - **取证三张图（P/Q/R）必须覆盖「下发前状态 + 下发动作 + 接收结果」，但「平台图」是否要截取决于功能类型（详见 §8.0.2）**：
+     - **云端受控指令类**（闪灯鸣笛、离车自动上锁、驻车感应、BLE 升级 `c:ota` 等）：① 平台原始页面 = 下发前功能所在页（如 more_functions 关闭态）；② 下发 = 点击/触发那一下（tap 截图）；③ 接收 = 执行后结果页（开关翻到开启态、home 图标出现）。「平台下发记录页」真实截图走 §9.7 的 web-access 流程，回填到 **S 列**。
+     - **APP 本地配置类**（精准续航、低电量延长续航等纯 APP 偏好）：平台**不下发任何指令**，无需截平台图、**S 列填 N/A**；三张图只截 APP 侧（关闭态 home / 点击动作 / 开启态 home），用首页图标或开关 checked 判据证明状态切换。
+3. `record` → 把该用例组的 **J 实测结果 / L 实测记录 / M 备注** 写回，并把取证截图（最多 3 张，即上面的 平台原页面/下发/接收）嵌入 **P/Q/R** 列。**图片处理铁律：整图【等比缩放(拉伸)】到能塞进一行、内容不裁剪**；脚本把图缩放到 ≤240×530px（对应行高 ≈ 图高×0.75pt ≈ 398pt，适配 Excel 409pt 行高上限），每张正落在所在行内、不溢出到下一行；home 等需要标注位置的图用 `prepare_evidence.py fit_mark` 在原图整图上画红框再整体缩放。**禁止用裁剪(band/crop)把内容切掉**。同编号的多行**一起**填同样的结果与截图。脚本同时把该编号记入 state，下次 `next` 自动跳过。
+4. 回到 1，直到 `status` 显示 `done==total`。
+
+**列约定**（脚本自动探测表头；P/Q/R 缺则补「截图1/2/3」表头）：`J=实测结果`、`K=Blocked-NoRun原因`、`L=实测记录`、`M=备注`、`P/Q/R=3张取证截图`。
+
+**命令：**
+```bash
+SK=scripts/device_control.py
+PY=python
+XLSX=IK-QP-012-07_ODM_QDM522_TestCase_整车_V4_4G_Only_1_执行化.xlsx
+
+# 1) 取第一条未执行用例组
+$PY scripts/execute_testcases.py next   --xlsx $XLSX --sheet 精准续航
+# 2) (Agent 按步骤用 $SK 在真机执行、截图取证，例如)
+$PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
+$PY $SK precise_range_status --out ./ev/pr_home.png
+# 3) 回填：同编号多行一起写，3 张图贴 P/Q/R
+$PY scripts/execute_testcases.py record --xlsx $XLSX --sheet 精准续航 \
+     --id 精准续航-01-002 --verdict PASS \
+     --record "APP侧开启/关闭成功，首页图标切换，APP首页续航同步" \
+     --remark "骑行>5km/充电需实车环境，本次未验证" \
+     --imgs ./ev/pr_before.png ./ev/pr_toggle.png ./ev/pr_after.png
+# 4) 进度 / 重测
+$PY scripts/execute_testcases.py status --xlsx $XLSX --sheet 精准续航
+$PY scripts/execute_testcases.py reset  --xlsx $XLSX --sheet 精准续航 --id 精准续航-01-002   # 清空重测
+```
+
+> **铁律（v1.9.6）**：只有**真正执行过**的用例才填 J/L/M/P/Q/R；未执行（Blocked/缺环境）的整行 J/K/L/M/P/Q/R **全部留空**，不得预填 PASS、不得贴图。判定：某行 J 有值但 L/K 全空 → 视为「未执行被预填」，必须 `reset` 清空后重测。
+> **同用例合并执行**：多条用例若「用例编号」相同（被拆行），视为同一条——只跑一次、截图一次、结果/图片写回所有同行，避免重复劳动与结论不一致。
+
+#### 8.0.2 ⭐⭐ 测试用例回填铁律（截图 / 平台 / 本地配置 —— 2026-08-10 十轮迭代血泪总结）
+
+把用例跑完只是半截，**回填得让任何人一眼看懂"你确实测了、且图与步骤对得上"**才是交付。下面四条是硬约束，违反任意一条都打回重做：
+
+**① "平台"是什么（先对齐术语，否则会截错图）**
+- **"平台" = `iot-test.ninebot.com` 网页控制台**，具体是「车辆运行数据 → 原始数据 → **指令下发** Tab」（接口 `GET /service/iot-console-api/device/command`）。**平台 ≠ 手机九号出行 APP**，APP 是 `device_control.py` 控制的设备端 UI。
+- 用户说"截平台的图 / 看平台有没有下发" → 指网页控制台截图，**不是**手机 APP 截图。早期好几轮把手机 APP 图当平台图交，全部被打回。
+
+**② 功能分两类，决定要不要截平台图 / S 列怎么填**
+| 类型 | 例子 | 平台是否下发指令 | 取证图 | S 列（平台指令下发日志） |
+|---|---|---|---|---|
+| **云端受控指令** | 闪灯鸣笛、离车自动上锁、驻车感应、**BLE 升级 `c:ota`** | ✅ 是 | 截 APP 三张（下发前/下发动作/接收结果）+ **平台下发记录页截图** | 嵌平台真实截图（见 §9.7） |
+| **APP 本地配置** | **精准续航、低电量延长续航** 等纯 APP 偏好 | ❌ 否（平台无任何记录） | 只截 APP 三张（关闭态 home / 点击 / 开启态 home） | 填 **N/A**，绝不嵌平台图 |
+- ⚠️ 判定不确定时，先在真机点一下 + `ninebot_ota.py commands <SN> --watch 30` 验证有没有落库，**确认无下发再标 N/A**。精准续航就是这么被误判成"平台下发"浪费了数小时的。
+
+**③ 截图铁律（图必须"真截、不裁、可辨"）**
+- **真机现场重截**：P/Q/R 必须是**本回合真机执行时现截**的图，严禁复用历史残留图 / 用户贴的旧图（除非是用户明确给的真实平台截图按需 crop）。图不是现场截的 = 没做测试。
+- **绝不裁剪内容**：整图**等比缩放（拉伸）**到能塞进一行；用 `im.resize((w,h))` 按宽 240 等比算高（高≤530），**禁止用裁剪(band/crop)把内容切掉**，也**禁止 `thumbnail((150,230))`**（会把 1080×2400 压成 ~104×230 马赛克，看不清）。
+- **视觉差异肉眼可辨**：P/Q/R 三张必须能一眼看出状态变化（如续航 73.1km 有图标 ↔ 99.8km 无图标），并在 L 列文字写明每张对应的步骤/状态。三张图看不出差异 = 没截到关键动作（典型翻车：只截了"开启"方向、漏了"关闭"动作）。
+- **三张图与步骤一一对应**：开关类最简写法 = 「关闭→打开」最小用例（确认开启 → 点关闭 → 验证回落 → 点开启 → 验证切换），P=关闭前基线、Q=执行关闭、R=执行打开，缺一张都不算完整。
+
+**④ 开关类用例去冗余（"关闭→打开"最小用例）**
+- 若同时有"全流程用例"和"单点反向用例"且二者重叠（如同测"开启"），**合并为一条最小开关用例（关闭→打开）**，删掉重复的单向用例，避免重复执行、结论打架。
+
+**openpyxl 四个实战坑（回填脚本必须避开）**
+1. `ws.cell(r, c, None)` 是空操作，清空前必须写 `ws.cell(r, c).value = None`。
+2. **正在被腾讯文档/在线预览打开的 xlsx，openpyxl 写入会被预览编辑器覆盖回去** → 往未被占用的副本（另存新文件名）写，或先关预览。
+3. 图片被强缩成马赛克的根因是 `thumbnail` 小框 → 用 `resize` 按宽 240 等比。
+4. `add_image` 直接传 cell 得到的是 `OneCellAnchor`，**没有 `.ref` 属性**，按 `ref.startswith(...)` 删图会全部漏掉 → 用 `anchor._from.col` + `anchor._from.row`（0-based）判别。
+
 ### 8.2 直接发指令（最少步骤）
 
 ```bash
@@ -295,10 +365,10 @@ $PY $SK cmd --target "闪灯鸣笛" --action tap --start home
 # 只读当前状态（不点击），同样出取证截图
 $PY $SK cmd --target "驻车感应" --action state --evidence ./ev
 
-# 精准续航：先首页截图裁剪出续航/图标区域，再翻转开关，最后再截图对比（见 §8.5.4）
-$PY $SK precise_range_status --out ./ev/pr_before.png --crop ./ev/pr_before_crop.png
+# 精准续航：回首页整图截图(不裁剪)，翻转开关，再回首页整图截图对比（见 §8.5.4）
+$PY $SK precise_range_status --out ./ev/pr_before.png
 $PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
-$PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.png
+$PY $SK precise_range_status --out ./ev/pr_after.png
 ```
 
 **工作机制（`do_cmd`，脚本内单一实现）**：
@@ -309,7 +379,7 @@ $PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.p
 5. **失败不重试、先归因**：开关未达期望 → 自动 `_diagnose_toggle` 输出 `diagnosis` + 诊断截图（`dialog_pending` / 确认框文案 / 过渡态 / APP 报错 / 开关禁用 …），按 §8.5.3 处置；确认框按钮按词库或 `--confirm-text` 指定点击。
 6. 返回 JSON：`{ok, target, action, before_state, after_state, evidence[], diagnosis?}`，可直接贴回测试用例 Excel 的 P/Q/R 列。
 
-> **Excel 取证截图尺寸铁律（v1.9.3 新增）**：回贴到测试用例 Excel 的 P/Q/R 列时，截图必须**完整落在用例所在行内，不得溢出到相邻行**（否则分不清归属）。统一做法：用 PIL `im.thumbnail((150, 230))` 等比缩放到「宽≤150、高≤230」框内，再把该行 `row_dimensions[r].height` 设为 **250**。整屏截图（高约 500+px）会被自动压到 230 高，3 张并排仍清晰可辨且互不串行。回填脚本（`fill_precise_range.py` / `fill_evidence_screenshots.py`）已内置此尺寸，新用例一律复用、不要再用 240 宽无高度上限的旧写法。
+> **Excel 取证截图尺寸铁律（v2.0.0 修正）**：回填到 P/Q/R/S 列时，截图必须**完整落在用例所在行内、不得溢出相邻行**。统一做法：**整图等比缩放（绝不裁剪内容）到 ≤240×530px**——按宽 240 等比算高（高不超过 530；530×0.75≈398pt，行高设 `530×0.75+14≈408pt` 稳稳落在一行）。用 `im.resize((w,h))`，**禁止 `thumbnail((150,230))`** 把整屏大图塞进小框（1080×2400 会被压成 ~104×230，文字挤成马赛克）。需标注位置用 `prepare_evidence.py fit_mark` 在原整图画红框**再整体缩放**。回填脚本已内置此尺寸，新用例一律复用。
 
 > **未执行用例一律不填数据（v1.9.6 更新，v1.9.7 全表清理）**：`Blocked-NoRun` / `Blocked-NonSupport` 等**没有真正执行**的用例，在 Excel 中**J/K/L/M/P/Q/R 全部留空**，不得填写 verdict、Blocked 原因、实测记录，也不得嵌入任何截图。只有**确实执行过**的用例（PASS / FAIL）才填写 J verdict，并在 K/L/M/P/Q/R 回填记录、备注与执行过程截图。判定方法：某行实测结果列已有内容，但**实测记录为空且 Blocked 原因为空**，即视为“未执行却被预填了结果”（常见为模板默认 PASS），**必须清空**。全表清理脚本见工作区 `purge_unexecuted_pass.py`。这样能在 Excel 里一眼区分「有数据=执行过」与「全空白=未执行」，避免把佐证图、说明文字或模板默认 PASS 误当成某用例的执行证据。**教训**：早期 `fill_precise_range.py` 对所有用例统一填了 3 张图，还在 K 列写原因，导致 Blocked 行与 PASS/FAIL 行混淆；后续又发现原始模板大量行被预填 PASS——已全表修正。
 
@@ -426,6 +496,8 @@ $PY $SK toggle_setting --name "自动驻车" --expect checked:false --confirm-te
 
 #### 8.5.4 精准续航状态判定：两层判据（v1.9.2 修订）
 
+> ⚠️ **重大前提（2026-08-10 纠正）**：精准续航是 **APP 本地配置**，平台**不下发任何指令**（区别于闪灯鸣笛等云端受控指令）。因此它的用例**不需要截平台下发页、S 列填 N/A**；判定只看 APP 侧（首页图标 / 开关 checked）。历史上曾误以为它走平台下发、死等一笔不存在的 g:cmd，白白浪费数小时——务必记住（详见 §8.0.2 ②）。
+
 精准续航是否开启有**两层判据**，按测试用例要求选用：
 
 | 判据 | 适用场景 | 方法 |
@@ -437,11 +509,11 @@ $PY $SK toggle_setting --name "自动驻车" --expect checked:false --confirm-te
 - **已开启**：首页左上角显示「续航 74.0 km」，且数字右侧出现精准续航图标（小圆圈/叶片状标记）。
 - **未开启**：首页左上角显示「续航 101.1 km」，数字右侧**没有**该图标。
 - ⚠️ 开启/关闭后 APP 会重新计算续航数值（开启后通常变短、关闭后通常变长），**不能仅凭数值大小判定**，必须看图标。
-- 操作命令（脚本只做不变的三件事：回首页、截图、裁剪续航区域；最终判定交给人眼）：
+  - 操作命令（脚本只做不变的三件事：回首页、整图截图（不裁剪）、读图标；最终判定交给人眼）：
   ```bash
-  $PY $SK precise_range_status --out ./ev/pr_home.png --crop ./ev/pr_home_crop.png
+  $PY $SK precise_range_status --out ./ev/pr_home.png
   ```
-  返回：`{"ok": true, "full_shot": "...", "crop_shot": "...", "hint": "有图标=开启，无图标=未开启"}`。
+  返回：`{"ok": true, "full_shot": "...", "hint": "有图标=开启，无图标=未开启"}`。
 
 **② 开关 `checked` 判据**（一般情况首选）：
 - 直接进入「更多功能 → 精准续航」行，读行内 `CompoundButton.checked`（`resourceId=com.ninebot.segway:id/switch_view`）：`true`=开启、`false`=关闭。
@@ -456,16 +528,16 @@ $PY $SK toggle_setting --name "自动驻车" --expect checked:false --confirm-te
 执行流程示例：
 
 ```bash
-# 用例要看主页面：操作前后都用首页图标判据
-$PY $SK precise_range_status --out ./ev/pr_before.png --crop ./ev/pr_before_crop.png
+# 用例要看主页面：操作前后都用首页图标判据（整图不裁剪）
+$PY $SK precise_range_status --out ./ev/pr_before.png
 $PY $SK cmd --target "精准续航" --action toggle --evidence ./ev/pr_toggle
-$PY $SK precise_range_status --out ./ev/pr_after.png --crop ./ev/pr_after_crop.png
+$PY $SK precise_range_status --out ./ev/pr_after.png
 
 # 用例只验证开关：直接读 checked
 $PY $SK cmd --target "精准续航" --action state --evidence ./ev/pr_state
 ```
 
-若出现「APP 内开关已翻但首页图标未变」：先等待 5~10 秒让 APP 刷新；仍不变则按 §8.5.2 查平台指令下发页定责（有下发有响应但 APP 没刷新 = APP 显示问题）。
+若出现「APP 内开关已翻但首页图标未变」：先等待 5~10 秒让 APP 刷新；仍不变则**不要去查平台指令页**（精准续航是 APP 本地配置，平台无下发记录，见 §8.0.2），直接以 APP 侧 `checked` / 首页图标为判据，并在 M 列备注「APP 本地配置，平台无下发日志」。若某功能确属云端受控指令、有下发却 APP 未刷新，才按 §8.5.2 查平台定责。
 
 ### 8.5.5 ⭐ 整车_4G_Only 测试集：车辆详情 sheet 各模块执行判定（2026-08-10 固化，纠正误判）
 
@@ -822,7 +894,7 @@ $PY $SK power_off    # 点击关机：点击首页「点击关机」红色电源
 | 感应解锁（开关） | `go_to_page home` → `retry --text "感应解锁" --expect checked:true/false` |
 | 安防设置 | `setting --name "安防设置"` |
 | 仪表盘数据（电量% / 续航 km / 最近骑行 / 总里程） | `texts` 或 `screenshot` 读文字；结构化整车数据走平台 `device-status`（§5.4） |
-| 精准续航（开启/关闭/判定） | `precise_range_status`（首页截图裁剪续航图标区域）+ `cmd --target "精准续航" --action on/off/toggle`；判定标准见 §8.5.4 |
+| 精准续航（开启/关闭/判定） | `precise_range_status`（首页**整图**截图，不裁剪）+ `cmd --target "精准续航" --action on/off/toggle`；判定标准见 §8.5.4（注意：精准续航是 APP 本地配置，平台不下发指令，S 列填 N/A） |
 | 滑动开机 / 点击关机 | `power_on` / `power_off`（见 §8.11） |
 
 #### 二、更多功能（more_functions）— 共 19 项（2026-08-07 实机全量抓取）

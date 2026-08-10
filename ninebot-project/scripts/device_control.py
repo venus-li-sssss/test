@@ -233,6 +233,71 @@ def do_precise_range_status(d, opts):
     }
 
 
+def do_precise_range_toggle(d, opts):
+    """⭐ 精准续航 首页图标开关（整车_精准续航 测试主判据①：首页图标）。
+
+    整车_精准续航 的开启/关闭直接作用于【首页「续航 XXX km」右侧的精准续航图标】
+    （resourceId=com.ninebot.segway:id/ivPreciseMile），而不是 more_functions 里的设置行。
+    本命令：回首页 → 截「翻转前」首页图 → 点 ivPreciseMile 翻转 → 等图标刷新 → 截「翻转后」首页图。
+    严禁去实验室 / 用 raw XML 在首页乱扫：就这一个图标，按 resourceId 点。
+
+    参数：
+      --action  on|off|toggle(默认 toggle)   期望结果（on=确保开启, off=确保关闭, toggle=翻到相反态）
+      --out     首页截图前缀（默认 precise_range_home），生成 <out>_before.png/_after.png 及 _crop
+      --wait    图标刷新等待秒数（默认 4）
+
+    返回：{ok, before_shot, after_shot, before_crop, after_crop, before_icon, after_icon, hint}
+      before_icon/after_icon = ivPreciseMile 在布局中是否存在（存在=开启态图标已渲染）
+    """
+    action = (opts.get("action") or "toggle").lower()
+    out = opts.get("out") or "precise_range_home"
+    wait = float(opts.get("wait") or 4)
+
+    navigate_to(d, "home")
+    time.sleep(0.8)
+
+    def snap(suffix):
+        if out.lower().endswith(".png"):
+            base = out[:-4]
+        else:
+            base = out
+        full = f"{base}_{suffix}.png"
+        d.screenshot(full)
+        crop = f"{base}_{suffix}_crop.png"
+        try:
+            from PIL import Image
+            im = Image.open(full)
+            w, h = im.size
+            # 与 do_precise_range_status 同款区域：首页左上角续航卡片
+            box = (0, int(h * 0.11), int(w * 0.60), int(h * 0.27))
+            im.crop(box).save(crop)
+        except Exception:
+            crop = None
+        icon_present = bool(d(resourceId="com.ninebot.segway:id/ivPreciseMile").exists)
+        return full, crop, icon_present
+
+    before_full, before_crop, before_icon = snap("before")
+    cur_on = before_icon
+    want_on = {"on": True, "off": False, "toggle": (not cur_on)}[action]
+
+    el = d(resourceId="com.ninebot.segway:id/ivPreciseMile")
+    clicked = False
+    if el.exists and (cur_on != want_on):
+        el.click()
+        clicked = True
+        time.sleep(wait)
+    after_full, after_crop, after_icon = snap("after")
+
+    return {
+        "ok": True,
+        "before_shot": before_full, "after_shot": after_full,
+        "before_crop": before_crop, "after_crop": after_crop,
+        "before_icon": before_icon, "after_icon": after_icon,
+        "clicked": clicked,
+        "hint": "判据：首页『续航』数字右侧是否有精准续航小图标；有=开启，无=未开启",
+    }
+
+
 def do_dump(d, opts):
     path = opts.get("out") or "ui_dump.xml"
     xml = d.dump_hierarchy()
@@ -1835,6 +1900,7 @@ HANDLERS = {
     "toggle_setting": do_toggle_setting,
     "cmd": do_cmd,
     "precise_range_status": do_precise_range_status,
+    "precise_range_toggle": do_precise_range_toggle,
 }
 
 
@@ -1940,6 +2006,11 @@ def build_parser():
     sp.add_argument("--out", default="precise_range_home.png", help="首页完整截图路径")
     sp.add_argument("--crop", default=None, help="裁剪后的续航区域截图路径（默认在 out 路径加 _crop）")
 
+    sp = sub.add_parser("precise_range_toggle", help="⭐ 精准续航首页图标开关（整车_精准续航 主判据①）：回首页→截翻转前→点 ivPreciseMile 图标翻转→截翻转后；严禁去实验室/首页raw XML乱扫")
+    sp.add_argument("--action", default="toggle", choices=["on", "off", "toggle"], help="期望结果: on=确保开启, off=确保关闭, toggle=翻到相反态(默认)")
+    sp.add_argument("--out", default="precise_range_home", help="首页截图前缀，生成 <out>_before.png/_after.png 及 _crop")
+    sp.add_argument("--wait", type=float, default=4, help="图标刷新等待秒数（默认 4）")
+
     sp = sub.add_parser("cmd", help="⭐ 通用指令执行（v1.9.1 主推）：dump XML 通用定位 + 截图取证，一套方法执行所有指令，不写死任何业务指令")
     sp.add_argument("--target", help="单个目标文字（在起点 hub 页内查找并操作）")
     sp.add_argument("--path", help="下钻路径，逗号/中文逗号/斜杠分隔，最后一个是操作目标（如 '更多功能,音效设置,提示音'）")
@@ -1962,7 +2033,7 @@ def opts_from_args(args):
             "expect", "max", "settle", "timeout", "gone",
             "direction", "distance", "times", "duration", "page", "wait_task",
             "target", "path", "action", "confirm_text", "evidence", "scroll", "start",
-            "crop"]
+            "crop", "wait"]
     return {k: getattr(args, k, None) for k in keys if getattr(args, k, None) is not None}
 
 
