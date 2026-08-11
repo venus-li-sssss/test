@@ -40,6 +40,10 @@ python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --max-chars 2
 
 # 调整静音检测灵敏度（嘈杂环境用更低如-40，安静环境用更高如-25）
 python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --noise-db -30
+
+# 转录和烧录分两步执行（长视频推荐）
+python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --skip-burn   # 仅转录+生成字幕
+python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --burn-only    # 仅用已有字幕烧录
 ```
 
 ## 参数说明
@@ -52,6 +56,9 @@ python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --noise-db -3
 | `--output-dir` | ./output | 输出目录 |
 | `--noise-db` | -30 | 静音检测阈值dB，越低越严格 |
 | `--max-segment` | 4.0 | 最大分段时长（秒），超出则均分 |
+| `--burn-only` | false | 跳过转录，仅用已有ASS字幕烧录视频（断点续跑烧录步骤） |
+| `--skip-burn` | false | 跳过烧录，仅生成字幕文件 |
+| `--time-budget` | 540 | 单次运行总时间预算（秒），给600秒超时留余量 |
 
 ## 输出文件
 
@@ -71,9 +78,11 @@ python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --noise-db -3
 ## 断点续跑
 
 长时间视频转录可能超过单次执行时限。脚本支持断点续跑：
-- 进度保存在 `progress.jsonl`
-- 重新运行同一命令即可从断点继续
-- 所有段转录完成后自动生成字幕和烧录视频
+- 转录进度保存在 `progress.jsonl`，重新运行同一命令即可从断点继续转录
+- 烧录步骤采用**临时文件 + ffprobe 校验 + 原子重命名**，被中断时不会产出损坏的视频文件
+- 烧录前自动检查剩余时间预算，不足时跳过烧录并提示用 `--burn-only` 单独完成
+- 已存在完好的字幕视频时自动跳过烧录（可用 `--burn-only` 强制重新烧录）
+- 长视频推荐分两步执行：先 `--skip-burn` 转录，再 `--burn-only` 烧录
 
 ## 工作流程
 
@@ -83,7 +92,12 @@ python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --noise-db -3
 4. **逐段转录**：每段独立调用 aily-speech-to-text，时间戳=实际音频位置
 5. **后处理**：去末尾标点、合并碎片、超长句按标点切分确保单行
 6. **生成字幕**：输出 ASS（含精确排版）和 SRT（通用格式）
-7. **烧录字幕**：ffmpeg 将 ASS 字幕烧录到视频画面（纯音频跳过此步）
+7. **时间预算检查**：预估烧录耗时，剩余时间不足则跳过烧录并提示
+8. **烧录字幕**：ffmpeg 将 ASS 字幕烧录到视频画面（纯音频跳过此步）
+   - 先写入 `.tmp.mp4` 临时文件
+   - ffprobe 校验完整性
+   - 校验通过后原子重命名为最终文件
+   - 失败或被中断时清理临时文件，不会产出损坏的输出
 
 ## 注意事项
 
@@ -91,3 +105,4 @@ python3 {baseDir}/scripts/generate_subtitled_video.py <input_file> --noise-db -3
 - `aily-speech-to-text` 对单段短音频（1-4秒）转录效果最佳
 - 字幕烧录为硬字幕（烧入画面），任何播放器均可显示
 - 如需软字幕（可开关），直接使用输出的 .srt 或 .ass 文件
+- 长视频（>10分钟）建议用 `--skip-burn` 和 `--burn-only` 分两步执行，避免单次超时

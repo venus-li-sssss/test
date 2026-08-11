@@ -268,16 +268,84 @@ def write_srt(entries, output_path):
             f.write(f"{e['text']}\n\n")
 
 
+def estimate_burn_time(input_file):
+    """根据视频时长和分辨率估算烧录耗时（秒）"""
+    try:
+        result = subprocess.run([
+            "ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", input_file
+        ], capture_output=True, text=True, timeout=10)
+        streams = json.loads(result.stdout).get("streams", [])
+        v = next((s for s in streams if s.get("codec_type") == "video"), None)
+        if not v:
+            return 300  # 保守默认值
+        duration = float(v.get("duration", v.get("tags", {}).get("duration", 0)) or 0)
+        if duration == 0:
+            return 300
+        # 1080p 约 2x 实时速度，720p 约 3x，480p 约 5x
+        height = int(v.get("height", 1080))
+        if height >= 1080:
+            speed = 2.0
+        elif height >= 720:
+            speed = 3.0
+        else:
+            speed = 5.0
+        return duration / speed + 10  # +10s 安全余量
+    except Exception:
+        return 300
+
+
+def verify_video(file_path):
+    """验证视频文件完整性（ffprobe 能正常解析即视为完好）"""
+    try:
+        result = subprocess.run([
+            "ffprobe", "-v", "error", "-print_format", "json",
+            "-show_format", "-show_streams", file_path
+        ], capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            return False
+        data = json.loads(result.stdout)
+        return "format" in data and "streams" in data and len(data["streams"]) > 0
+    except Exception:
+        return False
+
+
 def burn_subtitles(input_file, ass_file, output_file):
-    """将ASS字幕烧录到视频"""
+    """将ASS字幕烧录到视频（写临时文件→校验→重命名，防止产出损坏文件）"""
     print("=== 烧录字幕到视频 ===")
-    subprocess.run([
+    temp_file = output_file + ".tmp.mp4"
+
+    # 如果已有临时文件残留，先清理
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
+
+    # 烧录到临时文件，加 faststart 优化 MP4 容器
+    cmd = [
         "ffmpeg", "-y", "-i", input_file,
         "-vf", f"ass={ass_file}",
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-c:a", "copy",
-        output_file
-    ], check=True, capture_output=True)
+        "-movflags", "+faststart",
+        temp_file
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        # 烧录失败，清理临时文件
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        print(f"  烧录失败: {result.stderr[-500:]}")
+        return False
+
+    # 校验临时文件完整性
+    if not verify_video(temp_file):
+        print("  烧录输出文件校验失败（损坏），已丢弃")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        return False
+
+    # 校验通过，原子重命名到最终路径
+    os.rename(temp_file, output_file)
+    return True
 
 
 def main():
@@ -288,6 +356,9 @@ def main():
     parser.add_argument("--output-dir", default="./output", help="输出目录 (默认: ./output)")
     parser.add_argument("--noise-db", type=int, default=-30, help="静音检测阈值dB (默认: -30)")
     parser.add_argument("--max-segment", type=float, default=4.0, help="最大分段时长秒 (默认: 4.0)")
+    parser.add_argument("--burn-only", action="store_true", help="跳过转录，仅用已有字幕文件烧录视频（用于断点续跑烧录步骤）")
+    parser.add_argument("--skip-burn", action="store_true", help="跳过烧录步骤，仅生成字幕文件")
+    parser.add_argument("--time-budget", type=int, default=540, help="单次运行总时间预算秒 (默认: 540，给600秒超时留余量)")
     args = parser.parse_args()
 
     input_file = args.input_file
@@ -322,64 +393,115 @@ def main():
     print(f"  共 {len(segments)} 个语音段落，平均时长 {sum(e-s for s,e in segments)/len(segments):.1f}s")
 
     # Step 3: 逐段转录（带断点续跑）
-    print("=== 逐段转录 ===")
-    completed = set()
-    if os.path.exists(progress_file):
-        with open(progress_file, 'r') as f:
-            for line in f:
-                try:
-                    d = json.loads(line)
-                    completed.add(d['idx'])
-                except:
-                    pass
+    # --burn-only 模式跳过转录，直接用已有字幕烧录
+    if args.burn_only:
+        if not os.path.exists(ass_file):
+            print(f"错误：--burn-only 需要 ASS 字幕文件已存在: {ass_file}")
+            print("请先不带 --burn-only 运行以生成字幕")
+            sys.exit(1)
+        print(f"--burn-only 模式：跳过转录，直接用已有字幕烧录")
+        entries = []
+        # 跳到烧录步骤
+        has_video = True  # burn-only 仅用于视频
+        segments = []
+        results = {}
+        start_time = time.time()
+    else:
+        print("=== 逐段转录 ===")
+        completed = set()
+        if os.path.exists(progress_file):
+            with open(progress_file, 'r') as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                        completed.add(d['idx'])
+                    except:
+                        pass
 
-    results = {}
-    start_time = time.time()
+        results = {}
+        start_time = time.time()
+        # 转录时间预算：总预算减去留给烧录的时间（至少留 estimate_burn_time 返回值）
+        burn_estimate = estimate_burn_time(input_file) if has_video else 0
+        transcribe_budget = args.time_budget - burn_estimate
+        if transcribe_budget < 60:
+            transcribe_budget = 60  # 至少给转录 60 秒
 
-    for idx, (seg_start, seg_end) in enumerate(segments):
-        if idx in completed:
-            chunk_srt = os.path.join(chunk_dir, f"seg_{idx:04d}.srt")
-            if os.path.exists(chunk_srt):
-                with open(chunk_srt, 'r', encoding='utf-8') as f:
-                    srt_content = f.read()
-                lines = srt_content.strip().split('\n')
-                texts = [l for l in lines if l and not l.isdigit() and '-->' not in l]
-                results[idx] = ''.join(texts)
-            continue
+        for idx, (seg_start, seg_end) in enumerate(segments):
+            if idx in completed:
+                chunk_srt = os.path.join(chunk_dir, f"seg_{idx:04d}.srt")
+                if os.path.exists(chunk_srt):
+                    with open(chunk_srt, 'r', encoding='utf-8') as f:
+                        srt_content = f.read()
+                    lines = srt_content.strip().split('\n')
+                    texts = [l for l in lines if l and not l.isdigit() and '-->' not in l]
+                    results[idx] = ''.join(texts)
+                continue
 
-        text = transcribe_segment(audio_file, seg_start, seg_end, chunk_dir, idx, args.language)
-        results[idx] = text
+            text = transcribe_segment(audio_file, seg_start, seg_end, chunk_dir, idx, args.language)
+            results[idx] = text
 
-        with open(progress_file, 'a') as f:
-            f.write(json.dumps({'idx': idx, 'text': text}) + '\n')
+            with open(progress_file, 'a') as f:
+                f.write(json.dumps({'idx': idx, 'text': text}) + '\n')
 
-        if (idx + 1) % 10 == 0:
-            elapsed = time.time() - start_time
-            rate = (idx + 1) / elapsed if elapsed > 0 else 0
-            remaining = (len(segments) - idx - 1) / rate if rate > 0 else 0
-            print(f"  进度: {idx+1}/{len(segments)} ({rate:.1f}/s, 预计剩余 {remaining:.0f}s)")
+            if (idx + 1) % 10 == 0:
+                elapsed = time.time() - start_time
+                rate = (idx + 1) / elapsed if elapsed > 0 else 0
+                remaining = (len(segments) - idx - 1) / rate if rate > 0 else 0
+                print(f"  进度: {idx+1}/{len(segments)} ({rate:.1f}/s, 预计剩余 {remaining:.0f}s)")
 
-        if time.time() - start_time > 480:
-            print(f"  接近时间限制，已保存进度 {idx+1}/{len(segments)}，重新运行可继续")
-            break
+            if time.time() - start_time > transcribe_budget:
+                print(f"  接近时间限制（已用 {time.time()-start_time:.0f}s / 预算 {transcribe_budget}s），已保存进度 {idx+1}/{len(segments)}")
+                print(f"  烧录预算 {burn_estimate}s，重新运行可继续转录+烧录")
+                break
 
-    print(f"  已转录 {len(results)}/{len(segments)} 段")
+        print(f"  已转录 {len(results)}/{len(segments)} 段")
 
-    # Step 4: 构建字幕
-    entries = build_subtitle_entries(segments, results, args.max_chars)
-    print(f"  生成 {len(entries)} 条字幕")
+        # Step 4: 构建字幕
+        entries = build_subtitle_entries(segments, results, args.max_chars)
+        print(f"  生成 {len(entries)} 条字幕")
 
-    # Step 5: 写入字幕文件
-    write_ass(entries, ass_file)
-    write_srt(entries, srt_file)
-    print(f"  ASS: {ass_file}")
-    print(f"  SRT: {srt_file}")
+        # Step 5: 写入字幕文件
+        write_ass(entries, ass_file)
+        write_srt(entries, srt_file)
+        print(f"  ASS: {ass_file}")
+        print(f"  SRT: {srt_file}")
 
     # Step 6: 烧录字幕（仅视频）
-    if has_video:
+    if has_video and not args.skip_burn:
+        # burn-only 模式下直接用已有的 ass_file；否则检查转录是否完成
+        if not args.burn_only:
+            all_transcribed = len(results) >= len(segments)
+            if not all_transcribed:
+                print(f"  转录未完成（{len(results)}/{len(segments)}），但先生成字幕文件")
+                print(f"  可稍后用 --burn-only 单独完成烧录")
+
         output_video = os.path.join(output_dir, f"{base_name}_字幕版.mp4")
-        burn_subtitles(input_file, ass_file, output_video)
-        print(f"  字幕视频: {output_video}")
+
+        # 检查是否已有完好的烧录输出（断点续跑场景）
+        if os.path.exists(output_video) and verify_video(output_video):
+            print(f"  已存在完好的字幕视频: {output_video}（跳过烧录）")
+        else:
+            elapsed = time.time() - start_time
+            remaining_budget = args.time_budget - elapsed
+            burn_estimate = estimate_burn_time(input_file)
+            print(f"  已用 {elapsed:.0f}s / 预算 {args.time_budget}s，剩余 {remaining_budget:.0f}s")
+            print(f"  预估烧录耗时 {burn_estimate:.0f}s")
+
+            if remaining_budget < burn_estimate:
+                print(f"  ⚠️ 剩余时间不足（{remaining_budget:.0f}s < 需要 {burn_estimate:.0f}s），跳过烧录")
+                print(f"  字幕文件已生成: {ass_file}")
+                print(f"  请用以下命令单独烧录: python3 {sys.argv[0]} {input_file} --output-dir {args.output_dir} --burn-only")
+            else:
+                success = burn_subtitles(input_file, ass_file, output_video)
+                if success:
+                    print(f"  字幕视频: {output_video}")
+                    print(f"  ✓ 烧录完成且通过完整性校验")
+                else:
+                    print(f"  ✗ 烧录失败，未生成输出视频")
+                    print(f"  字幕文件已生成: {ass_file}")
+                    print(f"  请用以下命令重试烧录: python3 {sys.argv[0]} {input_file} --output-dir {args.output_dir} --burn-only")
+    elif args.skip_burn:
+        print("  --skip-burn 模式：跳过字幕烧录")
     else:
         print("  输入为纯音频，跳过字幕烧录")
 
