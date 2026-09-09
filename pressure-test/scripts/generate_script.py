@@ -62,6 +62,9 @@ def generate_script(yaml_path, business_code, scenario_name, version,
     # === Part 6: Business code (flow + example class) ===
     business_section = f'''
 ################################## Flow & Example Class ##################################
+# statistics() MUST follow the standard format (see Statistics Template above).
+# Universal params: 运行时间, 累计时长, 运行次数, 成功次数, 失败次数, 流程异常, 脚本异常, 成功率
+# Scenario-specific params: determined by agent based on flow type (e.g. 平均上线耗时 for power on/off)
 {business_code}
 '''
 
@@ -397,6 +400,57 @@ class xl_log():
             self.sheet.cell(n[0], n[1], n[2])
         self.workbook.save(self.statistic_log_path)
 
+
+################################## Statistics Template ##################################
+# The example.statistics() method MUST follow this format:
+#
+# def statistics(self, result):
+#     # === 更新统计计数 ===
+#     self._list_statistics['运行次数'] += 1
+#     if result['statuscode'] == 200:
+#         self._list_statistics['PASS'] += 1
+#     elif result['statuscode'] == 201:
+#         self._list_statistics['FAIL'] += 1
+#     elif result['statuscode'] == 404:
+#         self._list_statistics['流程异常'] += 1
+#     elif result['statuscode'] == 500:
+#         self._list_statistics['脚本异常'] += 1
+#
+#     # === 更新场景特有统计（根据具体场景分析） ===
+#     # e.g. for power on/off: track durations
+#     # self._durations.append(result.get('duration', 0))
+#
+#     # === 计算成功率 ===
+#     total = self._list_statistics['运行次数']
+#     pass_count = self._list_statistics['PASS']
+#     self._list_statistics['成功率'] = f"{pass_count/total*100:.2f}%"
+#
+#     # === 输出通用统计 ===
+#     now = datetime.datetime.now()
+#     duration_hours = (now - self.start_time).total_seconds() / 3600
+#     printf_script("============================================================")
+#     printf_script("统计信息")
+#     printf_script("============================================================")
+#     printf_script(f"运行时间：{self.start_time.strftime('%Y-%m-%d %H:%M:%S')}---{now.strftime('%Y-%m-%d %H:%M:%S')}")
+#     printf_script(f"累计时长：{duration_hours:.3f}H")
+#     printf_script(f"运行次数：{self._list_statistics['运行次数']}")
+#     printf_script(f"成功次数：{self._list_statistics['PASS']}")
+#     printf_script(f"失败次数：{self._list_statistics['FAIL']}")
+#     printf_script(f"流程异常：{self._list_statistics['流程异常']}")
+#     printf_script(f"脚本异常：{self._list_statistics['脚本异常']}")
+#     printf_script(f"成功率：{self._list_statistics['成功率']}")
+#
+#     # === 输出场景特有统计（根据具体场景分析确定） ===
+#     # e.g. for power on/off:
+#     # if self._durations:
+#     #     printf_script(f"平均上线耗时：{sum(self._durations)/len(self._durations):.2f} 秒")
+#     #     printf_script(f"最长上线耗时：{max(self._durations)} 秒")
+#     #     printf_script(f"最短上线耗时：{min(self._durations)} 秒")
+#
+#     printf_script("============================================================")
+#
+#     # === 更新Excel ===
+#     self.xl.printf()
 
 '''
 
