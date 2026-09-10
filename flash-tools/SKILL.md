@@ -1,6 +1,6 @@
 ---
 name: flash-tools
-description: 'Use this skill when the user wants to flash/burn firmware to a device (烧录/刷机/下载固件). Covers FreqChip (富芮坤) chip flashing via FreqChip_Download_Consle.exe (FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH) and ASR device flashing via aboot adownload.exe (ML307C, .zip 固件包). Triggers: 烧录, 刷机, 下载固件, FreqChip, 富芮坤, FR801XH, FR30XX, adownload, aboot, ASR, ML307C, 量产烧录, 固件包烧录.'
+description: 'Use this skill when the user wants to flash/burn firmware to a device (烧录/刷机/下载固件/线刷). Covers FreqChip (富芮坤) chip flashing via FreqChip_Download_Consle.exe (FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH) and ASR/aboot flashing via adownload.exe (ML307C 等 arom 设备、Quectel EG800AK/QDM562 等 USB 下载模式). Triggers: 烧录, 刷机, 下载固件, 线刷, FreqChip, 富芮坤, FR801XH, FR30XX, adownload, aboot, ASR, arom, ML307C, EG800AK, QDM562, AT+QDOWNLOAD, 量产烧录, 固件包烧录.'
 ---
 
 # 烧录工具 Skill（flash-tools）
@@ -12,7 +12,7 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
 | 用户场景关键词 | 走哪个流程 |
 |---|---|
 | FreqChip、富芮坤、FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X、`FreqChip_Download_Consle.exe`、`setting.ini` | → [references/freqchip-download.md](references/freqchip-download.md) |
-| ASR、aboot、`adownload.exe`、ML307C、烧录 `.zip` 固件包、量产/升级模式 | → [references/aboot-flash.md](references/aboot-flash.md) |
+| ASR、aboot、`adownload.exe`、ML307C、EG800AK、QDM562、烧录 `.zip` 固件包、量产/升级模式 | → [references/aboot-flash.md](references/aboot-flash.md) |
 | 其他 QDM/QDK 模块（EG91/OCPU、QFlash 线刷等） | 不属于本 skill，见对应产品测试 skill |
 
 ## 通用规则（两类烧录都适用）
@@ -22,7 +22,14 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
 3. **烧录是长耗时操作**：串口烧录可能几十秒到几分钟。在 QuecAgent 中执行时给 `execute_shell_command` 设置足够 `timeout`（建议 300–900 秒），或分段等待。
 4. **烧录完成后清理进程**：不要让烧录工具的 CMD/控制台窗口残留；必要时用 `taskkill` 结束。
 5. **烧录属于破坏性/设备写操作**：执行前向用户确认目标设备与参数；不要整片擦除（除非用户明确要求）。
-6. **汇报结果**：串口号/设备、速率、芯片型号或固件版本、是否成功、关键输出、耗时。
+6. **不要盲目重试**：报错先读日志定位（端口占用 / 未进下载模式 / 固件包不对），再决定下一步。
+7. **烧录后必须核对版本**：不要只看“工具报成功”就收工。用设备侧手段读回版本确认（如 AT 指令
+   `ATI` / `AT+QGMR` 看 `Revision`/`CustRevision`，或产品菜单里的版本查询项），与目标版本逐字比对。
+8. **aboot 烧录后通常要物理断电重上电**才启动新固件（`-r` 只复位芯片，模块会再落回下载循环）——
+   报成功但设备“没反应/仍在下载模式”时，先让用户拔插 USB / 断电重上电，而不是重烧。
+9. **固件包可能是双层 zip**：外层含 DBG 符号 + 内层 zip；真正可烧录的是**内层**（根目录直接是
+   `download.json` + 各镜像）。烧前先确认包结构。
+10. **汇报结果**：串口号/设备、速率、芯片型号或固件版本、是否成功、关键输出、耗时。
 
 ## QuecAgent 环境适配说明
 

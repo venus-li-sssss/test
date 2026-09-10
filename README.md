@@ -15,8 +15,7 @@
 | [`api-class-generator/`](./api-class-generator) | 根据 HAR 文件或接口文档 + 操作流程描述，自动生成 Python API 类（requests 库，自动维护 session/cookie，含完整方法与 main() 示例）。 |
 | [`protocol-pack-unpack/`](./protocol-pack-unpack) | 通信协议组包/解包代码生成器：支持 CAN、Serial(UART)、MQTT 二进制帧的 pack_frame()/unpack_frame() 生成，含自动化双向测试与迭代自修复（偏移/大小端/校验/缩放）。 |
 | [`pyinstaller-exe-packager/`](./pyinstaller-exe-packager) | 将 Python 脚本快速打包为 Windows 单文件 exe（PyInstaller onefile），内嵌版本信息文件（references/version_info.txt）。流程极简：装 pyinstaller 后直接打包。 |
-| [`aboot-flash/`](./aboot-flash) | 用 `adownload.exe` 命令行把固件包（.zip）烧录到 ASR 设备（如 ML307C）：自动检测 arom USB 设备、指定串口/波特率、烧完自动重启并停止后台任务。触发词：aboot 烧录、adownload、ASR 固件烧录。 |
-| [`freqchip-download/`](./freqchip-download) | 用 `FreqChip_Download_Consle.exe` 通过串口烧录富芮坤(FreqChip) 芯片：按型号设置 `setting.ini` 的 Chip_Type/Flash_Select，自动烧录+重启。支持 FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH。 |
+| [`flash-tools/`](./flash-tools) | 统一固件烧录 skill，按关键词路由到两套流程：① **ASR/aboot**：用 `adownload.exe` 把 `.zip` 固件包烧到 ASR/arom 设备（ML307C、Quectel EG800AK/QDM562 等），支持 arom USB 自动检测、`-f` 发 `AT+QDOWNLOAD=1` 进下载模式、`-q` 完成即退出、烧完核对版本；② **FreqChip/富芮坤**：用 `FreqChip_Download_Consle.exe` 按型号设置 `setting.ini`（Chip_Type/Flash_Select）串口烧录，支持 FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH。触发词：烧录、刷机、下载固件、线刷、aboot、adownload、ASR、ML307C、EG800AK、QDM562、FreqChip、富芮坤。 |
 
 ## 使用方法
 

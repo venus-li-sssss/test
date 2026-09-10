@@ -4,7 +4,19 @@
 
 ## Overview
 
-使用 `adownload.exe` 命令行工具自动烧录固件包到 ASR 设备（如 **ML307C**）：支持 USB 自动检测、自动重启、烧录完成后清理后台任务。
+使用 `adownload.exe`（Asrmicro aboot download console）自动烧录固件包到 **ASR / arom** 平台设备。
+支持 arom USB 自动检测、串口下载、AT 命令回落下载、自动重启。
+
+**两类场景，先对号入座：**
+
+| 场景 | 特征 | 走哪节 |
+|---|---|---|
+| **A. 串口/USB 下载模式可达**（EVB、ML307C 等有下载键或已知串口） | 设备能被按键/复位进入下载模式，或明确指定 COM 口 | [标准流程](#标准流程场景-a) |
+| **B. Quectel ASR 模块 USB 在线但无下载键**（如 EG800AK / QDM562） | 只枚举 Quectel USB 复合口（AT/DIAG/Modem），没有下载键 | [Quectel 模块变体](#变体场景-bquectel-asr-模块如-eg800ak--qdm562) |
+
+> **怎么判断“是不是下载模式”**：下载模式下设备枚举为 `ASR Serial Download Device (COMx)`
+> （VID_2ECC PID_3004，arom usb boot port）；正常跑应用时 Quectel 模块枚举为
+> `Quectel USB AT Port / DIAG Port / Modem`（VID_2C7C PID_6002），**不是**下载模式。
 
 ## 工具路径
 
@@ -16,35 +28,79 @@ ADOWNLOAD = "D:/QDM505 tool/aboot tool/aboot-tools-2020.09.10-win-x64/aboot-tool
 
 | 参数 | 说明 |
 |------|------|
-| `-a, --auto-enable` | 自动启用 arom USB 设备 |
+| `-p, --port=COMx` | 指定串口（多个用逗号分隔）；也可用于 `-f` 发送 AT 的串口 |
+| `-a, --auto-enable` | 自动启用 arom USB 端口设备 |
 | `-u, --usb-only` | 仅使用 arom USB 端口 |
-| `-s, --speed` | 波特率（常用 921600） |
+| `-f, --at-fallback` | 向 `-p` 指定串口发 AT 命令，使模块回落到下载模式 |
+| `-q, --quit` | 任一端口完成后即退出（**强烈建议加**） |
+| `-s, --speed` | 波特率（常用 921600；支持 115200/230400/460800/921600/1842000/3686400） |
 | `-r, --reboot` | 烧录完成后自动重启设备 |
-| `-m, --production` | 量产模式（默认是升级模式） |
-| `-p, --port=COMx` | 指定串口（替代 `-a -u`） |
+| `-m, --production` | 量产模式（默认是升级模式；`productionOnly` 命令仅量产模式执行） |
+| `-d, --dump-enable` | 打印下载协议包（排障用） |
 
-## 标准流程
+## 标准流程（场景 A）
 
-1. **确认固件包存在**：检查 `.zip` 固件文件存在且大小合理。
-2. **启动烧录**：
+1. **确认固件包**：`.zip` 存在且大小合理；根目录应有 `download.json` + 各镜像。
+   *双层 zip 时用内层那个。*
+2. **确认工具可运行**：必须在 adownload.exe **自身目录**下执行（依赖同目录 `config/`、`drivers/`），
+   否则会秒退且无输出。
+3. **启动烧录**（建议加 `-q`，输出重定向到日志）：
    ```
-   "<ADOWNLOAD>" -a -u -s 921600 -r "<firmware.zip>"
+   cd /d "<工具目录>"
+   adownload.exe -u -a -q -s 921600 -r "<firmware.zip>" > aboot_log.txt 2>&1
    ```
    用户指定串口时用 `-p COMx` 替代 `-a -u`。
-   - QuecAgent：给 `execute_shell_command` 设大 `timeout`（建议 600s），或重定向日志到文件后轮询：
-     ```
-     "<ADOWNLOAD>" -a -u -s 921600 -r "<firmware.zip>" > aboot_log.txt 2>&1
-     ```
-3. **通知用户重启设备**：命令会等待设备连接，需提示用户重启/上电设备。
-4. **查看输出**（日志文件或 stdout）。
-5. **判断结果**：
-   - 成功标志：`all finished. total time:` 行；`progress: 100`；`processing command [reboot]`（确认自动重启）
-6. **清理**：烧录成功或失败后立即结束后台进程，避免 CMD 窗口残留（`taskkill /IM adownload.exe /F`）。
-7. **汇报**：设备端口（COMx）、固件版本、总耗时、是否自动重启、是否成功。
+4. **等待设备**：命令会等设备进入下载模式，需提示用户上电/复位/进入下载模式。
+   - QuecAgent：`execute_shell_command` 给足 `timeout`（建议 300–600s）。
+5. **看输出判断结果**（日志或 stdout）：
+   - 成功：`all finished. total time: <n>s`；`"status" : "SUCCEEDED"`；`progress : 100`；
+     `processing command [reboot]`（确认自动重启）；进程退出码 0。
+   - 失败：卡在某进度（如 96%）后无输出 → 多为工具未退出被超时杀掉 / 设备掉线。
+6. **清理**：确认无残留进程（必要时 `taskkill /IM adownload.exe /F`）。
+7. **核对版本 + 汇报**：设备起来后读回版本确认；汇报端口（COMx）、固件版本、总耗时、是否重启、成功与否。
+
+## 变体（场景 B：Quectel ASR 模块，如 EG800AK / QDM562）
+
+模块正常跑应用时**不**处于下载模式，也没有下载键，用 `-f` 让工具发 AT 命令把它切进下载模式。
+
+1. **找 AT 口**：设备管理器里 `Quectel USB AT Port (COMx)`。
+2. **进下载模式 + 烧录**（工具会依次发 `AT$MYDOWNLOAD=1` 和 `AT+QDOWNLOAD=1`，Quectel 认后者）：
+   ```
+   cd /d "<工具目录>"
+   adownload.exe -p COM22 -a -f -q -s 921600 -r "<内层zip>" > aboot_log.txt 2>&1
+   ```
+   AT 口会消失、枚举出 `ASR Serial Download Device (COM12)`，工具自动接管。
+3. **重刷**（设备已在下载模式时）不需要 `-p/-f`：
+   ```
+   adownload.exe -u -a -q -s 921600 -r "<内层zip>"
+   ```
+4. **⚠️ 烧完必须物理断电重上电**：`-r` 只复位芯片，模块会再次落回 Rom 下载循环（下载标志未清），
+   拔插 USB / 断电重上电后才启动新固件。
+   - 软件复位**无效**：`Disable-PnpDevice`（常规故障）、`pnputil /restart-device`（拒绝访问，需管理员）、
+     COM 口 DTR/RTS 脉冲（对 Rom 无影响）——`pnputil` 需管理员，别指望它。
+5. **核对版本**：对 AT 口（115200）发 `ATI`，看 `CustRevision`，例如：
+   ```
+   ATI
+   -> Quectel
+      EG800AKCN_91LC
+      Revision: LTE01R07A13_C_SDK_A
+      CustRevision:LTE01R07A13_C_SDK_A_SDK_QDM562_NINEBOT_01.001.01.004_BETA260903
+   ```
+   （`AT+QGMR` 在该固件返回 ERROR，别用它判断。）
 
 ## 注意事项
 
-- 烧录通常需要 10–30 秒，务必留足超时时间
-- 结束时必须清理进程，防止 CMD 窗口残留
+- 烧录通常 10–40 秒（USB 下载），串口下载更慢；务必留足超时时间
+- **加 `-q`**：不带时工具烧完不退出（一直等新设备），会被外层命令超时杀掉 → 可能中断在收尾阶段
+- 结束时必须清理进程，避免 CMD 窗口残留
 - 用户要求停止烧录时，立即结束进程
-- 不要在没有设备连接时反复尝试烧录
+- 不要在没有设备连接时反复尝试烧录；报错先读日志定位
+- **不要只看“工具报成功”**：场景 B 一定要核对 `CustRevision` 并确认已断电重启
+
+## 实战记录（2026-09-10，EG800AK / QDM562）
+
+- 目标：`LTE01R07A13_C_SDK_A_SDK_QDM562_NINEBOT_01.001.01.004_BETA260903`（网盘 → 本地双层 zip）
+- 命令：`adownload.exe -p COM22 -a -f -q -s 921600 -r "<内层zip>"`
+- 结果：`all finished. total time: 34.383s` / `SUCCEEDED` / 退出码 0 → 断电重上电 → `ATI` 确认
+  `CustRevision` 与目标一致 ✅
+- 踩坑：首次未加 `-q`，工具烧完不退出被超时杀掉，中断在 96%；重刷即成功。
