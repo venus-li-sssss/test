@@ -74,6 +74,16 @@ ADOWNLOAD = "D:/QDM505 tool/aboot tool/aboot-tools-2020.09.10-win-x64/aboot-tool
    ```
    adownload.exe -u -a -q -s 921600 -r "<内层zip>"
    ```
+3b. **⚠️ 若 `-p COMx -a -f` 一启动就崩**（退出码 `3221225477` / `-1073741819` = `0xC0000005` 访问违例，
+   连 `parsing command line paramters ...` 都不打印，而 `adownload.exe --help` 正常）——
+   这是 AT-fallback 代码路径在部分环境下的偶发崩溃。**改用两步法绕开**（更稳，推荐直接用这个）：
+   ```
+   :: ① 自己用串口发 AT 命令切下载模式（pyserial 等）
+   python -c "import serial,time; s=serial.Serial('COMx',115200,timeout=1.5); s.write(b'AT+QDOWNLOAD=1\r\n'); time.sleep(1); s.close()"
+   :: ② 等设备枚举出 ASR Serial Download Device 后，纯 USB 模式烧录
+   cd /d "<工具目录>" && adownload.exe -u -a -q -s 921600 -r "<内层zip>"
+   ```
+   （`AT+QDOWNLOAD=1` 发出后模块立即复位，AT 口的返回读不到属正常，看设备管理器是否出现下载口即可。）
 4. **⚠️ 烧完必须物理断电重上电**：`-r` 只复位芯片，模块会再次落回 Rom 下载循环（下载标志未清），
    拔插 USB / 断电重上电后才启动新固件。
    - 软件复位**无效**：`Disable-PnpDevice`（常规故障）、`pnputil /restart-device`（拒绝访问，需管理员）、
@@ -97,10 +107,19 @@ ADOWNLOAD = "D:/QDM505 tool/aboot tool/aboot-tools-2020.09.10-win-x64/aboot-tool
 - 不要在没有设备连接时反复尝试烧录；报错先读日志定位
 - **不要只看“工具报成功”**：场景 B 一定要核对 `CustRevision` 并确认已断电重启
 
-## 实战记录（2026-09-10，EG800AK / QDM562）
+## 实战记录（2026-09-10，EG800AK / QDM562，两台设备）
 
 - 目标：`LTE01R07A13_C_SDK_A_SDK_QDM562_NINEBOT_01.001.01.004_BETA260903`（网盘 → 本地双层 zip）
+
+**设备 1**（AT=COM22，原固件 `EG800AKCN91LCR97A02M04`，IMEI 865964082011124）
 - 命令：`adownload.exe -p COM22 -a -f -q -s 921600 -r "<内层zip>"`
 - 结果：`all finished. total time: 34.383s` / `SUCCEEDED` / 退出码 0 → 断电重上电 → `ATI` 确认
   `CustRevision` 与目标一致 ✅
 - 踩坑：首次未加 `-q`，工具烧完不退出被超时杀掉，中断在 96%；重刷即成功。
+
+**设备 2**（AT=COM25，原固件 `LTE01R07A03_BT_C_SDK_A` / `..._QDM562CNAK_01.001.01.001_V03`，IMEI 864107084093341）
+- `-p COM25 -a -f -q` **直接崩**（`0xC0000005`），重试仍崩 → 改用两步法：
+  先 pyserial 发 `AT+QDOWNLOAD=1` 切下载模式，再 `adownload.exe -u -a -q -s 921600 -r "<内层zip>"`
+- 结果：`all finished. total time: 37.058s` / `SUCCEEDED` ✅ → 断电重上电后验证版本
+
+**结论：优先用「先发 AT+QDOWNLOAD=1，再 `-u -a -q` 纯 USB 烧录」的两步法，比 `-p -a -f` 稳。**
