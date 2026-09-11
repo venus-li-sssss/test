@@ -1,11 +1,11 @@
 ---
 name: flash-tools
-description: 'Use this skill when the user wants to flash/burn firmware to a device (烧录/刷机/下载固件/线刷). Covers FreqChip (富芮坤) chip flashing via FreqChip_Download_Consle.exe (FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH), ASR/aboot flashing via adownload.exe (ML307C 等 arom 设备、Quectel EG800AK/QDM562 等 USB 下载模式), and Qualcomm QFIL/QPST flashing via QFIL.exe silent mode (MODE=3) or QSaharaServer.exe + fh_loader.exe (EDL 9008, firehose, rawprogram/patch xml, contents.xml meta build). Triggers: 烧录, 刷机, 下载固件, 线刷, FreqChip, 富芮坤, FR801XH, FR30XX, adownload, aboot, ASR, arom, ML307C, EG800AK, QDM562, AT+QDOWNLOAD, 量产烧录, 固件包烧录, QFIL, QPST, 9008, EDL, QDLoader, firehose, prog_emmc_firehose, prog_firehose, partition.mbn, rawprogram, patch.xml, contents.xml, meta build, flat build, QSaharaServer, fh_loader.'
+description: 'Use this skill when the user wants to flash/burn firmware to a device (烧录/刷机/下载固件/线刷). Covers FreqChip (富芮坤) chip flashing via FreqChip_Download_Consle.exe (FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X/EX-FLASH), ASR/aboot flashing via adownload.exe (ML307C 等 arom 设备、Quectel EG800AK/QDM562 等 USB 下载模式), Qualcomm QFIL/QPST flashing via QFIL.exe silent mode (MODE=3) or QSaharaServer.exe + fh_loader.exe (EDL 9008, firehose, rawprogram/patch xml, contents.xml meta build), and 移远 QFlash V7.5 multi-platform flashing (Unisoc 展锐 EC618/EC718/EC217/EC716 FlashToolCLI, STM32_Programmer_CLI, MTK MT2731R flashimage, Rockchip upgrade_tool, FreqChip, NB-IoT UEUpdaterCLI, Beken/Altair/GNSS). Triggers: 烧录, 刷机, 下载固件, 线刷, FreqChip, 富芮坤, FR801XH, FR30XX, adownload, aboot, ASR, arom, ML307C, EG800AK, QDM562, AT+QDOWNLOAD, 量产烧录, 固件包烧录, QFIL, QPST, 9008, EDL, QDLoader, firehose, prog_emmc_firehose, prog_firehose, partition.mbn, rawprogram, patch.xml, contents.xml, meta build, flat build, QSaharaServer, fh_loader, QFlash, 展锐, Unisoc, EC618, EC718, EC217, EC716, STM32, MT2731R, Rockchip, upgrade_tool, UEUpdaterCLI, FlashToolCLI, OCPU, 底包, 整包.'
 ---
 
 # 烧录工具 Skill（flash-tools）
 
-统一的固件烧录 skill，覆盖三类烧录工具。**先判断用户要烧录哪类芯片/设备，再跳转到对应 reference 执行。**
+统一的固件烧录 skill，覆盖四类烧录工具。**先判断用户要烧录哪类芯片/设备，再跳转到对应 reference 执行。**
 
 ## 快速路由
 
@@ -14,9 +14,10 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
 | FreqChip、富芮坤、FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X、`FreqChip_Download_Consle.exe`、`setting.ini` | → [references/freqchip-download.md](references/freqchip-download.md) |
 | ASR、aboot、`adownload.exe`、ML307C、EG800AK、QDM562、烧录 `.zip` 固件包、量产/升级模式 | → [references/aboot-flash.md](references/aboot-flash.md) |
 | Qualcomm/QFIL、QPST、9008/EDL、QDLoader、`QFIL.exe`、firehose、`prog_emmc_firehose_*.mbn`/`prog_firehose_*.elf`/`partition.mbn`、`rawprogram*.xml`+`patch*.xml`、`contents.xml`/meta build/flat build、`QSaharaServer.exe`、`fh_loader.exe` | → [references/qfil-cli.md](references/qfil-cli.md) |
-| 其他 QDM/QDK 模块（EG91/OCPU、QFlash 线刷等） | 不属于本 skill，见对应产品测试 skill |
+| QFlash、QFlash V7.5、Unisoc/展锐、EC618/EC718/EC217/EC716/EC626/616、`FlashToolCLI.exe`、STM32/`STM32_Programmer_CLI`、MTK/MT2731R/`flashimage.exe`、Rockchip/`upgrade_tool`、NB-IoT/`UEUpdaterCLI`、Beken/Altair/GNSS、`MainConfig.ini`、QFlash GUI | → [references/qflash/overview.md](references/qflash/overview.md) |
+| 其他 QDM/QDK 模块（如 QDM002 车机/CCU 测试、产品功能用例） | 不属于本 skill，见对应产品测试 skill |
 
-## 通用规则（三类烧录都适用）
+## 通用规则（四类烧录都适用）
 
 1. **参数/固件必须先确认**：串口号、波特率（如用）、芯片型号或固件包路径——缺失时**必须向用户询问**，不得猜测或默认。
 2. **烧录前确认设备已连接**：串口/设备未接不要反复重试。
@@ -51,6 +52,12 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
 - [references/freqchip-download.md](references/freqchip-download.md) — FreqChip（富芮坤）芯片串口烧录：芯片型号对照表、setting.ini 配置、标准流程、注意事项
 - [references/aboot-flash.md](references/aboot-flash.md) — ASR 设备 aboot 烧录：adownload.exe 参数、固件包烧录流程、成功标志、注意事项
 - [references/qfil-cli.md](references/qfil-cli.md) — Qualcomm QFIL 烧录：**silent 命令行模式（`-MODE=3`）已实测可用**、完整参数表（从 SwDownloadDLL.dll 逐字提取）、Flat/Meta build 流程、QSaharaServer.exe + fh_loader.exe 纯命令行方案
+- [references/qflash/overview.md](references/qflash/overview.md) — **QFlash V7.5 多平台烧录入口**：平台→CLI 路由表、通用规则、GUI 流程
+- [references/qflash/cli-qualcomm-edl.md](references/qflash/cli-qualcomm-edl.md) — Qualcomm EDL(9008)：QSaharaServer + fh_loader 流程/参数/xml 配套
+- [references/qflash/cli-unisoc.md](references/qflash/cli-unisoc.md) — Unisoc 展锐 `FlashToolCLI`：probe → flasherase → burnbatch → sysreset（UART & USB）
+- [references/qflash/cli-stm32.md](references/qflash/cli-stm32.md) — STM32_Programmer_CLI：SWD/UART 连接、下载、擦除、校验、复位
+- [references/qflash/cli-others.md](references/qflash/cli-others.md) — MTK / Rockchip / FreqChip / NB-IoT / Beken / Altair 命令行速查
+- [references/qflash/gui-usage.md](references/qflash/gui-usage.md) — QFlash GUI 操作要点 + `MainConfig.ini` 关键配置
 
 ## 工具路径（用户环境，按需确认是否仍有效）
 
@@ -62,6 +69,8 @@ QFIL         = "D:/Program Files (x86)/Qualcomm/QPST/bin/QFIL.exe"            # 
 QSAHARA      = "D:/Program Files (x86)/Qualcomm/QPST/bin/QSaharaServer.exe"   # v18.10.09 控制台
 FH_LOADER    = "D:/Program Files (x86)/Qualcomm/QPST/bin/fh_loader.exe"       # v18.09.26.16.10 控制台
 QFIL_CONFIG  = "%APPDATA%/Qualcomm/QFIL/QFIL.config"                          # silent 模式会继承这里保存的参数
+QFLASH_DIR   = "D:/work/551/QFlash_V7.5_EN/QFlash_V7.5"                       # QFlash V7.5 工具集（GUI + 各平台 CLI 子工具）
+QFLASH_EXE   = "D:/work/551/QFlash_V7.5_EN/QFlash_V7.5/QFlash_V7.5.exe"      # 主程序（GUI-only，无命令行烧录）
 ```
 
 > 路径变化时以用户实际环境为准；执行前建议先确认 exe 存在。
