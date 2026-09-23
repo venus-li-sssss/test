@@ -6,7 +6,7 @@
 
 | 目录 | 用途 |
 | --- | --- |
-| [`ninebot-project/`](./ninebot-project) | 九号(Ninebot) 一体化 skill：① IoT OTA 固件平台（iot-test.ninebot.com）的固件查询/上传、设备查询、FOTA 升级/回滚/状态；② 已连接 Android 手机上九号出行 APP 的 UI 控制（闪灯鸣笛、查状态、截图验证），基于 uiautomator2 相对定位。触发词：九号、Ninebot、固件、OTA、FOTA、升级、回滚、设备控制、UI自动化 等。 |
+| [`ninebot-project/`](./ninebot-project) | 九号(Ninebot) 一体化 skill：① IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增/替换编辑（换二进制、改关联车型/part_code、照抄配对包）、设备查询、FOTA 升级/回滚/状态、指令下发核验；② 已连接 Android 手机上九号出行 APP 的 UI 控制（闪灯鸣笛、查状态、截图验证），基于 uiautomator2 相对定位。触发词：九号、Ninebot、固件、固件包、新增固件、替换固件、OTA、FOTA、升级、回滚、设备控制、UI自动化 等。 |
 | [`changelist2xlsx/`](./changelist2xlsx) | 将 git changelist（修改点）txt 导入 SMOD 平台并自动新增测试用例：① 生成同名 Excel 清单 → ② 导入 SMOD → ③ 按修改点描述自动建用例并设置测试结果。所有结果直接写入 SMOD 平台。 |
 | [`quectel-attendance/`](./quectel-attendance) | 查询移远 QHR 考勤系统（hr.quectel.com）的打卡记录并计算工时：首次/末次打卡、有效工时、迟到早退、弹性工作补偿、19 点后加班时长统计。触发词：考勤、打卡、工时、加班、迟到、QHR。 |
 | [`qdisk-quectel/`](./qdisk-quectel) | 移远网盘（Quectel Netdisk / qdisk.quectel.com）下载工具：把网盘中的文件或整个目录下载到本地指定位置。触发词：移远网盘、qdisk、下载网盘。 |

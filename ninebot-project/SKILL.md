@@ -1,14 +1,14 @@
 ---
 name: 九号项目
-description: 操作九号(Ninebot) 的一体化 skill，覆盖两条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询/新增上传、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成。触发词：九号、Ninebot、iot-test、固件、新增固件、查询固件、上传固件、OTA、升级包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 2.0.0
+description: 操作九号(Ninebot) 的一体化 skill，覆盖三条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询与管理、固件包新增（真实二进制上传+提交+查重+预演）、固件包替换/编辑（换二进制、改关联车型/part_code、照抄配对包）、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成；(3) 测试用例 Excel 执行化回填。触发词：九号、Ninebot、iot-test、固件、固件包、固件包管理、查询固件包、新增固件、添加固件、上传固件、替换固件、替换固件包、固件包替换、编辑固件、更新固件包、换固件、改固件、改关联车型、关联车型、part_code、edit-firmware、firmware-info、固件列表、固件统计、版本区间、OTA、升级包、差分升级包、回滚包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
+version: 2.2.0
 agent_created: true
 ---
 
 # 九号项目 — Ninebot IoT OTA 固件平台操作 Skill
 
 本 skill 封装了九号 IoT OTA 控制台（测试环境 `iot-test.ninebot.com`）的平台接口与操作规范，
-**一体化**覆盖：设备查询、固件包新增（含真实二进制上传）、FOTA 升级/回滚/状态。
+**一体化**覆盖：设备查询、固件包新增（含真实二进制上传）、固件包替换/编辑（换二进制、改关联车型）、FOTA 升级/回滚/状态。
 
 源信息：
 - 平台现有接口/升级流程参考脚本：`D:\work\QDM559\脚本\升级脚本\QDM551平台IOT升级压力_V19.py`
@@ -18,8 +18,11 @@ agent_created: true
   - `D:\work\QDM559\连接九号内网.bat` —— **真正建立 SOCKS5 隧道**：`ssh -N -D 127.0.0.1:1080 ninebot\jhdk@10.99.82.46`。运行后**在中止窗口手动输入密码**，认证成功才会监听 `127.0.0.1:1080`。平台访问（含 `ninebot_ota.py` 的 `PROXIES`）全都走这个隧道。
 
 配套文件：
-- `scripts/ninebot_ota.py` —— 平台 helper（查询/新增固件、真实上传、设备解析、FOTA 升级/回滚/状态、一站式 `fota`）。
+- `scripts/ninebot_ota.py` —— 平台 helper（固件包查询/统计/新增（真实上传+查重+预演）/**替换·编辑（`replace --id`：换二进制、改关联车型/part_code、`--like` 照抄配对包）**、设备解析、FOTA 升级/回滚/状态、指令核验、一站式 `fota`）。**固件包管理见 §5.1（v2.2：新增 add + 替换/编辑 replace）。**
 - `scripts/device_control.py` —— 设备端 APP UI 控制 helper（uiautomator2，相对定位）：`status`/`launch`/`tap`/`tap_xy`/`swipe`/`screenshot`/`dump`/`texts`/`wait`/`retry`/`get_device_info`/`get_battery_info`/`ble_upgrade_app`/`go_to_page`/`setting`/`toggle_setting`/`run`。**控制手机上九号 APP（如点击闪灯鸣笛、滑动屏幕、查设备版本信息、查电池数据、APP侧蓝牙升级）直接用它，不要走 dump+解析+input tap 的老流程。**
+- `scripts/execute_testcases.py` —— 测试用例 Excel 执行化回填（读/写/贴图/统计）。
+- `scripts/selftest_firmware.py` —— **固件包管理离线自测**（**52 项断言**，含新增 add 与替换 edit 两条链路；用真实 HAR 做基准 mock 全部网络请求，**不联网、不写平台**）。改完 `ninebot_ota.py` 的固件相关代码后先跑它：
+  `python scripts/selftest_firmware.py --har <HAR路径> --file <任意 bin>`（无 HAR 时用内置期望值）。
 - `references/api_reference.md` —— 各接口完整请求/响应示例与字段说明。
 
 > 流程总览：平台侧 OTA 操作走 §1~§7（`ninebot_ota.py`）；**手机端 APP 点击/查看类操作走 §8（`device_control.py`）**。两者是不同场景，按需选用。
@@ -43,6 +46,8 @@ helper 里已固定 `PROXIES = socks5h://127.0.0.1:1080`；若请求超时/连�
 - 账号密码写在 `scripts/ninebot_ota.py` 顶部 `ACCOUNT`（`dehao.zhang@ninebot.com`，登录用邮箱格式）/ `PASSWORD`。
 - 登录流程：`GET /service/oauth2/authorization/iot`（拿前置 SESSION）→ `POST https://auth-test.ninebot.com/login`（提交 `username/password/isRemember`，**须跟随重定向**完成 OAuth code 交换，否则 SESSION 不完整会仍报 1010）→ 收割三个 Cookie。
 - **自动鉴权**：`_session()` 每次调用先跑 `ensure_authenticated()`——缓存 30 分钟内直接放行；否则用轻量接口探测，失效就自动 `login()`。登录成功后把 Cookie **持久化到 `scripts/ninebot_cookies.json`**，跨进程复用，约 30 分钟过期后再自动重登。
+- **1010 自动重登（v2.1 修）**：`api_get`/`api_post` 只要返回 `1010/not authenticated` 就**强制重登并重试一次**。
+  以前只靠"本地 cookie 文件 30 分钟内直接信任"，cookie 一过期**第一次调用必然报 1010 且不会自动重登**（实测踩到过）。
 - 手动刷新也行：`python ninebot_ota.py login`（只登录、刷新并持久化 Cookie，不查数据）。
 - ⚠️ 改账号/密码：只改 `ACCOUNT`/`PASSWORD` 两行即可，所有命令自动重新登录；别去改顶部 `COOKIES` 硬编码初值（那只是兜底默认值，会被登录结果覆盖）。
 
@@ -91,10 +96,17 @@ helper 里已固定 `PROXIES = socks5h://127.0.0.1:1080`；若请求超时/连�
 | 查询设备+零部件版本 | POST | `/service/iot-console-api/device/list` + `/api/iot/get-parts-version` | — |
 | 必填属性/可用 part_code | POST | `/hardware/firmware/require-attribute` | `firmware:add` |
 | 车型列表 | GET | `/basic/products-vehicle-models?partType=ECU` | `firmware:add` |
-| 固件包列表 | GET | `/hardware/firmware/firmware-list` | `firmwareList:info` |
+| 固件包列表 | GET | `/hardware/firmware/firmware-list?page=1&num=100&product_key[]=..&vehicle_model_code[]=..&firmware_type[]=ECU` | `firmwareList:info` |
+| 固件包统计（测试/正式/工厂 数量与版本区间） | POST | `/hardware/firmware/firmware-data-statistic` | `firmwareList:info` |
+| 产品码列表 | POST | `/api/iot/get-product-list` | `firmwareList:info` |
+| 设备类型列表 | POST | `/api/iot/get-device-type-list` | `firmwareList:info` |
+| 可关联版本（新增/对比用） | POST | `/hardware/firmware/firmware-relate-version-new` | `firmware:add` |
+| 平台能力探测 | POST | `/basic/otaRateSupport`、`/product/contains/mower` | `firmware:add` |
 | 真实上传 init/part/complete | POST/GET | `/service/file-upload/upload/*` + `file-upload-test.ninebot.com/upload/part` | `firmware:add` |
 | S3 注册 | POST | `/hardware/firmware/s3-upload-by-path` | `firmware:add` |
 | 权限/关联/提交 | POST | `/hardware/firmware/permission-new`、`firmware-relate-version-new`、`add-firmware-new` | `firmware:add` |
+| 固件包详情（编辑页数据源） | GET | `/hardware/firmware/firmware-info?id=<id>` | `firmware:edit` |
+| **替换/编辑固件包**（换二进制/改关联车型） | POST | `/hardware/firmware/edit-firmware-new` | `firmware:edit` |
 | **下发升级/回滚任务** | POST | `/api/iot/auto-group-send` | — |
 | **下发蓝牙升级指令** | POST | `/api/iot/send`（`cmdCode=c:ota` `actual_ota_type=2`） | `ble-upgrade` |
 | 升级历史 | POST | `/api/iot/get-upgrade-history` | — |
@@ -107,23 +119,177 @@ helper 里已固定 `PROXIES = socks5h://127.0.0.1:1080`；若请求超时/连�
 
 ## 5. 操作流程（推荐：尽量走 `fota` 一站式命令）
 
-### 5.0 先解析设备（避免加错车型——这是最大的坑）
+### 5.1 固件包管理（查询 / 新增 / 替换）—— v2.2
+
+> 接口全部来自 **2026-09-17 的真实 HAR**（`media/…iot-test.ninebot.com.txt`，当天成功新增 0242 的那次）
+> + 同日平台实测。改代码前后都先跑离线自测：
+> `python scripts/selftest_firmware.py --har "C:\Users\venus.li\.qwenpaw\workspaces\default\media\32f78dfea3014b9e80036de605e01f8c_iot-test.ninebot.com.txt"`
+> （34 项断言全绿才动手；它 mock 掉全部网络，**不联网、不改平台数据**。）
+
+#### 5.1.0 先解析设备（避免加错车型——这是最大的坑）
 ```bash
-python scripts/ninebot_ota.py query-device 869004070113552
+python scripts/ninebot_ota.py query-device 868105049574252
 # 输出 productKey / vehicleModelCode / 各零部件当前版本与 pn / 推荐 part_code
 ```
 
-### 5.1 新增固件包（两种用法）
-```bash
-# A) 自动解析车型+零部件（推荐，绝不会加错车型）：
-python scripts/ninebot_ota.py add --imei 869004070113552 \
-  --file 032e.bin --version 032E
+#### 5.1.1 查询固件包
 
-# B) 显式指定：
-python scripts/ninebot_ota.py add --file 032e.bin --version 032E \
-  --model zGjMddvd,K15804 --part-code WV --type ECU
+```bash
+SK=scripts/ninebot_ota.py
+
+# 最常用：按设备查（自动解析出 产品码+车型码 再过滤）
+python $SK query --imei 868105049574252 --type ECU
+python $SK query --product-key kBwCVBq4 --vehicle-model-code K21101 --type ECU,HEP
+python $SK query --imei 868105049574252 --version 0242        # 版本(支持前缀: --version 02)
+python $SK query --imei 868105049574252 --status 2,3          # 只看 正式/工厂 版本
+python $SK query --product-key kBwCVBq4 --keyword steeldust   # 文件名/描述/创建者 关键字
+python $SK query --product-key kBwCVBq4 --all --save fw.csv   # 翻页拉全 + 导出 CSV(Excel 直接开)
+python $SK query --product-key kBwCVBq4 --json                # 平台原始 JSON(机器可读)
 ```
-`--imei` 模式下，helper 会：解析车型 → `require-attribute` 拿候选 part_code → 用设备 ECU `pn` 前缀自动选中（如 N3 选 `WV`）。
+
+配套只读命令：
+```bash
+python $SK firmware-statistic --product-key kBwCVBq4 --vehicle-model-code K21101 --type ECU
+python $SK firmware-products                                  # 产品码列表
+python $SK firmware-device-types --product-key kBwCVBq4       # 设备类型列表
+python $SK firmware-relate-versions kBwCVBq4,K21101 --version 0242   # 可关联版本
+```
+
+🔴 **四条平台语义（实测，别再踩）**
+
+| 现象 | 真相 |
+|---|---|
+| 加了 `--vehicle-model-code` / `--type` 还返回全库 11000+ 条 | 过滤参数**必须数组写法** `product_key[]` / `vehicle_model_code[]` / `firmware_type[]`；写成 `product_key=x`（无 `[]`）会被平台**静默忽略**、不报错。helper 已按数组发。 |
+| `--version` 传不存在的版本仍返回一堆 | `firmware_version` 参数平台**不生效**（传 `0242` 与传 `9999` 返回完全相同的结果）→ 版本过滤是**客户端**做的。 |
+| 列表里的"测试/正式/工厂"从哪来 | 由 **`status`** 决定：**1=测试(TEST)、2=正式(ONLINE，`publish_time` 有值)、3=工厂(FACTORY)、0=内研(DEVELOP)**；`firmware_level` 实测恒为 1。`--status` 就按这个过滤。 |
+| 同一版本出现多条 | 同版本可因 `part_code` / 状态不同存在多条 → 用 `id` / `firmware_id` / `file_id` 区分，**别按版本号去重**。 |
+
+> 单页上限 `num=100`；**无条件查询会拉回全库 11000+ 条**（慢且无意义），务必带 `--product-key` 或 `--imei`。
+> 表格列：版本/类型/状态/part_code/文件名/创建时间/创建者/id/file_id；`--json` 出原始结构；`--save` 出 UTF-8-BOM CSV。
+
+#### 5.1.2 新增固件包
+
+```bash
+# 推荐：设备自动解析 + 版本从文件名推断（可以不写 --version）；--desc 必填！
+python $SK add --imei 868105049574252 --file V0.2.4.2.bin \
+  --desc "移远内部固件，请勿升级！！！" --desc-en "test"
+
+# 先预演：只做解析/查重/命名校验 + 打印将要提交的 payload，**不产生任何上传和写操作**
+python $SK add --imei 868105049574252 --file V0.2.4.2.bin --desc "xxx" --dry-run
+
+# 显式指定车型/零部件
+python $SK add --file V0.2.4.2.bin --model kBwCVBq4,K21101 --part-code Z0DK \
+  --desc "移远内部固件，请勿升级！！！" --desc-en "test"
+
+# 差分包（open_diff=1）：加 --open-diff 1。部分产品（如 电摩E系列-国内/KkbeAhMy）所有固件都开差分
+python $SK add --imei N1DQH2546J0169 --file QDM562_diff_rollback.bin --version 0751 \
+  --open-diff 1 --desc "移远测试固件，请勿升级！！！"
+```
+
+**实测通过的一条完整记录**（2026-09-17，本 skill 用这个流程给 Xaber 300 加了 ECU 0243）：
+`file=SteelDustApp_ota.bin(260344B, md5 43555762ba762d1b7fb49dde6061067e)` →
+上传名 `V0.2.4.3.bin` → `file_id=121501` → 平台记录 `id=38799 / ECU / 测试 / Z0DK / 0243`。
+
+执行顺序（与 HAR 逐字对齐）：
+`require-attribute`(自动选 part_code) → `otaRateSupport` / `contains/mower`(探测，仅打印) →
+**真实上传** `upload/init → upload/part(GET 预检 + POST 分片) → upload/complete` →
+`s3-upload-by-path`(拿 file_id) → `permission-new` → `firmware-relate-version-new`(取候选) →
+`add-firmware-new`(提交) → **回查确认**。
+
+##### 文件命名规范（**V 必须大写**，否则平台拒绝）
+
+```
+name V.x.x.x.bin              例: 0RV /VIrom V0.1.0.3.zip
+name Vx.x.x.ext               例: 0RV_IVIrom_V0.1.0.3.bin
+name_Vx.x.x_name.ext          例: Aura DIS V1.5.9 encrypted.bin / Aura DIS V159 encrypted.bin
+```
+- 平台**按上传文件名提取版本号**，所以 `add` 会**强制把上传名改成** `V<x1>.<x2>.<x3>.<x4>.bin`
+  （`display_name`），源文件叫什么无所谓。
+- **裸名不允许**：`032e.bin` → 平台提取 `null` → `4025 固件版本(X)与文件版本(null)不一致`。
+- 不足 4 段按平台规则**前面补 0**：`V4.4.4 → 0444`（实测 `ECU_IMG_V4.4.4.bin` 在平台上就是 `0444`），
+  `V159 → 0159`；helper 生成的包名为 `V0.4.4.4.bin` / `V0.1.5.9.bin`。
+- 版本号含 `V` 前缀也能吃：`--version V0.2.4.3` = `--version 0243`。
+
+##### 五条硬规则（都是实测撞出来的）
+
+1. **`description` 必填**：不传 → `add-firmware-new` 返回 **`1009 descriptionmust not be blank`**
+   （2026-09-17 实测）。helper 现在**在上传二进制之前**就拦下来报错，不会白传一次包。
+   中文放 `--desc`，英文放 `--desc-en`（`description` 取两者之一，都传则中文优先）。
+2. **上传分片必须用「上传专用会话」**：`file-upload-test.ninebot.com` 的 GET/POST **不能带
+   `content-type: application/json`，也不能带平台 cookie**。踩过的坑：复用 `_session()` 时它带着
+   JSON content-type，而 requests **只在 header 缺失时才**补 multipart 的 Content-Type，
+   于是发出「声明 JSON、实际 multipart」的请求 → 服务端直接
+   **`HTTP 500 {"error":"Internal Server Error","path":"/upload/part"}`**。
+   helper 用 `_upload_session()`（无 cookie、无 content-type）解决，别改回去。
+3. **MD5 必填**：`md5_verify_code` 传 32 位小写 MD5（helper 自动算；必须与真实二进制 md5 一致）。
+4. **二进制必须真上传**：只调 `s3-upload-by-path` 只注册元数据，`add-firmware-new` 拿不到文件版本 → `4025`。
+   平台已有相同 md5+文件名时 `upload/init` 返回 `pass=true` → 自动**秒传**（跳过二进制，实测可用；
+   第一次上传成功后重跑同一条命令就是秒传路径）。
+5. **差分（差分包）要显式加 `--open-diff 1`**：平台新增页第 2 步有「是否支持差分升级」开关，payload 字段
+   `open_diff`（默认 **0**）。加差分/差分升级包必须传 1，否则平台当普通全量包处理。
+   **产品维度可能默认全开**：实测 `电摩E系列-国内(KkbeAhMy)` 全部 58 条 ECU 包 `open_diff` 均为 1；
+   加包前先 `query --imei <SN> --type ECU --json` 看同车型兄弟包的 `open_diff`，跟着设即可。
+   （`firmware_diff_data` 是每个历史版本单独上传的差分包数组，一般不填；平台 `open_diff=1` 时可自动生成差分。）
+
+新增前保护（v2.1 新增）：
+- **自动查重**：同 车型+类型+版本（有 part_code 时优先比对 part_code）已存在 → 直接拒绝并列出已有记录；
+  确认要重复添加才加 `--force`。
+- **`--dry-run`**：上传/权限/提交全部跳过，适合先确认"车型/版本/part_code/包名"对不对；
+  缺 `--desc`、命中重复时都会在预览里给出显式警告。
+- 提交成功后自动**回查**该 `file_id` 是否已出现在固件列表，给出证据。
+
+⚠️ `>5MB` 的多分片上传已按同一规则实现，但手上固件都 <5MB、**未在平台实测**：
+`totalBlock = ceil(size/5MB)`，每片的 `size` 字段固定传 `5242880`（与浏览器一致），
+每片 `md5` 传该片自身的 md5（单片时等于整文件 md5，与 HAR 一致）。首次用请核对结果。
+
+#### 5.1.3 cmd 里中文显示成乱码怎么办
+本机 `PYTHONUTF8=1` → 脚本输出的是 UTF-8 字节，而 cmd 默认码页 936 会显示成 `鎴愬姛`。
+**跑助手的命令前先加 `chcp 65001 >nul`**（脚本自身也把 stdout 固定为 UTF-8）。纯显示问题，不影响数据。
+
+#### 5.1.4 替换 / 编辑已有固件包（`replace`，edit-firmware-new）—— v2.2 新增
+
+> 接口来自 **2026-09-23 的真实 HAR**（`media/098044d5…iot-test.ninebot.com.txt`，人工在平台上把 0760 包的**二进制替换成新版**那次）。
+> 「新增(add)」= **造一条新记录**；「替换(replace)」= **改一条已有记录**。两者端点 / 请求头 / 字段集都不同：
+
+| | 新增 (`add`) | 替换/编辑 (`replace`) |
+|---|---|---|
+| 端点 | `POST /hardware/firmware/add-firmware-new` | 先 `GET /hardware/firmware/firmware-info?id=<id>`，再 `POST /hardware/firmware/edit-firmware-new` |
+| `url-request-code` | `firmware:add` | **`firmware:edit`**（写错会被拒） |
+| 请求体 | 22 字段 | **20 字段**（无 `firmware_type`/`firmware_level`/`skinName`/`big_file_url`/`file_use_type`） |
+| 版本来源 | `--version` / 文件名推断 | **沿用原记录**；上传名也必须沿用原 `file_name`（平台按文件名提版本，改名=改版本） |
+| `id` | 无 | **必填**（记录 id，不是 file_id） |
+
+```bash
+SK=scripts/ninebot_ota.py
+
+# 1) 把已有包（id=38896 / 0751）的二进制换成新文件：
+python $SK replace --id 38896 --file QDM562_diff_rollback_V03_to_751.bin --version 0751
+# 2) 只改关联车型/part_code，不换二进制（省略 --file）：
+python $SK replace --id 38896 --add-model cLlkhxD9,K05910 --part-code Z08A,Z0DB,XV
+# 3) 照抄另一条包（id=38706）的 车型列表 + part_code（做配对包最省事）：
+python $SK replace --id 38896 --like 38706 --file QDM562_diff_rollback_V03_to_751.bin
+# 4) 先预演：只打印将提交的 payload，不上传、不写平台
+python $SK replace --id 38896 --file xxx.bin --dry-run
+```
+
+**参数语义（除 `--id` 外都可选，缺省 = 沿用原记录）**
+
+| 参数 | 说明 |
+|---|---|
+| `--id` | **必填**：固件记录 id（`query` 输出表格里的 `id` 列，**不是** file_id） |
+| `--file` | 新二进制路径；省略 = 只改属性、不换文件 |
+| `--version` | 默认沿用原记录 |
+| `--part-code` / `--model` | **覆盖型**：直接替换（`--model` 多组用 `;` 分隔，每组 `pk,vmc`） |
+| `--add-model pk,vmc` | **追加型**：保留原有关联再追加（多组用 `;` 分隔） |
+| `--like <id>` | 从另一条记录照抄 车型列表 + part_code |
+| `--desc` / `--desc-en` / `--open-diff` / `--status` | 不传则沿用原记录 |
+
+**为什么用替换而不是「删了重建」**：固件 `id`/`firmware_id` 保持不变，已存在的升级任务与设备端索引不会失效；重建会留下重复记录（本环境已出现过 0227、022F 各两条）。
+
+**查重命中时怎么办**：`add` 报「同车型同版本已存在」**不是**加 `--force`，正确动作是 `replace --id <已有的 id>`。
+
+> 改完固件相关代码先跑离线自测（已覆盖 edit 链路，**52 项断言**，不联网不写平台）：
+> `python scripts/selftest_firmware.py --har "media/098044d5…iot-test.ninebot.com.txt" --file <任意 bin>`
 
 ### 5.2 升级 / 回滚 / 状态
 ```bash
@@ -215,6 +381,32 @@ python scripts/ninebot_ota.py download-tasks          # 固件下载任务列表
 9. **执行方法要“读取导航→页面导航→滚动识别→执行/取数”四步 + 每页截图作证**：曾因车辆关机态在首页来回瞎点、没有用页面树导航（`go_to_page`）而原地打转。正确做法：先 `texts`/`dump` 看入口 → `go_to_page`/`cmd --path` 导航 → `swipe`+`texts` 滚动找元素 → 点按/读属性；**截图是平台要的测试证据，每到一个页面必截**。需要蓝牙的「车辆详情/基本数据、超级仪表、用车人管理、感应解锁、NFC」当前无蓝牙环境一律跳过、整行留空不标。
 
 10. **车辆详情 sheet 大量用例被误判"不能执行"而整批留空（2026-08-10 纠正）**：之前把"开关机/座筒/闪灯鸣笛"错判成"要物理按键/蓝牙、不能执行" → 整批留空，但这是 **4G Only** 测试集，这些操作本就走 4G 云通道、APP 侧可执行。正确分类见 §8.5.5：✅ 4G 可执行（开关机/闪灯鸣笛/车辆4G连接状态/车辆图片/更多功能卡片）、⛔ 标记 N/A（座筒=整车无座桶）、⏭️ 留空跳过（BLE=感应解锁/仪表/基本数据/用车人管理/骑行记录；物理=充电；GPS=车辆定位）。**执行任意用例前先看 §8.5.5 判定表，拿不准就问用户，不要默认"不能执行"。**
+11. **固件包查询"过滤不生效"其实是参数写法错（2026-09-17）**：`vehicle_model_code=K21101` 这类**不带 `[]`** 的过滤参数会被平台**静默忽略**，返回全库 11000+ 条却不报错，极易误判成"平台不支持过滤"。必须用 `product_key[]` / `vehicle_model_code[]` / `firmware_type[]`（可重复出现多个值）。详见 §5.1.1。
+12. **`firmware_version` 参数平台不生效**：传 `0242` 与传 `9999` 返回完全相同的全量结果 → 版本过滤改在**客户端**做（`--version`，支持前缀）。同一版本可能有多条记录（不同 part_code/状态），用 `id`/`file_id` 区分。
+13. **列表里的"测试/正式/工厂"不是 `firmware_level`，而是 `status`**：`1=测试 2=正式(有 publish_time) 3=工厂 0=内研`；`firmware_level` 实测恒为 1。按类型统计/筛选走 `status` 或 `firmware-statistic`。
+14. **版本号不足 4 段要前面补 0**：平台上 `ECU_IMG_V4.4.4.bin` 提取出的版本是 `0444` 而不是 `444`；helper 的 `normalize_version('4.4.4')` 会生成 `0444` + 包名 `V0.4.4.4.bin`。另外从文件名推断版本时要**先去掉扩展名**——`.bin` 的 `b` 是 hex 字符，会被误当成第 4 段。
+15. **新增固件包必须先 `--dry-run` / 查重**：同车型同版本重复加包会污染平台（本环境已出现 0227、022F 各两条的重复记录）。helper 现在默认查重拦截，`--force` 才允许重复提交。
+16. **`PYTHONUTF8=1` + cmd 码页 936 = 中文乱码**（显示成 `鎴愬姛` 而不是 `成功`）：跑助手命令前先 `chcp 65001 >nul`，或直接看 `--save` 导出的 CSV（UTF-8-BOM，Excel 打开正常）。
+17. **新增固件的分片上传曾全部 500（2026-09-17 定位并修复）**：`POST file-upload-test.ninebot.com/upload/part` 返回
+    `HTTP 500 Internal Server Error`。根因是**复用了带 `content-type: application/json` 的 API 会话**——
+    requests 只在 header **缺失**时才补 multipart 的 Content-Type，于是发出去的是"声明 JSON、实际 multipart"的请求。
+    修复：改用 `_upload_session()`（无 cookie、无 content-type，与 HAR 一致）。**别把上传请求改回 `_session()`。**
+    注意旧版脚本也带着这个 bug，只是它**不检查响应**，所以错误被静默吞掉（`s3-upload-by-path` 仍可能拿到 file_id，
+    最后在 `add-firmware-new` 才炸）。现在每一步都校验 `resultCode`，失败立刻抛错。
+18. **`description` 是必填字段**：不传 → `add-firmware-new` 返回 **`1009 descriptionmust not be blank`**（实测）。
+    必须在**上传二进制之前**就拦下来（helper 已这么做），否则白传一次包。中文用 `--desc`，英文用 `--desc-en`。
+19. **「替换固件包」是独立接口，不等于重新 add（2026-09-23 固化）**：平台改一条已有固件包（换二进制 / 改关联车型）走
+    `GET /hardware/firmware/firmware-info?id=<id>` + `POST /hardware/firmware/edit-firmware-new`
+    （**`url-request-code = firmware:edit`**），请求体 **20 个字段**（比 add 少 `firmware_type`/`firmware_level`/
+    `skinName`/`big_file_url`/`file_use_type`）。用 `add --force` 重建会留下重复记录，并让已有升级任务/设备端索引失效。
+    helper 已内置 `replace` 子命令（§5.1.4），上传名必须沿用原 `file_name`，否则平台会改掉版本号。
+20. **包能否被某台车匹配到由 `part_code` 决定，而 `part_code` 就是该零部件 pn 的前 4 位**（实测）：
+    设备 ECU pn=`Z08AVBN26HRD0015` → `part_code=Z08A`；E300P MK2 的 pn=`XVBVN26HRD0009` → `XV`。
+    **给包追加关联车型时，必须同时确认 `part_code` 覆盖目标设备硬件的 pn 前缀**，否则平台上"看着关联了车型"、
+    实际设备 FOTA 时匹配不到这个包（表现为找不到升级包 / 无可用版本）。
+21. **同一对差分/回滚包要配成同一套 车型 + part_code（2026-09-21/23 实测）**：升级包与回滚包是配对产物
+    （如描述里的"0751--->0760"），只把升级包关联到某车型、回滚包漏掉，就会出现"能升不能回"。
+    取配对范围最省事的做法是 `replace --like <另一条配对包的 id>`。
 
 ---
 
@@ -321,7 +513,7 @@ $PY scripts/execute_testcases.py reset  --xlsx $XLSX --sheet 精准续航 --id �
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
-SK=C:/Users/venus.li/.workbuddy/skills/ninebot-project/scripts/device_control.py
+SK=C:/Users/venus.li/.qwenpaw/workspaces/default/skills/ninebot-project/scripts/device_control.py
 
 $PY $SK status                              # 设备是否连上 + 当前前台 APP
 $PY $SK tap --text "闪灯鸣笛"               # 相对定位点击（自动上溯可点击祖先）
@@ -348,7 +540,7 @@ $PY $SK run --json '[["status",{}],["tap",{"text":"闪灯鸣笛"}],["screenshot"
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
-SK=C:/Users/venus.li/.workbuddy/skills/ninebot-project/scripts/device_control.py
+SK=C:/Users/venus.li/.qwenpaw/workspaces/default/skills/ninebot-project/scripts/device_control.py
 
 # 通用开关：自动 dump XML 找「驻车感应」行内开关并翻转，同时存 3 张分步截图到 ./ev
 $PY $SK cmd --target "驻车感应" --action toggle --evidence ./ev
@@ -682,7 +874,7 @@ APP 点击 → 平台下发指令 → 平台接收设备返回 → 整车执行�
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
-SK=C:/Users/venus.li/.workbuddy/skills/ninebot-project/scripts/device_control.py
+SK=C:/Users/venus.li/.qwenpaw/workspaces/default/skills/ninebot-project/scripts/device_control.py
 
 # 把『离车自动上锁』开关切到关闭态（关闭操作约26s，故 settle 给 30）
 $PY $SK retry --id "com.ninebot.segway:id/switch_view" --expect "checked:false" --max 5 --settle 30
@@ -760,7 +952,7 @@ $PY $SK power_off                         # 点击关机：点击首页「点击
 
 ```bash
 PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
-SK=C:/Users/venus.li/.workbuddy/skills/ninebot-project/scripts/device_control.py
+SK=C:/Users/venus.li/.qwenpaw/workspaces/default/skills/ninebot-project/scripts/device_control.py
 
 $PY $SK swipe --direction up   --distance 0.8 --times 3   # 上滑3次（页面向下滚）
 $PY $SK swipe --direction down --distance 0.8 --times 2   # 下滑2次（页面向上滚）
