@@ -61,6 +61,44 @@ QFIL 却把 `%APPDATA%\Qualcomm\QFIL\QFIL.config` 里上次保存的参数**全�
 如果只补了 `-DOWNLOADFLAT` 而端口/固件没显式指定，它会**直接在旧配置的 COM 口上开烧**。
 → **每次 silent 调用都必须把关键参数显式写全**，不要依赖残留配置。
 
+### 2026-10-22 复查：残留配置已经错到不能再错（活教材）
+
+本机 `QFIL.config` 当前实际存的是（`%APPDATA%\Qualcomm\QFIL\QFIL.config`）：
+
+```
+COM          = 21        ← 本机 COM21 是 "Quectel USB DIAG Port"，不是 EDL 烧录口！
+SEARCHPATH   = D:\work\551\...\BG95M3LAR02A03_01.202.01.202\update\firehose
+PROGRAMMER   = True;<该目录>\partition.mbn   ← 错！partition.mbn 只有 716 字节
+RAWPROGRAM   = rawprogram_nand_p2K_b128K.xml
+PATCH        = patch_p2K_b128K.xml
+DEVICETYPE   = emmc      ← 错！这个包是 NAND 的（prog_firehose_nand_mdm9x05.elf）
+```
+
+该目录的真实内容只有 6 个文件：
+
+```
+partition.mbn                     716      ← 分区表，不是 programmer
+partition_nand.xml                 7642    ← meta build 的 contents.xml
+patch_p2K_b128K.xml                 746
+prog_firehose_nand_mdm9x05.elf   457120    ← 真正的 device programmer（要用这个）
+rawprogram_nand_p2K_b128K.xml    13330
+```
+
+三条结论，做自动化时必须写死：
+
+1. **`.mbn` ≠ programmer**。Quectel/MDM9x05 这类包里 `partition.mbn` 是**分区表**（几百字节），
+   programmer 是 `prog_firehose_*.elf` / `prog_emmc_firehose_*.mbn`（几百 KB 起）。
+   **用体积判断**：programmer 通常 >100KB；挑错成 716 字节的必然 `Sahara Fail`。
+2. **`DEVICETYPE` 必须照 programmer 的文件名选**：`*nand*` → `nand`，`*emmc*` → `emmc`，
+   `*ufs*` → `ufs`，`*spinor*` → `spinor`。残留配置里 nand 包配 emmc，就是 GUI 里点错的后果。
+3. **端口会撞车**：残留 `COM=21` 正好是某在网的 DIAG 口。silent 漏传 `-COM` 等于对着 DIAG 口开烧。
+   → **每次先查现网 9008 口，再显式传 `-COM`**：
+   `powershell -c "Get-PnpDevice -PresentOnly | ? {$_.FriendlyName -match 'QDLoader|9008'}"`
+   （只查 `PresentOnly`，别用缓存列表——本机缓存了几十个历史 COM 号。）
+
+> 2026-10-22 本机状态：**没有在线的 EDL(9008) 设备**（`-PresentOnly` 查无），
+> 所以端到端「真烧一次」仍未验证；参数解析链路与工具版本（QFIL 2.0.2.8 / SwDownloadDLL 2.0.2.8）已复核有效。
+
 ## 命令行参数（从本机 SwDownloadDLL.dll 2.0.2.8 的 `ARG_STR_*` 常量逐字提取）
 
 参数写法：`-名称=值`（键名大小写不敏感，匹配到 `=` 后取值；多条用逗号分隔）。
@@ -130,7 +168,26 @@ QFIL 却把 `%APPDATA%\Qualcomm\QFIL\QFIL.config` 里上次保存的参数**全�
 ## 标准流程（Flat build，silent 烧录）
 
 1. **准备 Firehose 包**（典型 Quectel BG95/BG77 等 `update/firehose/` 目录）：应有
-   `prog_firehose_*.mbn` 或 `partition.mbn`（programmer）、`rawprogram*.xml`、`patch*.xml`、各 `.bin/.mbn`。
+   `prog_firehose_*.{mbn,elf}` / `prog_emmc_firehose_*.mbn`（programmer）、`rawprogram*.xml`、
+   `patch*.xml`、各 `.bin/.mbn`。
+
+   **自动化怎么从目录里认参数**（照抄这段规则，别靠猜）：
+
+   | 要填的参数 | 怎么选 |
+   |---|---|
+   | `-PROGRAMMER` | 文件名匹配 `prog_*firehose*`（`.elf` 或 `.mbn`），且**体积 >100KB**。绝不要选 `partition.mbn`（那是分区表，几百字节） |
+   | `-DEVICETYPE` | 从 programmer 文件名取：含 `nand`→`nand`，含 `emmc`→`emmc`，含 `ufs`→`ufs`，含 `spinor`→`spinor` |
+   | `-RAWPROGRAM` | `rawprogram*.xml`；与 DEVICETYPE 同族的优先（nand 包就选 `rawprogram_nand_*.xml`）。多个时按 `rawprogram0,rawprogram1...` 顺序逗号拼接 |
+   | `-PATCH` | `patch*.xml`，同样与 DEVICETYPE 同族 |
+   | `-SEARCHPATH` | 上述 xml 所在目录（只支持一个） |
+   | Meta build 时 | 选 `contents.xml`，Quectel 包里常叫 `partition_nand.xml` / `partition_emmc.xml`，配 `-DOWNLOADMETA -METABUILD="<file>;<flavor>"` |
+
+   快速体检一条命令：
+   ```
+   dir /b /o-s "D:\...\update\firehose\prog_*firehose*.*"
+   ```
+   最大的那个就是 programmer；列不出来说明这不是 firehose 包（ASR/aboot 的 `.zip` 要走
+   [aboot-flash.md](aboot-flash.md)，别硬塞给 QFIL）。
 2. **确认 EDL 口 + 编号**：设备上电进 9008（EDL），设备管理器出现 `Qualcomm HS-USB QDLoader 9008 (COMx)`。
    - 查口：`powershell -c "Get-PnpDevice -Class Ports | ? {$_.FriendlyName -match 'QDLoader|9008'}"`
    - ⚠️ 此时**关掉 QPST / QFIL GUI**（端口独占），或加 `-SKIPQPSTCHECK`。
