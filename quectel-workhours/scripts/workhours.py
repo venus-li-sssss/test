@@ -276,6 +276,93 @@ def polish_description(desc: str, status: str = "已完成") -> str:
     return "\n".join(polished_lines)
 
 
+
+# 班次表：pm_in=下午上班(午休结束) out=下班 ot_start=加班起算(=下班后留 1h 晚餐缓冲)
+# 与 quectel-attendance/attendance.py 的 SHIFTS 保持一致
+WSHIFTS = {
+    "A": {"pm_in": timedelta(hours=13),         "out": timedelta(hours=17, minutes=30), "ot_start": timedelta(hours=18, minutes=30)},
+    "B": {"pm_in": timedelta(hours=13, minutes=30), "out": timedelta(hours=18),          "ot_start": timedelta(hours=19)},
+}
+WSTD_IN = timedelta(hours=9)   # 上午标准上班 09:00（弹性：迟多久、应下班晚多久）
+
+
+def calc_work_hours(first_punch, last_punch, is_rest_day=False, shift=None):
+    """计算应填写的工时（双班次规则）。
+
+    班次: A=13:00-17:30（18:30 起算加班） B=13:30-18:00（19:00 起算加班）
+      shift=None 自动推断：末次打卡 < 18:00 → A 班，否则 B 班。
+      ⚠️ A 班但晚上加班（末次 ≥ 18:00）的日子要显式传 shift="A"，否则少算 0.5h。
+
+    工作日：前段满班按 8h 计（实际 7.5h 也算 8h），早退扣差额；
+            加班 = max(0, 末次 − 班次起算点)，按实际时长。
+            例 B班 09:20–21:32 → 8 + 2.53 = 10.53h；A班 09:00–17:30 → 8h；
+              A班 09:00–20:00 → 8 + 1.5 = 9.5h
+    休息日：实际在司时间 − 午休(12:00→下午上班) − 晚餐(超起算点才扣)，全部计加班。
+
+    Args:
+        first_punch: 'HH:MM'[:SS] 首次打卡
+        last_punch:  'HH:MM'[:SS] 末次打卡
+        is_rest_day: 是否为休息日
+        shift:       'A'/'B'/None(自动)
+
+    Returns:
+        float: 工时（小时，前段+加班）
+    """
+    def _parse(t):
+        if isinstance(t, str):
+            p = list(map(int, t.split(':')))
+            p += [0] * (3 - len(p))
+            return timedelta(hours=p[0], minutes=p[1], seconds=p[2])
+        return t
+
+    LUNCH_S = timedelta(hours=12)
+    f = _parse(first_punch)
+    l = _parse(last_punch)
+
+    key = (shift or "").upper()
+    if key not in WSHIFTS:
+        key = "A" if l < WSHIFTS["B"]["out"] else "B"
+    sh = WSHIFTS[key]
+
+    if is_rest_day:
+        span = l - f
+        lunch = max(timedelta(), min(l, sh["pm_in"]) - max(f, LUNCH_S))
+        dinner = max(timedelta(), min(l, sh["ot_start"]) - max(f, sh["out"])) if l > sh["ot_start"] else timedelta()
+        work = span - lunch - dinner
+        return round(work.total_seconds() / 3600, 2)
+
+    # 工作日：前段 8h（满班 7.5h 也算 8h，早退扣差额），加班从起算点按实际算
+    late = f - WSTD_IN if f > WSTD_IN else timedelta()
+    due_out = sh["out"] + late
+    early = due_out - l if l < due_out else timedelta()
+    std = timedelta(hours=8) - early
+    if std < timedelta():
+        std = timedelta()
+    overtime = l - sh["ot_start"] if l > sh["ot_start"] else timedelta()
+    return round((std + overtime).total_seconds() / 3600, 2)
+
+
+def calc_from_attendance_json(attendance_data, shift=None):
+    """从考勤 JSON 批量计算工时。
+
+    Args:
+        attendance_data: attendance.py --json 输出的列表
+        shift: 'A'/'B'/None；None 时优先用每行自带的 shift_used，再无则自动推断
+
+    Returns:
+        dict: {date: work_hours}
+    """
+    results = {}
+    for day in attendance_data:
+        hours = calc_work_hours(
+            day['first'], day['last'],
+            day.get('rest_day', False),
+            shift=shift or day.get('shift_used')
+        )
+        results[day['date']] = hours
+    return results
+
+
 def get_creds():
     u, p = os.environ.get("WORK_USER"), os.environ.get("WORK_PASS")
     if u and p:

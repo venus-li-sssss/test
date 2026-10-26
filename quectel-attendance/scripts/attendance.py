@@ -8,9 +8,13 @@
   python attendance.py --month 2026-07 # 指定月
   python attendance.py --date 2026-08-03
   python attendance.py --last 7        # 最近 7 个有打卡的工作日
+  python attendance.py --shift a       # 强制按 5点半班 (13:00-17:30, 18:30 起算加班)
+  python attendance.py --shift b       # 强制按 6点班 (13:30-18:00, 19:00 起算加班)
   python attendance.py --json          # 输出 JSON
 
-工时规则见 SKILL.md
+工时规则见 SKILL.md：两个班次（5:30 / 6:00 下班），前段实际 7.5h 也按 8h 标准工时计，
+加班从各班次起算点（18:30 / 19:00）起按实际时长计。不指定 --shift 时自动推断：
+末次打卡早于 18:00 → 只能是 5:30 班(A)；否则默认 6:00 班(B)。
 """
 import argparse
 import json
@@ -24,13 +28,19 @@ from qhr_client import QHR  # noqa: E402
 CONF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".credentials.json")
 
 # ---------------- 规则参数 ----------------
-STD_IN = timedelta(hours=9)                  # 标准上班 09:00
-STD_OUT = timedelta(hours=18)                # 标准下班 18:00
-LUNCH_S, LUNCH_E = timedelta(hours=12), timedelta(hours=13)   # 午休 1h
-OT_START = timedelta(hours=19)               # 19:00 起算加班
-DINNER_S, DINNER_E = timedelta(hours=18), timedelta(hours=19)  # 晚餐 1h（加班时扣除）
-STD_WORK = timedelta(hours=8)                # 标准工时
+STD_IN = timedelta(hours=9)                  # 标准上班 09:00（上午段，两个班次相同）
+LUNCH_S = timedelta(hours=12)                # 午休从 12:00 起，到各班次下午上班点止
 FLEX_LIMIT = timedelta(minutes=60)           # 弹性上班最晚缓冲（>9:00 且 <=10:00 视为弹性）
+STD_WORK = timedelta(hours=8)                # 前段标准工时：实际 7.5h 也按 8h 算
+
+# 班次表: pm_in=下午上班(午休结束) out=下班 ot_start=加班起算(=下班后留 1h 晚餐缓冲)
+SHIFTS = {
+    "A": {"label": "A班 13:00-17:30", "pm_in": timedelta(hours=13),
+          "out": timedelta(hours=17, minutes=30), "ot_start": timedelta(hours=18, minutes=30)},
+    "B": {"label": "B班 13:30-18:00", "pm_in": timedelta(hours=13, minutes=30),
+          "out": timedelta(hours=18), "ot_start": timedelta(hours=19)},
+}
+DEFAULT_SHIFT = "B"                          # 自动推断不出时（末次打卡 >= 18:00）按 B 班
 
 
 def td(s):
@@ -58,63 +68,86 @@ def overlap(a1, a2, b1, b2):
     return e - s if e > s else timedelta()
 
 
-def analyze_day(day: str, times, shift="", extra=None):
-    """times: 当天所有打卡 datetime 列表（已排序）"""
+def resolve_shift(shift_key, l):
+    """确定当天班次：显式 --shift 优先；否则按末次打卡推断——
+    末次 < 18:00 只可能是 5:30 班(A)；否则默认 6:00 班(B)。
+    注意：5:30 班但晚上留下来加班的日子，需要显式 --shift a。"""
+    if shift_key in SHIFTS:
+        return shift_key
+    return "A" if l < SHIFTS["B"]["out"] else DEFAULT_SHIFT
+
+
+def analyze_day(day: str, times, shift="", extra=None, shift_key=None):
+    """times: 当天所有打卡 datetime 列表（已排序）
+    shift_key: 'A'/'B'/None(auto)，None 时按末次打卡自动推断"""
     extra = extra or {}
     first, last = times[0], times[-1]
     f, l = td(first), td(last)
     rest = "休息" in (shift or "")   # 休息日/周末：全部计加班，不判迟到早退
 
     if rest:
+        key = shift_key if shift_key in SHIFTS else DEFAULT_SHIFT
+        sh = SHIFTS[key]
         span = l - f
-        lunch = overlap(f, l, LUNCH_S, LUNCH_E)
-        dinner = overlap(f, l, DINNER_S, DINNER_E) if l > OT_START else timedelta()
+        lunch = overlap(f, l, LUNCH_S, sh["pm_in"])
+        dinner = overlap(f, l, sh["out"], sh["ot_start"]) if l > sh["ot_start"] else timedelta()
         work = span - lunch - dinner
         return {
             "date": day,
             "weekday": "一二三四五六日"[datetime.strptime(day, "%Y-%m-%d").weekday()],
             "shift": shift, "rest_day": True,
+            "shift_used": key, "shift_label": sh["label"],
             "first": clock(f), "last": clock(l), "punch_count": len(times),
             "span": fmt(span), "work": fmt(work),
             "work_hours": round(work.total_seconds() / 3600, 2),
+            "std_hours": 0.0,
             "lunch_deduct": fmt(lunch), "dinner_deduct": fmt(dinner),
             "late": "", "flex": False, "due_out": "-", "early_leave": "",
+            "ot_start": clock(sh["ot_start"]),
             "overtime": fmt(work), "overtime_hours": round(work.total_seconds() / 3600, 2),
             "abnormal": False, "absent_hours": "",
         }
 
-    # 弹性：实际上班基准 = max(9:00, 首次打卡)
-    actual_in = max(STD_IN, f)
+    key = resolve_shift(shift_key, l)
+    sh = SHIFTS[key]
+
+    # 弹性：早上迟到多久，晚上就晚下班多久（基准 = 本班次下班点）
     late = f - STD_IN if f > STD_IN else timedelta()
-    # 弹性补偿：迟到多久，晚上就晚下班多久
-    due_out = STD_OUT + late
+    due_out = sh["out"] + late
     early_leave = due_out - l if l < due_out else timedelta()
 
-    span = l - f                                   # 在司时长
-    lunch = overlap(f, l, LUNCH_S, LUNCH_E)        # 扣午休
-    # 晚餐扣除：从应下班时间（弹性补偿后）到 19:00，而非固定 18:00
-    dinner_start = max(DINNER_S, due_out)
-    dinner = overlap(f, l, dinner_start, DINNER_E) if l > OT_START else timedelta()
-    work = span - lunch - dinner                   # 有效工作时长
+    # 前段（标准工时）：满班按 8h 计（实际 7.5h 也算 8h），早退扣差额
+    std = STD_WORK - early_leave
+    if std < timedelta():
+        std = timedelta()
 
-    overtime = l - OT_START if l > OT_START else timedelta()  # 19:00 后算加班
+    # 后段（加班）：从起算点开始按实际时长计；应下班~起算点之间是晚餐缓冲，不计
+    overtime = l - sh["ot_start"] if l > sh["ot_start"] else timedelta()
+
+    work = std + overtime
+    # 展示用：午休/晚餐在打卡区间内的实际占用
+    lunch = overlap(f, l, LUNCH_S, sh["pm_in"])
+    dinner = overlap(f, l, max(due_out, sh["out"]), sh["ot_start"])
 
     return {
         "date": day,
         "weekday": "一二三四五六日"[datetime.strptime(day, "%Y-%m-%d").weekday()],
         "shift": shift, "rest_day": False,
+        "shift_used": key, "shift_label": sh["label"],
         "first": clock(f),
         "last": clock(l),
         "punch_count": len(times),
-        "span": fmt(span),
+        "span": fmt(l - f),
         "work": fmt(work),
         "work_hours": round(work.total_seconds() / 3600, 2),
+        "std_hours": round(std.total_seconds() / 3600, 2),
         "lunch_deduct": fmt(lunch),
         "dinner_deduct": fmt(dinner),
         "late": fmt(late) if late else "",
         "flex": bool(late) and late <= FLEX_LIMIT,
         "due_out": clock(due_out),
         "early_leave": fmt(early_leave) if early_leave else "",
+        "ot_start": clock(sh["ot_start"]),
         "overtime": fmt(overtime) if overtime else "",
         "overtime_hours": round(overtime.total_seconds() / 3600, 2),
         "abnormal": extra.get("ISEXCEPTION") == "是",
@@ -132,7 +165,7 @@ def get_creds():
     raise SystemExit("缺少凭据：设置 QHR_USER / QHR_PASS 环境变量，或创建 .credentials.json")
 
 
-def collect(months):
+def collect(months, shift_key=None):
     u, p = get_creds()
     c = QHR(u, p).login()
     punches, daily = [], []
@@ -148,7 +181,7 @@ def collect(months):
     for d in sorted(by_day):
         ts = sorted(by_day[d])
         m = meta.get(d, {})
-        out.append(analyze_day(d, ts, m.get("SHIFT", ""), m))
+        out.append(analyze_day(d, ts, m.get("SHIFT", ""), m, shift_key=shift_key))
     return out, meta
 
 
@@ -157,8 +190,12 @@ def main():
     ap.add_argument("--month", help="YYYY-MM，可逗号分隔多个")
     ap.add_argument("--date", help="YYYY-MM-DD 单日")
     ap.add_argument("--last", type=int, help="最近 N 个有打卡的日子")
+    ap.add_argument("--shift", choices=["a", "b"],
+                    help="班次: a=13:00-17:30(18:30起算加班) b=13:30-18:00(19:00起算加班)；"
+                         "不填=自动（末次<18:00 判 a，否则 b）")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
+    shift_key = a.shift.upper() if a.shift else None
 
     today = date.today()
     if a.date:
@@ -171,7 +208,7 @@ def main():
             prev = today.replace(day=1) - timedelta(days=1)
             months.insert(0, prev.strftime("%Y-%m"))
 
-    rows, _ = collect(months)
+    rows, _ = collect(months, shift_key)
     if a.date:
         rows = [r for r in rows if r["date"] == a.date]
     if a.last:
@@ -185,16 +222,16 @@ def main():
         print("无打卡记录")
         return
 
-    print(f"{'日期':<12}{'周':<3}{'首次':<7}{'末次':<7}{'工时':<7}{'应下班':<8}{'迟到':<7}{'早退':<7}{'加班':<6}")
-    print("-" * 66)
+    print(f"{'日期':<12}{'周':<3}{'班':<3}{'首次':<7}{'末次':<7}{'工时':<7}{'应下班':<8}{'迟到':<7}{'早退':<7}{'加班':<6}")
+    print("-" * 72)
     tw = to = 0.0
     for r in rows:
-        print(f"{r['date']:<12}{r['weekday']:<3}{r['first']:<7}{r['last']:<7}"
+        print(f"{r['date']:<12}{r['weekday']:<3}{r['shift_used']:<3}{r['first']:<7}{r['last']:<7}"
               f"{r['work']:<7}{r['due_out']:<8}{r['late'] or '-':<7}"
               f"{r['early_leave'] or '-':<7}{r['overtime'] or '-':<6}")
         tw += r["work_hours"]
         to += r["overtime_hours"]
-    print("-" * 66)
+    print("-" * 72)
     print(f"合计 {len(rows)} 天 | 总工时 {tw:.2f}h | 日均 {tw/len(rows):.2f}h | 加班 {to:.2f}h")
 
 
