@@ -33,5 +33,7 @@ cp -r <skill目录> ~/.workbuddy/skills/
 - 各 skill 的登录凭据（账号密码、token）均由**运行时**由用户手动输入，或从本地凭据文件读取，**不会**随代码提交。
 - 本仓库**已排除**以下本地凭据文件，请勿将其加入版本控制：
   - `quectel-attendance/.credentials.json`
+  - `quectel-attendance/.shift_default.json`（本地默认班次仅存用户本机；首次使用要问班次+是否设默认，有默认每次仍须确认，平台代码无默认）
+  - `quectel-workhours/.credentials.json`、`quectel-workhours/.cache/`、`quectel-workhours/plan/`（运行时数据）
   - `qdisk-quectel/.token_cache.json`
 - 建议将本仓库保持为**私有**，并避免提交任何含明文密码或会话 token 的文件。

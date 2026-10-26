@@ -20,8 +20,8 @@
 
 工时默认取自考勤：前段满班按 8h 算（5:30/6:00 两个班次实际 7.5h 都按 8h），
 加班从班次起算点（A班18:30 / B班19:00）起按实际时长计，只传总时长、不手工拆加班。
---shift a|b 指定当天班次；不填则考勤端自动推断（末次打卡 <18:00 判 A，否则判 B），
-自动推断不了 5:30 班但晚走的日子，务必显式加 --shift a。
+⚠️ **--shift a|b 每次必填**：平台无默认班次、也不按打卡推断——先向用户确认
+这批日期是 A班(5点半下班) 还是 B班(6点下班) 再跑；一个月两种班次混着时，按班次分两批跑。
 默认 dry-run，加 --commit 才真提交。--refresh 强制刷新考勤/项目缓存。
 """
 import argparse, json, os, re, sys, threading, time
@@ -52,6 +52,7 @@ def _cache_path(name):
 
 def cached_attendance(months, refresh=False, shift_key=None):
     """考勤按 (规则版本, 班次, 月份) 缓存；只拉缓存里没有的月份。返回 {date: row}
+    shift_key 必须显式 'A'/'B'（调用方先问用户；无 auto 桶、不推断）。
 
     ⚠️ 三个必须遵守的规则：
       1) **当月永远强制重拉**（打卡是当天一直在累积的）。踩过：缓存停在 10-22，
@@ -62,6 +63,8 @@ def cached_attendance(months, refresh=False, shift_key=None):
       3) **缓存 key 带 RULE_VERSION 和班次**。规则一改旧数据全作废；A/B 班的
          work_hours 不同，混用会算错。
     """
+    if shift_key not in ("A", "B"):
+        raise SystemExit("cached_attendance 需要显式 shift_key='A'/'B'：先问用户班次，无默认不推断")
     path = _cache_path("attendance.json")
     data = {}
     if os.path.exists(path) and not refresh:
@@ -71,7 +74,7 @@ def cached_attendance(months, refresh=False, shift_key=None):
                 data = loaded.get("buckets", {})
         except Exception:
             data = {}
-    bucket = shift_key or "auto"
+    bucket = shift_key
     sub = data.setdefault(bucket, {})
     cur_month = date.today().strftime("%Y-%m")
     missing = [m for m in months if m not in sub or m == cur_month]
@@ -125,9 +128,9 @@ def main():
     ap.add_argument("--project", default="792", help="单项目时的项目 ID，默认 QDM562-EA-MCN(792)")
     ap.add_argument("--split", help="多项目拆分 proj_id=工时,proj_id=工时")
     ap.add_argument("--hours", help="覆盖工时：d=8.0 形式，或单个数字用于全部日期")
-    ap.add_argument("--shift", choices=["a", "b"],
-                    help="班次: a=5点半下班(18:30起算加班) b=6点下班(19:00起算加班)；"
-                         "不填=按考勤自动推断")
+    ap.add_argument("--shift", choices=["a", "b"], required=True,
+                    help="班次必填: a=5点半下班(18:30起算加班) b=6点下班(19:00起算加班)；"
+                         "先问用户，无默认不推断")
     ap.add_argument("--commit", action="store_true", help="真正提交")
     ap.add_argument("--workers", type=int, default=5, help="并发提交线程数，默认 5")
     ap.add_argument("--refresh", action="store_true", help="强制刷新考勤/项目缓存")
@@ -143,8 +146,13 @@ def main():
                 for d in a.dates.split(",") if d.strip()]
     dates = [p["date"] for p in plan]
 
+    if not a.shift:
+        ap.error("必须指定 --shift a|b：先向用户确认这批日期是 5点半班(a) 还是 6点班(b)；"
+                 "平台无默认班次，也不允许按打卡推断")
+    shift_key = a.shift.upper()
+
     months = sorted({d[:7] for d in dates})
-    att_idx, fetched = cached_attendance(months, a.refresh, shift_key=(a.shift or "").upper() or None)
+    att_idx, fetched = cached_attendance(months, a.refresh, shift_key=shift_key)
     print(f"[{time.time()-t0:.1f}s] 考勤{'现拉' if fetched else '缓存命中'} "
           f"{len(dates)} 天里的 {sum(1 for d in dates if d in att_idx)} 天有打卡")
 

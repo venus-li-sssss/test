@@ -290,8 +290,8 @@ def calc_work_hours(first_punch, last_punch, is_rest_day=False, shift=None):
     """计算应填写的工时（双班次规则）。
 
     班次: A=13:00-17:30（18:30 起算加班） B=13:30-18:00（19:00 起算加班）
-      shift=None 自动推断：末次打卡 < 18:00 → A 班，否则 B 班。
-      ⚠️ A 班但晚上加班（末次 ≥ 18:00）的日子要显式传 shift="A"，否则少算 0.5h。
+    ⚠️ shift 必须显式传 'A'/'B'：平台副本无默认、不按打卡时间推断。
+       先问用户班次（首次用还要问是否设本地默认；有默认每次仍要确认），再传进来。
 
     工作日：前段满班按 8h 计（实际 7.5h 也算 8h），早退扣差额；
             加班 = max(0, 末次 − 班次起算点)，按实际时长。
@@ -303,7 +303,7 @@ def calc_work_hours(first_punch, last_punch, is_rest_day=False, shift=None):
         first_punch: 'HH:MM'[:SS] 首次打卡
         last_punch:  'HH:MM'[:SS] 末次打卡
         is_rest_day: 是否为休息日
-        shift:       'A'/'B'/None(自动)
+        shift:       'A'/'B'（必须显式）
 
     Returns:
         float: 工时（小时，前段+加班）
@@ -319,9 +319,9 @@ def calc_work_hours(first_punch, last_punch, is_rest_day=False, shift=None):
     f = _parse(first_punch)
     l = _parse(last_punch)
 
-    key = (shift or "").upper()
+    key = str(shift or "").upper()
     if key not in WSHIFTS:
-        key = "A" if l < WSHIFTS["B"]["out"] else "B"
+        raise ValueError("shift 必须显式传 'A'/'B'：先问用户班次，平台无默认、不自动推断")
     sh = WSHIFTS[key]
 
     if is_rest_day:
@@ -347,7 +347,8 @@ def calc_from_attendance_json(attendance_data, shift=None):
 
     Args:
         attendance_data: attendance.py --json 输出的列表
-        shift: 'A'/'B'/None；None 时优先用每行自带的 shift_used，再无则自动推断
+        shift: 'A'/'B'（推荐显式传）；None 时用每行自带的 shift_used（考勤端也是确认过的班次），
+               两者都没有会报错——不存在自动推断
 
     Returns:
         dict: {date: work_hours}
