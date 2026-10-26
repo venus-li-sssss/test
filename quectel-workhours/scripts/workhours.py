@@ -373,18 +373,6 @@ def get_creds():
     raise SystemExit("缺少凭据：设置 WORK_USER / WORK_PASS 环境变量，或在 ../.credentials.json 填入自己的账号密码")
 
 
-def get_userid():
-    """提交 payload 需要本人在工时系统的 userId（不随仓库提供）。
-    优先环境变量 WORK_USERID，其次 ../.credentials.json 的 "userId" 字段。"""
-    uid = os.environ.get("WORK_USERID")
-    if not uid and os.path.exists(CONF):
-        uid = json.load(open(CONF, encoding="utf-8")).get("userId")
-    if not uid:
-        raise SystemExit('缺少 userId：在 ../.credentials.json 加 "userId" 字段'
-                         "（work.ikotek.com 工时记录接口返回的 userId），或设置环境变量 WORK_USERID")
-    return str(uid)
-
-
 def get_month_range(month_str=None):
     """获取月份范围"""
     if month_str:
@@ -478,7 +466,7 @@ def submit_work_interactive(client, date_str=None, project_id=None, work_hours=N
     # summary（工作总结）用详细列表，description（工作描述）用简洁描述
     summary_html = "".join([f"<p>{line}</p>" for line in summary.split("\n") if line.strip()])
     payload = {
-        "userId": get_userid(),
+        "userId": client.get_userid(),  # 登录后从工时列表自动获取，无需写死
         "type": "2",
         "summary": summary_html,  # 工作总结：详细列表
         "workTime": str(work_hours),  # 总时间（系统自动拆分标准工时和加班）

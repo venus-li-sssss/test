@@ -109,6 +109,26 @@ class WorkClient:
             return resp["data"]
         return []
 
+    def get_userid(self, refresh=False):
+        """登录后自动获取本人 userId：从工时列表记录的 userId 字段取，
+        不需要（也不应该）写死在代码或凭据配置里。结果缓存在 self.user_id。"""
+        if self.user_id and not refresh:
+            return str(self.user_id)
+        from datetime import date
+        t = date.today()
+        for mback in (0, 1):                      # 先查当月，空则回退上月
+            y, m = t.year, t.month - mback
+            while m <= 0:
+                m += 12
+                y -= 1
+            ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+            rows = self.get_work_list(f"{y:04d}-{m:02d}-01", f"{ny:04d}-{nm:02d}-01")
+            if rows and rows[0].get("userId"):
+                self.user_id = rows[0]["userId"]
+                return str(self.user_id)
+        raise RuntimeError("未能通过登录账号获取 userId：工时列表返回为空"
+                           "（该账号可能没有工时填报权限）")
+
     def get_work_detail(self, work_id):
         """获取工时详情"""
         resp = self._post("/api/mh/work-info/detail", {"id": str(work_id)})
