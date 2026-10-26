@@ -63,6 +63,10 @@ $PY workhours.py --list --json
 ## 认证
 
 凭据优先级：环境变量 `WORK_USER` / `WORK_PASS` > `../.credentials.json`（与考勤系统共用）。
+本仓库不含任何账号：使用时自己在 `../.credentials.json` 填入账号和密码，形如
+`{"username": "<你的账号>", "password": "<你的密码>", "userId": "<你在工时系统的userId>"}`。
+其中 `userId` 是提交工时 payload 必需的本人 ID（可从 `/api/mh/work-info/list` 返回记录里查到），
+也可用环境变量 `WORK_USERID` 提供；缺了脚本会报错提示。
 
 登录链路（已在 `work_client.py` 中实现）：
 1. SSO 登录获取 token

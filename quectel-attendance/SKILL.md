@@ -57,7 +57,8 @@ B班从 19:00 起算加班、少算 0.5h。
 ## 认证
 
 凭据优先级：环境变量 `QHR_USER` / `QHR_PASS` > `../.credentials.json`。
-凭据文件已配置为 `Venus.Li@ikotek.com`（QHR 与 SSO 共用统一域账号密码）。
+本仓库不含任何账号：使用时自己在 `../.credentials.json` 填入账号和密码，形如
+`{"username": "<你的域账号邮箱>", "password": "<你的密码>"}`（QHR 与 SSO 共用统一域账号密码），文件勿提交。
 
 登录链路（已在 `qhr_client.py` 中实现，无需手动操作）：
 1. `POST sso-web.quectel.com/api/uaa/mfa-open/check` — 校验账密（返回 `isPass`）
