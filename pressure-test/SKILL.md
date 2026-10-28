@@ -1,5 +1,5 @@
 ---
-description: 'Use this skill when the user wants to create, manage, or run pressure/stress test scripts. Triggers: "压力测试", "压测脚本", "stress test", "pressure test", "生成压力脚本", "生成yaml配置", "管理压力测试", "压力框架", or any request involving generating test scripts with retry, logging, statistics, and YAML config management.'
+description: 'Use this skill when the user wants to create, manage, or run pressure/stress test scripts, or turn functional test cases into a pytest shell project decoupled from execution base classes with allure reporting. Triggers: "压力测试", "压测脚本", "stress test", "pressure test", "生成压力脚本", "生成yaml配置", "管理压力测试", "压力框架", "自动化测试脚本", "用例转pytest", "allure报告", "基类解耦", or any request involving generating test scripts with retry, logging, statistics, and YAML config management.'
 name: pressure-test
 ---
 
@@ -41,6 +41,7 @@ name: pressure-test
 | **pressure-test-uiautomation** | 基于 Python uiautomation 库，通过【规划→编码→测试→修复】迭代循环生成 Windows UI 自动化压力测试脚本，强制使用相对定位 | Windows 界面自动化场景，需要为 EPAT 等应用生成 UI 压力脚本 |
 | **pressure-test-uiautomator** | 基于 uiautomator2 库，生成 Android UI 自动化压力测试脚本，支持相对定位、自动上溯可点击祖先、组合指令(run --json)、retry重试机制 | Android APP 自动化场景，需要为台铃APP、九号APP等生成 UI 压力脚本 |
 | **pressure-test-webui** | 基于 Selenium WebDriver/Playwright 生成 Web UI 自动化压力测试脚本，支持多定位策略（CSS/XPath/text）、显式等待、截图取证、多标签页管理 | Web 界面自动化场景，需要为网页应用生成 UI 压力脚本 |
+| **pressure-test-pytest** | 功能自动化：Excel 用例 → pytest 壳工程（用例层只调用函数打印文字、不实际执行）+ 基础类（Serial/CAN/Platform API 超类）通过 uid 注册表解耦 + allure 报告（printf 三通道/附件/结果块，状态码 200/201/404/500），生成器 scripts/gen_pytest_shell.py | 用户要把测试用例先转成 pytest 骨架、实际执行基础类另行开发最后合并、或要求 allure 报告与基类/用例解耦 |
 
 **使用方式**：当用户触发 pressure-test 时，先加载本入口 skill 了解架构，然后根据具体需求加载对应的子 skill。
 
@@ -49,6 +50,7 @@ name: pressure-test
 - 用户要创建新的压力/压测脚本（任何类型）
 - 用户要生成或修改 device.yaml 配置
 - 用户提供了业务类/方法，需要包装成可循环执行的压力脚本
+- 用户提供了测试用例表（Excel TestCase），要先转成 pytest 用例壳（实际执行的基础类后面再合进来）
 - 用户提到 OTA升级压力、开关机压力、通信压力、接口压力等场景
 
 ## 覆盖的自动化类型
@@ -64,6 +66,7 @@ name: pressure-test
 | web自动化 | pressure-test-webui | 基于 Selenium/Playwright 的 Web UI 自动化压力测试 |
 | Windows界面自动化 | pressure-test-uiautomation | 基于 uiautomation 的 Windows UI 自动化压力测试 |
 | uiautomator自动化 | pressure-test-uiautomator | 基于 uiautomator2 的 Android UI 自动化压力测试 |
+| 功能自动化（pytest壳+allure） | pressure-test-pytest | Excel 用例转 pytest 壳工程：用例只调函数打印文字，基础类（CAN/串口/平台超类）经 uid 注册表解耦，合并后实际执行，allure 报告 |
 
 ## 注意事项
 
