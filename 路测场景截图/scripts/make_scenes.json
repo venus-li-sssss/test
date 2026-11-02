@@ -1,0 +1,23 @@
+{
+  "actions": [
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "\"${args.python}\" \"${args.skill_dir}/scripts/scene_shots.py\" --hi \"${args.hi}\" --dev \"${args.dev}\" --out-dir \"${args.out_dir}\" --hi-label \"${args.hi_label}\" --dev-label \"${args.dev_label}\" --scenes \"${args.scenes}\" --canvas ${args.canvas} --max-zoom ${args.max_zoom} --tile-source ${args.tile_source} --format ${args.format}",
+        "timeout": 1200
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "\"${args.python}\" \"${args.skill_dir}/scripts/verify_shots.py\" \"${args.out_dir}\""
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "\"${args.python}\" -c \"import io;print(io.open(r'${args.out_dir}/路测截图/场景汇总.txt',encoding='utf-8',errors='replace').read())\""
+      }
+    }
+  ]
+}
