@@ -16,6 +16,10 @@ name: feishu-software-download
 # 1) 看有哪些软件（读本地 catalog，不联网）
 python scripts\feishu_dl.py list
 
+# 1.5) 在「软件测试部/软件测试二科」范围内模糊搜索（列出全部候选，不下载）
+python scripts\feishu_dl.py search 烧录
+python scripts\feishu_dl.py search QDM562
+
 # 2) 下载（按名称或关键词，模糊匹配；--out 不给就落到当前目录）
 python scripts\feishu_dl.py get QCOM --out D:\tools
 python scripts\feishu_dl.py get 串口调试            # → SSCOM
@@ -62,22 +66,21 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
    `IncompleteRead` 断掉。脚本已内置 `Range: bytes=<have>-` 断点续传 + 最多 5 次重试，
    落地前先比对 Content-Length，不完整就报错不冒充成功 —— 别把它简化回单次 `iter_content`。
 
-**凭据不入库，需自备**（本仓库不含任何 app_id / app_secret）。脚本按下面顺序取：
+**内置「团队共用只读机器人」凭据，开箱即用**（不是个人账号，可公开）：
 
-1. 环境变量 `FEISHU_APP_ID` / `FEISHU_APP_SECRET`
-2. 本地文件 `~/.feishu_app.json`：`{"app_id": "cli_xxx", "app_secret": "xxx"}`
+- APP_ID `cli_a9bc97317fb89cc8`，租户 `quectel.feishu.cn`
+- 想换成自己的应用时用环境变量覆盖：`FEISHU_APP_ID` / `FEISHU_APP_SECRET`
 
-自建应用的准备步骤：
+**搜索范围**：`云盘 → 软件测试部 → 软件测试二科`（默认根目录，`FEISHU_ROOT_FOLDER` 可覆盖）。
+`sync` 会把该目录整棵树递归拉进 `software_catalog.json`，`search` / `get` 都在这个范围内匹配。
 
-1. 在飞书开发者后台建一个**企业自建应用**，拿到 App ID / App Secret；
-2. 开通应用身份权限 scope：`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`；
-3. 把该应用加为目标云盘目录的协作者（可阅读）——**共享给应用，不是共享给个人**；
-4. 若目标目录不是下面的默认根目录，用 `FEISHU_ROOT_FOLDER=<folder_token>` 覆盖。
+若某个目录报 `1061004 forbidden`：让目录所有者把**这个应用**（搜索应用名，不是个人）加为可阅读协作者；
+若报 `99991672 app_scope_not_applied`：开发者后台给应用补 scope（`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`）。
 
 其它默认值：
 
 - token 缓存：`~/.feishu_tat_cache.json`（提前 300s 续期，不用每次重取）
-- 根目录：`GiihfUC0tlDJGHdTriDcH4ljnUz` = 基础软件存放（子目录：串口工具 / 烧录工具 / AI工具）；目录不同请 `sync` 或 `--folder` 指定
+- 目录不同请改 `FEISHU_ROOT_FOLDER` 或用 `--folder` 指定
 
 ## 软件目录
 
