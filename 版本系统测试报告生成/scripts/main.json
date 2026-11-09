@@ -1,0 +1,44 @@
+[
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\jira_pull.py\" --config \"${args.config}\"",
+      "timeout": 600
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\build_report.py\" --config \"${args.config}\"",
+      "timeout": 600
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\road_test.py\" --config \"${args.config}\"",
+      "timeout": 900
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\verify_report.py\" --config \"${args.config}\"",
+      "timeout": 300
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\excel_check.py\" --config \"${args.config}\"",
+      "timeout": 300
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}\\scripts\\platform_push.py\" --config \"${args.config}\"",
+      "timeout": 1800
+    }
+  }
+]

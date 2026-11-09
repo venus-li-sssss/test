@@ -1,0 +1,46 @@
+{
+  "actions": [
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "if exist \"${args.cfg}\" (echo CFG_OK) else (echo CFG_MISSING: ${args.cfg} && exit 1)"
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "if exist \"${args.out_root}\" (echo ROOT_OK) else (mkdir \"${args.out_root}\" && echo ROOT_CREATED)"
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "cd /d D:\\OSGeo4W\\bin && python-qgis-ltr.bat \"${args.skill_dir}/scripts/路测截图生成.py\" \"${args.cfg}\"",
+        "timeout": 2400
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "python \"${args.skill_dir}/scripts/check_artifacts.py\" \"${args.out_root}\"",
+        "timeout": 300
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "python \"${args.skill_dir}/scripts/roadtest_docx_report.py\" --dir \"${args.out_root}\" --version \"${args.version}\"",
+        "timeout": 900
+      }
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "echo ===== 交付清单（Excel 报告不在 batch 内，见下） ===== & dir /b \"${args.out_root}\\*.kml\" \"${args.out_root}\\CEP_列表.xlsx\" \"${args.out_root}\\路测报告_*.docx\" 2>NUL & echo & echo 最后单独跑一条 shell 出 Excel 报告： & echo python \"${args.skill_dir}/scripts/excel_report.py\" --dir \"${args.out_root}\" --version \"${args.version}\" --result \"^<测试结果^>\" --max-images 6",
+        "timeout": 120
+      },
+      "stop_on_error": false
+    }
+  ],
+  "description": "全链路：cfg校验 -> QGIS出三件套 -> 验收 -> docx。【Excel 报告刻意不放进 batch】大请求体在 run_tool_batch 内会把 kernel 挂死（实测），batch 跑完后由 agent 用 execute_shell_command 单条跑 excel_report.py（默认每场景6张，缺 --version/--result 只提示不阻断）"
+}

@@ -1,0 +1,1404 @@
+{
+  "base_report": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\【机密】【MOB】QDM559EA_QDM559_STM32G0B0_01.001.01.001_SystemTestReport_V1.0.xlsx",
+  "out_report": "D:\\work\\QDM562\\版本测试\\001_763\\【机密】【MOB】LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001_763_SystemTestReport_V1.0.xlsx",
+  "version": "763",
+  "full_version": "LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001_763",
+  "prev_version": "",
+  "tester": "Venus",
+  "test_date": "2026-10-22",
+  "test_period": "2026-10-09~2026-10-22",
+  "exec_tables": [
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\b61ba693fe7d43cfa150cf8b27dc6356_绝密__模板_IK-QP-012-07_ODM_QDM522_TestCase_整车_V0.xlsx",
+      "group_by": "sheet"
+    },
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\37940aad1449427fb25150278616e295_绝密__模板_IK-QP-012-07_ODM_QDM562_TestCase_GNSS_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\7d211aef5a754450bbaa211a11cfa50d_QT-CP-009-102__绝密_ODM_QDM551_TestCase_Network_V1.0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\72b813f8f4db441aa17ae655b5ef2c9d_绝密__模板_IK-QP-012-07_ODM_QDM522_TestCase_PRETEST_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\00cbc059faae4f09aebeddfcae987450_绝密__模板_IK-QP-012-07_ODM_QDM522_TestCase_POWER_ON_OFF__V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\media\\18bb568bbccb4b9284979facba690234_绝密__模板_IK-QP-012-07_ODM_QDM522_TestCase_OTA_V0.xlsx",
+      "group_by": "case_prefix"
+    }
+  ],
+  "gf_title_merge": true,
+  "gf_inserts": [
+    {
+      "after_row": 27,
+      "style_from": 27,
+      "rows": [
+        {
+          "num": "OTA-07",
+          "content": "正常升级",
+          "priority": "P0"
+        },
+        {
+          "num": "OTA-08",
+          "content": "目标版本不匹配差分包升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-09",
+          "content": "正常升级",
+          "priority": "P0"
+        },
+        {
+          "num": "OTA-10",
+          "content": "目标版本不匹配差分包升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-11",
+          "content": "正常升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-12",
+          "content": "正常升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-13",
+          "content": "正常升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-14",
+          "content": "正常升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-15",
+          "content": "正常升级",
+          "priority": "P3"
+        },
+        {
+          "num": "OTA-16",
+          "content": "正常升级",
+          "priority": "P3"
+        }
+      ]
+    },
+    {
+      "after_row": 15,
+      "style_from": 15,
+      "rows": [
+        {
+          "num": "POWER ON/OFF-03",
+          "content": "断开电源小电池自动供电（供48V电源）",
+          "priority": "P1"
+        },
+        {
+          "num": "POWER ON/OFF-04",
+          "content": "小电池供电时接上电源电源自动供电（48V电源供电）",
+          "priority": "P0"
+        },
+        {
+          "num": "POWER ON/OFF-05",
+          "content": "快速上下电正常开机（48V电源供电）",
+          "priority": "P2"
+        },
+        {
+          "num": "POWER ON/OFF-06",
+          "content": "小电池正常放电",
+          "priority": "P2"
+        }
+      ]
+    },
+    {
+      "after_row": 12,
+      "style_from": 12,
+      "rows": [
+        {
+          "num": "NETWORK-05",
+          "content": "快速热插拔",
+          "priority": "P2"
+        }
+      ]
+    },
+    {
+      "after_row": 7,
+      "style_from": 7,
+      "rows": [
+        {
+          "num": "GNSS-04",
+          "content": "记录断电后启动首次获取定位后10条GNSS数据",
+          "priority": "P1"
+        },
+        {
+          "num": "GNSS-05",
+          "content": "正常环境下冷启动，再移动到无定位环境定位时长",
+          "priority": "P2"
+        },
+        {
+          "num": "GNSS-06",
+          "content": "记录10次冷启动首次获取定位后10条GNSS数据（无定位环境）",
+          "priority": "P2"
+        },
+        {
+          "num": "GNSS-07",
+          "content": "无定位环境下（室内）冷启动，再移动到正常环境定位时长",
+          "priority": "P2"
+        },
+        {
+          "num": "GNSS-08",
+          "content": "查看静止定位上报频率",
+          "priority": "P0"
+        },
+        {
+          "num": "GNSS-10",
+          "content": "默认静止定位上报频率（无定位环境）",
+          "priority": "P1"
+        },
+        {
+          "num": "GNSS-11",
+          "content": "定位精度（静止定位上报）",
+          "priority": "P2"
+        },
+        {
+          "num": "GNSS-12",
+          "content": "定位精度（静止定位上报）（弱定位环境）",
+          "priority": "P2"
+        },
+        {
+          "num": "GNSS-13",
+          "content": "路测（宽敞空地）",
+          "priority": "P1"
+        },
+        {
+          "num": "GNSS-14",
+          "content": "添加电子围栏",
+          "priority": "P2"
+        }
+      ]
+    }
+  ],
+  "gf_relabel": {
+    "5": {
+      "num": "GNSS-01",
+      "content": "ESIM获取AGPS",
+      "priority": "P0"
+    },
+    "6": {
+      "num": "GNSS-02",
+      "content": "ESIM获取AGPS",
+      "priority": "P0"
+    },
+    "7": {
+      "num": "GNSS-03",
+      "content": "记录断电后启动首次获取定位后10条GNSS数据",
+      "priority": "P0"
+    },
+    "19": {
+      "num": "NETWORK-01",
+      "content": "开机驻网",
+      "priority": "P0"
+    },
+    "20": {
+      "num": "NETWORK-02",
+      "content": "开机弱网驻网",
+      "priority": "P2"
+    },
+    "21": {
+      "num": "NETWORK-03",
+      "content": "有网环境到无网环境",
+      "priority": "P2"
+    },
+    "22": {
+      "num": "NETWORK-04",
+      "content": "网络重启机制",
+      "priority": "P1"
+    },
+    "25": {
+      "num": "POWER ON/OFF-01",
+      "content": "上电自动开机",
+      "priority": "P1"
+    },
+    "26": {
+      "num": "POWER ON/OFF-02",
+      "content": "断电自动关机",
+      "priority": "P1"
+    },
+    "33": {
+      "num": "OTA-01",
+      "content": "正常升级",
+      "priority": "P1"
+    },
+    "34": {
+      "num": "OTA-02",
+      "content": "进入升级中快速断电",
+      "priority": "P2"
+    },
+    "36": {
+      "num": "OTA-03",
+      "content": "正常升级",
+      "priority": "P1"
+    },
+    "38": {
+      "num": "OTA-04",
+      "content": "进入升级中快速断电",
+      "priority": "P2"
+    },
+    "40": {
+      "num": "OTA-05",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "42": {
+      "num": "OTA-06",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "55": {
+      "num": "平台数据交互-01",
+      "content": "数据检查",
+      "priority": "P0"
+    },
+    "56": {
+      "num": "平台数据交互-02",
+      "content": "车辆关闭的情况下，App开机，不按Auto键",
+      "priority": "P0"
+    },
+    "57": {
+      "num": "平台数据交互-03",
+      "content": "4G连接状态下，电量栏数据",
+      "priority": "P0"
+    },
+    "58": {
+      "num": "平台数据交互-04",
+      "content": "移动报警通知",
+      "priority": "P1"
+    },
+    "59": {
+      "num": "平台数据交互-05",
+      "content": "开启NFC功能",
+      "priority": "P3"
+    },
+    "60": {
+      "num": "平台数据交互-06",
+      "content": "App中关闭乘车感应",
+      "priority": "P2"
+    },
+    "61": {
+      "num": "平台数据交互-07",
+      "content": "4G连接状态下，App中开启能量回收",
+      "priority": "P3"
+    },
+    "62": {
+      "num": "平台数据交互-08",
+      "content": "App中开启电子刹车",
+      "priority": "P3"
+    },
+    "63": {
+      "num": "平台数据交互-09",
+      "content": "App中开启倒车",
+      "priority": "P3"
+    },
+    "64": {
+      "num": "平台数据交互-10",
+      "content": "转把标定校准",
+      "priority": "P3"
+    },
+    "65": {
+      "num": "平台数据交互-11",
+      "content": "APP中开启精准续航",
+      "priority": "P0"
+    },
+    "66": {
+      "num": "平台数据交互-12",
+      "content": "APP中开启氮气模式",
+      "priority": "P0"
+    },
+    "67": {
+      "num": "平台数据交互-13",
+      "content": "APP中开启彩蛋功能",
+      "priority": "P0"
+    },
+    "68": {
+      "num": "平台数据交互-14",
+      "content": "APP中开启TCS",
+      "priority": "P0"
+    },
+    "69": {
+      "num": "平台数据交互-15",
+      "content": "APP中开启自动驻车",
+      "priority": "P0"
+    },
+    "70": {
+      "num": "平台数据交互-16",
+      "content": "APP中开启冬眠模式",
+      "priority": "P0"
+    },
+    "71": {
+      "num": "平台数据交互-17",
+      "content": "添加桌面小组件",
+      "priority": "P3"
+    },
+    "72": {
+      "num": "平台数据交互-18",
+      "content": "感应解锁关闭情况下连接车辆",
+      "priority": "P1"
+    },
+    "73": {
+      "num": "平台数据交互-19",
+      "content": "AppleWatch蓝牙连接下操作",
+      "priority": "P3"
+    },
+    "74": {
+      "num": "平台数据交互-20",
+      "content": "查看设备型号",
+      "priority": "P0"
+    },
+    "75": {
+      "num": "平台数据交互-21",
+      "content": "车辆整车数据上报检查",
+      "priority": "P0"
+    },
+    "77": {
+      "num": "PRETEST-01",
+      "content": "首次烧录版本，检查A版本",
+      "priority": "P0"
+    },
+    "78": {
+      "num": "PRETEST-02",
+      "content": "车联网平台查看版本",
+      "priority": "P0"
+    },
+    "79": {
+      "num": "PRETEST-03",
+      "content": "蓝牙连接检查",
+      "priority": "P0"
+    },
+    "82": {
+      "num": "FCT-01",
+      "content": "FCT测试",
+      "priority": "P0"
+    },
+    "8": {
+      "num": "GNSS-04",
+      "content": "记录断电后启动首次获取定位后10条GNSS数据",
+      "priority": "P1"
+    },
+    "9": {
+      "num": "GNSS-05",
+      "content": "正常环境下冷启动，再移动到无定位环境定位时长",
+      "priority": "P2"
+    },
+    "10": {
+      "num": "GNSS-06",
+      "content": "记录10次冷启动首次获取定位后10条GNSS数据（无定位环境）",
+      "priority": "P2"
+    },
+    "11": {
+      "num": "GNSS-07",
+      "content": "无定位环境下（室内）冷启动，再移动到正常环境定位时长",
+      "priority": "P2"
+    },
+    "12": {
+      "num": "GNSS-08",
+      "content": "查看静止定位上报频率",
+      "priority": "P0"
+    },
+    "13": {
+      "num": "GNSS-10",
+      "content": "默认静止定位上报频率（无定位环境）",
+      "priority": "P1"
+    },
+    "14": {
+      "num": "GNSS-11",
+      "content": "定位精度（静止定位上报）",
+      "priority": "P2"
+    },
+    "15": {
+      "num": "GNSS-12",
+      "content": "定位精度（静止定位上报）（弱定位环境）",
+      "priority": "P2"
+    },
+    "16": {
+      "num": "GNSS-13",
+      "content": "路测（宽敞空地）",
+      "priority": "P1"
+    },
+    "17": {
+      "num": "GNSS-14",
+      "content": "添加电子围栏",
+      "priority": "P2"
+    },
+    "23": {
+      "num": "NETWORK-05",
+      "content": "快速热插拔",
+      "priority": "P2"
+    },
+    "27": {
+      "num": "POWER ON/OFF-03",
+      "content": "断开电源小电池自动供电（供48V电源）",
+      "priority": "P1"
+    },
+    "28": {
+      "num": "POWER ON/OFF-04",
+      "content": "小电池供电时接上电源电源自动供电（48V电源供电）",
+      "priority": "P0"
+    },
+    "29": {
+      "num": "POWER ON/OFF-05",
+      "content": "快速上下电正常开机（48V电源供电）",
+      "priority": "P2"
+    },
+    "30": {
+      "num": "POWER ON/OFF-06",
+      "content": "小电池正常放电",
+      "priority": "P2"
+    },
+    "43": {
+      "num": "OTA-07",
+      "content": "正常升级",
+      "priority": "P0"
+    },
+    "44": {
+      "num": "OTA-08",
+      "content": "目标版本不匹配差分包升级",
+      "priority": "P3"
+    },
+    "45": {
+      "num": "OTA-09",
+      "content": "正常升级",
+      "priority": "P0"
+    },
+    "46": {
+      "num": "OTA-10",
+      "content": "目标版本不匹配差分包升级",
+      "priority": "P3"
+    },
+    "47": {
+      "num": "OTA-11",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "48": {
+      "num": "OTA-12",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "49": {
+      "num": "OTA-13",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "50": {
+      "num": "OTA-14",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "51": {
+      "num": "OTA-15",
+      "content": "正常升级",
+      "priority": "P3"
+    },
+    "52": {
+      "num": "OTA-16",
+      "content": "正常升级",
+      "priority": "P3"
+    }
+  },
+  "gf_clear_rows": [
+    32,
+    35,
+    37,
+    39,
+    41
+  ],
+  "gf_rows": {
+    "5": {
+      "label": "GNSS-01",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-01"
+          ]
+        }
+      ]
+    },
+    "6": {
+      "label": "GNSS-02",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-02"
+          ]
+        }
+      ]
+    },
+    "7": {
+      "label": "GNSS-03",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-03"
+          ]
+        }
+      ]
+    },
+    "19": {
+      "label": "NETWORK-01",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-01"
+          ]
+        }
+      ]
+    },
+    "20": {
+      "label": "NETWORK-02",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-02"
+          ]
+        }
+      ]
+    },
+    "21": {
+      "label": "NETWORK-03",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-03"
+          ]
+        }
+      ]
+    },
+    "22": {
+      "label": "NETWORK-04",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-04"
+          ]
+        }
+      ]
+    },
+    "25": {
+      "label": "POWER ON/OFF-01",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-01"
+          ]
+        }
+      ]
+    },
+    "26": {
+      "label": "POWER ON/OFF-02",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-02"
+          ]
+        }
+      ]
+    },
+    "33": {
+      "label": "OTA-01",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-01"
+          ]
+        }
+      ]
+    },
+    "34": {
+      "label": "OTA-02",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-02"
+          ]
+        }
+      ]
+    },
+    "36": {
+      "label": "OTA-03",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-03"
+          ]
+        }
+      ]
+    },
+    "38": {
+      "label": "OTA-04",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-04"
+          ]
+        }
+      ]
+    },
+    "40": {
+      "label": "OTA-05",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-05"
+          ]
+        }
+      ]
+    },
+    "42": {
+      "label": "OTA-06",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-06"
+          ]
+        }
+      ]
+    },
+    "55": {
+      "label": "平台数据交互-01",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "激活绑定"
+          ]
+        }
+      ]
+    },
+    "56": {
+      "label": "平台数据交互-02",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "车辆详情"
+          ]
+        }
+      ]
+    },
+    "57": {
+      "label": "平台数据交互-03",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "电池详情"
+          ]
+        }
+      ]
+    },
+    "58": {
+      "label": "平台数据交互-04",
+      "force": {
+        "result": "FAIL",
+        "fail_reason": "安防设置与消息通知\n本轮执行结果为 FAIL"
+      }
+    },
+    "59": {
+      "label": "平台数据交互-05",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "NFC与密码设置"
+          ]
+        }
+      ]
+    },
+    "60": {
+      "label": "平台数据交互-06",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "感应与锁车"
+          ]
+        }
+      ]
+    },
+    "61": {
+      "label": "平台数据交互-07",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "能量回收与设置"
+          ]
+        }
+      ]
+    },
+    "62": {
+      "label": "平台数据交互-08",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "电子刹车"
+          ]
+        }
+      ]
+    },
+    "63": {
+      "label": "平台数据交互-09",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "倒车"
+          ]
+        }
+      ]
+    },
+    "64": {
+      "label": "平台数据交互-10",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "转把标定校准"
+          ]
+        }
+      ]
+    },
+    "65": {
+      "label": "平台数据交互-11",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "精准续航"
+          ]
+        }
+      ]
+    },
+    "66": {
+      "label": "平台数据交互-12",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "氮气模式"
+          ]
+        }
+      ]
+    },
+    "67": {
+      "label": "平台数据交互-13",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "彩蛋功能"
+          ]
+        }
+      ]
+    },
+    "68": {
+      "label": "平台数据交互-14",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "TCS"
+          ]
+        }
+      ]
+    },
+    "69": {
+      "label": "平台数据交互-15",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "自动驻车"
+          ]
+        }
+      ]
+    },
+    "70": {
+      "label": "平台数据交互-16",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "冬眠模式"
+          ]
+        }
+      ]
+    },
+    "71": {
+      "label": "平台数据交互-17",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "桌面小组件"
+          ]
+        }
+      ]
+    },
+    "72": {
+      "label": "平台数据交互-18",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "车辆蓝牙广播"
+          ]
+        }
+      ]
+    },
+    "73": {
+      "label": "平台数据交互-19",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "Watch控车"
+          ]
+        }
+      ]
+    },
+    "74": {
+      "label": "平台数据交互-20",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "设备信息"
+          ]
+        }
+      ]
+    },
+    "75": {
+      "label": "平台数据交互-21",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "其他功能"
+          ]
+        }
+      ]
+    },
+    "77": {
+      "label": "PRETEST-01",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-01"
+          ]
+        }
+      ]
+    },
+    "78": {
+      "label": "PRETEST-02",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-02"
+          ]
+        }
+      ]
+    },
+    "79": {
+      "label": "PRETEST-03",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-03"
+          ]
+        }
+      ]
+    },
+    "82": {
+      "label": "FCT-01",
+      "force": {
+        "result": "Blocked-NoRun",
+        "block_reason": "本轮未提供 FCT 执行表"
+      }
+    },
+    "8": {
+      "label": "GNSS-04",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-04"
+          ]
+        }
+      ]
+    },
+    "9": {
+      "label": "GNSS-05",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-05"
+          ]
+        }
+      ]
+    },
+    "10": {
+      "label": "GNSS-06",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-06"
+          ]
+        }
+      ]
+    },
+    "11": {
+      "label": "GNSS-07",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-07"
+          ]
+        }
+      ]
+    },
+    "12": {
+      "label": "GNSS-08",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-08"
+          ]
+        }
+      ]
+    },
+    "13": {
+      "label": "GNSS-10",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-10"
+          ]
+        }
+      ]
+    },
+    "14": {
+      "label": "GNSS-11",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-11"
+          ]
+        }
+      ]
+    },
+    "15": {
+      "label": "GNSS-12",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-12"
+          ]
+        }
+      ]
+    },
+    "16": {
+      "label": "GNSS-13",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-13"
+          ]
+        }
+      ]
+    },
+    "17": {
+      "label": "GNSS-14",
+      "force": {
+        "result": "Blocked-NoRun",
+        "block_reason": "未填写执行结果"
+      }
+    },
+    "23": {
+      "label": "NETWORK-05",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-05"
+          ]
+        }
+      ]
+    },
+    "27": {
+      "label": "POWER ON/OFF-03",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-03"
+          ]
+        }
+      ]
+    },
+    "28": {
+      "label": "POWER ON/OFF-04",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-04"
+          ]
+        }
+      ]
+    },
+    "29": {
+      "label": "POWER ON/OFF-05",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-05"
+          ]
+        }
+      ]
+    },
+    "30": {
+      "label": "POWER ON/OFF-06",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-06"
+          ]
+        }
+      ]
+    },
+    "43": {
+      "label": "OTA-07",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-07"
+          ]
+        }
+      ]
+    },
+    "44": {
+      "label": "OTA-08",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-08"
+          ]
+        }
+      ]
+    },
+    "45": {
+      "label": "OTA-09",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-09"
+          ]
+        }
+      ]
+    },
+    "46": {
+      "label": "OTA-10",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-10"
+          ]
+        }
+      ]
+    },
+    "47": {
+      "label": "OTA-11",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-11"
+          ]
+        }
+      ]
+    },
+    "48": {
+      "label": "OTA-12",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-12"
+          ]
+        }
+      ]
+    },
+    "49": {
+      "label": "OTA-13",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-13"
+          ]
+        }
+      ]
+    },
+    "50": {
+      "label": "OTA-14",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-14"
+          ]
+        }
+      ]
+    },
+    "51": {
+      "label": "OTA-15",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-15"
+          ]
+        }
+      ]
+    },
+    "52": {
+      "label": "OTA-16",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-16"
+          ]
+        }
+      ]
+    }
+  },
+  "plan_start_row": 18,
+  "plan_start_no": 1,
+  "plan_use_formulas": true,
+  "plan": [
+    {
+      "item": "整车",
+      "count": 789,
+      "manpower": 7.0,
+      "status": "FAIL",
+      "remark": ""
+    },
+    {
+      "item": "GNSS",
+      "count": 122,
+      "manpower": 1.0,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "POWERONOFF",
+      "count": 24,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "Network",
+      "count": 21,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "PRETEST",
+      "count": 11,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "OTA",
+      "count": 55,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "FCT",
+      "count": 0,
+      "manpower": 0,
+      "status": "Blocked-NoRun",
+      "remark": "本轮未提供 FCT 执行表"
+    }
+  ],
+  "hide": {
+    "常规功能": {
+      "cols": [
+        "F:Y"
+      ],
+      "rows": [
+        80
+      ]
+    },
+    "常规压力": {
+      "cols": [
+        "H:BD"
+      ],
+      "rows": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ]
+    },
+    "路测": {
+      "rows": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "摘要": {
+      "rows": [
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ]
+    },
+    "测试计划": {
+      "rows": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    }
+  },
+  "summary": {
+    "matrix": [
+      "FAIL",
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS",
+      "BLOCK"
+    ],
+    "current_row": 25,
+    "cells": {
+      "B25": "LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001",
+      "D5": "",
+      "D6": "LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001",
+      "D7": "",
+      "D13": "",
+      "D15": "",
+      "D16": "",
+      "D17": "",
+      "D18": ""
+    },
+    "text": ""
+  },
+  "jira": {
+    "account": "venus.li@ikotek.com",
+    "password": "A@@@@Aa13106680957",
+    "jql": "issuetype = ST-BUG AND text ~ \"QDM562\" AND BUG发现的A版本 ~ LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001 ORDER BY status ASC",
+    "project_label": "QDM562",
+    "out": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\skills\\版本系统测试报告生成\\configs\\jira_qdm562_763.json"
+  },
+  "bug_links": {
+    "15": "https://ticket.ikotek.com/issues/?jql=issuetype%20%3D%20ST-BUG%20AND%20text%20~%20%22QDM562%22%20AND%20BUG%E5%8F%91%E7%8E%B0%E7%9A%84A%E7%89%88%E6%9C%AC%20~%20LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001%20ORDER%20BY%20status%20ASC",
+    "16": "https://ticket.ikotek.com/issues/?jql=issuetype%20%3D%20ST-BUG%20AND%20text%20~%20%22QDM562%22%20AND%20BUG%E5%8F%91%E7%8E%B0%E7%9A%84A%E7%89%88%E6%9C%AC%20~%20LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001%20AND%20%22BUG%E5%8F%91%E7%8E%B0%E7%9A%84V%E7%89%88%E6%9C%AC%22%20~%20%22763%22%20ORDER%20BY%20status%20ASC",
+    "17": "https://ticket.ikotek.com/issues/?jql=issuetype%20%3D%20ST-BUG%20AND%20text%20~%20%22QDM562%22%20AND%20BUG%E5%8F%91%E7%8E%B0%E7%9A%84A%E7%89%88%E6%9C%AC%20~%20LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_01.001.01.001%20AND%20%22BUG%E5%8F%91%E7%8E%B0%E7%9A%84V%E7%89%88%E6%9C%AC%22%20%21~%20%22763%22%20ORDER%20BY%20status%20ASC"
+  },
+  "new_bugs": [
+    "QDM562EA-344",
+    "QDM562EA-336",
+    "QDM562EA-338"
+  ],
+  "bug_remarks": {
+    "QDM562EA-344": "",
+    "QDM562EA-336": "",
+    "QDM562EA-322": "",
+    "QDM562EA-337": "",
+    "QDM562EA-338": ""
+  },
+  "pressure": {},
+  "platform": {
+    "enabled": false
+  }
+}

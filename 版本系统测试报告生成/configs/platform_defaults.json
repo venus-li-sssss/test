@@ -1,0 +1,43 @@
+{
+  "_说明": "摘要报告的固定值（组织基线 + 项目级）。这些字段不用每次输入：platform_push.py 会用它覆盖从报告解析到的值；报告值与固定值不一致时会打印冲突提示。版本级字段（版本号/测试人/日期/测试小结/计划/功能/压力/路测/JIRA）仍然从报告和本版本配置自动取。",
+  "_占位符": "{stem}=完整版本号去掉 _Vxx；{version}=本次 V 版本；{full_version}=完整版本号；{tester}=测试人；{test_date}=测试日期",
+  "_取值来源": "以下 QDM559 的值全部照抄 01.001.01.001_V22 报告「摘要」Sheet 原文（2026-10-21 抽取）。新项目第一次推之前先照它的报告补一条，没把握的字段宁可不写，让脚本从报告里读。",
+
+  "global": {
+    "_说明": "用户 2026-10-22 明确：密级/审核人/批准人 全项目统一、固定不变，所以放 global；projects 里如需覆盖再写。",
+    "confidentialityLevel": "保密",
+    "reviewer": "丰文汉",
+    "approver": "周涵",
+    "documentType": "软件测试报告",
+    "testType": "功能测试",
+    "testLevel": "Level3",
+    "submissionPath": "http://qms.quectel.com:8561",
+    "forLinux": "",
+    "testContent": {
+      "functionTest": true,
+      "modificationPoint": true,
+      "routinePressure": true,
+      "bugVerification": true,
+      "citTest": false
+    }
+  },
+
+  "projects": {
+    "QDM559": {
+      "projectIndustry": "Tracker/两轮车",
+      "testPlatform": "EC718",
+      "baselinesVersion": "DataBaseV1.0",
+      "baselinesProjectPath": "https://192.168.25.180/svn/ODM/branches/软测/01_OrganizationalLevel/02_TestCaseLibrary/02_MOB/00_Porject Test Case/NOT FWA/QDM551/Oversea/DataBase/DataBaseV1.0/03_System_TestCase_V1.0",
+      "reportPath": "https://192.168.25.180/svn/ODM/branches/软测/02_Project Level/01_MOB/QDM559/03_ProjectTest/02_SoftwareTestingReport/版本测试报告/{stem}/测试报告",
+      "forWindows": "Tool:QFlash_V7.3_CN\nDebug Tool:J-Link RTT Viewer"
+    },
+    "QDM562": {
+      "_说明": "2026-10-23 用户确认：测试平台 ASR1602S；项目行业/Baselines 同 QDM559；For Windows=QCOM；报告存放路径先不写",
+      "projectIndustry": "Tracker/两轮车",
+      "testPlatform": "ASR1602S",
+      "baselinesVersion": "DataBaseV1.0",
+      "baselinesProjectPath": "https://192.168.25.180/svn/ODM/branches/软测/01_OrganizationalLevel/02_TestCaseLibrary/02_MOB/00_Porject Test Case/NOT FWA/QDM551/Oversea/DataBase/DataBaseV1.0/03_System_TestCase_V1.0",
+      "forWindows": "QCOM"
+    }
+  }
+}

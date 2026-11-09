@@ -1,0 +1,36 @@
+{
+  "name": "报告生成",
+  "description": "已有三件套(KML/截图/CEP表)时只补两份报告：验收 -> docx -> 汇总。Excel 报告(调妙搭接口)【不在本 batch】——大 body 会把 batch kernel 挂死，单独跑一条 shell 命令： python \"<skill>/scripts/excel_report.py\" --dir <out_root> --version <版本> --result <测试结果> --max-images 6 （缺 --version/--result 会提示但不阻断；默认6张/场景，别放回 batch、别改回全量）",
+  "stop_on_error": false,
+  "actions": [
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "python \"${args.skill_dir}\\scripts\\check_artifacts.py\" \"${args.out_root}\"",
+        "timeout": 180,
+        "cwd": "D:\\work\\路测工具"
+      },
+      "stop_on_error": false,
+      "wait": 1
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "python \"${args.skill_dir}\\scripts\\roadtest_docx_report.py\" --dir \"${args.out_root}\" --version \"${args.version}\"",
+        "timeout": 600,
+        "cwd": "D:\\work\\路测工具"
+      },
+      "stop_on_error": false,
+      "wait": 1
+    },
+    {
+      "tool_name": "execute_shell_command",
+      "arguments": {
+        "command": "echo ===== 交付清单（Excel 报告不在 batch 内） ===== & dir /b \"${args.out_root}\\路测报告_*.docx\" \"${args.out_root}\\路测报告_*.xlsx\" 2>NUL & echo 缺 xlsx 则单条 shell 跑：python \"${args.skill_dir}\\scripts\\excel_report.py\" --dir \"${args.out_root}\" --version \"^<测试版本^>\" --result \"^<测试结果^>\" --max-images 6",
+        "timeout": 120,
+        "cwd": "D:\\work\\路测工具"
+      },
+      "stop_on_error": false
+    }
+  ]
+}

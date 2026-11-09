@@ -1,0 +1,740 @@
+{
+  "base_report": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\【机密】【MOB】QDM559EA_QDM559_STM32G0B0_01.001.01.001_SystemTestReport_V1.0.xlsx",
+  "out_report": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\【机密】【MOB】QDM559EA_QDM559_STM32G0B0_01.001.01.001_V22_SystemTestReport_V2.0.xlsx",
+  "version": "V22",
+  "full_version": "QDM559_STM32G0B0_APP_01.001.01.001_V22",
+  "prev_version": "V20",
+  "tester": "Venus",
+  "test_date": "2026-09-28",
+  "test_period": "2026-09-16~2026-09-28",
+  "exec_tables": [
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM522_TestCase_整车_V0.xlsx",
+      "group_by": "sheet"
+    },
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM562_TestCase_GNSS_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM562_TestCase_NETWORK_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM522_TestCase_PRETEST_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM522_TestCase_POWER ON(OFF)_V0.xlsx",
+      "group_by": "case_prefix"
+    },
+    {
+      "file": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\001_V22\\001_V22\\【绝密】【模板】IK-QP-012-07_ODM_QDM522_TestCase_OTA_V0.xlsx",
+      "group_by": "case_prefix"
+    }
+  ],
+  "gf_title_merge": true,
+  "gf_insert": {
+    "at_row": 51,
+    "count": 2,
+    "style_from": 50,
+    "merges": [
+      [
+        "B51:B55",
+        "B53:B57"
+      ],
+      [
+        "B56:B57",
+        "B58:B59"
+      ]
+    ]
+  },
+  "gf_new_rows": {
+    "51": {
+      "num": "平台数据交互-10",
+      "content": "运输模式",
+      "priority": "P0",
+      "result": "PASS"
+    },
+    "52": {
+      "num": "平台数据交互-11",
+      "content": "倒车断电",
+      "priority": "P0",
+      "result": "PASS"
+    }
+  },
+  "gf_rows": {
+    "5": {
+      "label": "GNSS-01/GPS定位信息",
+      "sources": [
+        {
+          "table": 1,
+          "keys": [
+            "GNSS-01",
+            "GNSS-02",
+            "GNSS-03",
+            "GNSS-04"
+          ]
+        }
+      ]
+    },
+    "6": {
+      "label": "GNSS-02/GPS定位精度",
+      "force": {
+        "result": "FAIL",
+        "fail_reason": "QDM559EA-135\nST[QDM_559][GNSS]原始NMEA存在比较明显的漂移；期望定位轨迹在预期范围内；必现"
+      }
+    },
+    "7": {
+      "label": "GNSS-03/GPS轨迹精度测试",
+      "force": {
+        "result": "FAIL",
+        "fail_reason": "QDM559EA-127\nST[QDM_559][protocol]APP显示有轨迹数据，但是APP点击进去无法显示轨迹；期望轨迹数据正常；100%"
+      }
+    },
+    "9": {
+      "label": "NETWORK-01",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-01"
+          ]
+        }
+      ]
+    },
+    "10": {
+      "label": "NETWORK-02",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-04",
+            "NETWORK-05"
+          ]
+        }
+      ],
+      "block_reason": "版本升V"
+    },
+    "11": {
+      "label": "NETWORK-03",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-02"
+          ]
+        }
+      ],
+      "block_reason": "版本升V"
+    },
+    "12": {
+      "label": "NETWORK-04",
+      "sources": [
+        {
+          "table": 2,
+          "keys": [
+            "NETWORK-01-002"
+          ]
+        }
+      ],
+      "block_reason": "版本升V"
+    },
+    "14": {
+      "label": "PowerONOFF-01",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-01"
+          ]
+        }
+      ]
+    },
+    "15": {
+      "label": "PowerONOFF-02",
+      "sources": [
+        {
+          "table": 4,
+          "keys": [
+            "POWER ON/OFF-02"
+          ]
+        }
+      ],
+      "block_reason": "版本升V"
+    },
+    "18": {
+      "label": "OTA-01/ECU",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-01"
+          ]
+        }
+      ]
+    },
+    "19": {
+      "label": "OTA-02/ECU",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-02"
+          ]
+        }
+      ]
+    },
+    "21": {
+      "label": "OTA-01/控制器",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-11"
+          ]
+        }
+      ]
+    },
+    "23": {
+      "label": "OTA-01/仪表",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-13"
+          ]
+        }
+      ]
+    },
+    "25": {
+      "label": "OTA-01/DIS",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-15"
+          ]
+        }
+      ]
+    },
+    "27": {
+      "label": "OTA-01/BMS",
+      "sources": [
+        {
+          "table": 5,
+          "keys": [
+            "OTA-14"
+          ]
+        }
+      ]
+    },
+    "30": {
+      "label": "平台数据交互-01/激活绑定",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "激活绑定"
+          ]
+        }
+      ]
+    },
+    "31": {
+      "label": "平台数据交互-02/车辆详情",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "车辆详情"
+          ]
+        }
+      ]
+    },
+    "32": {
+      "label": "平台数据交互-03/电池详情",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "电池详情"
+          ]
+        }
+      ]
+    },
+    "33": {
+      "label": "平台数据交互-04/安防设置与消息通知",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "安防设置与消息通知"
+          ]
+        }
+      ]
+    },
+    "34": {
+      "label": "平台数据交互-05/NFC与密码设置",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "NFC与密码设置"
+          ]
+        }
+      ]
+    },
+    "35": {
+      "label": "平台数据交互-06/感应与锁车",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "感应与锁车"
+          ]
+        }
+      ],
+      "block_reason": "蓝牙相关，本轮暂不测试（仅验证4G）"
+    },
+    "36": {
+      "label": "平台数据交互-07/能量回收与设置",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "能量回收与设置"
+          ]
+        }
+      ]
+    },
+    "37": {
+      "label": "平台数据交互-08/电子刹车",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "电子刹车"
+          ]
+        }
+      ]
+    },
+    "38": {
+      "label": "平台数据交互-09/倒车",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "倒车"
+          ]
+        }
+      ],
+      "block_reason": "蓝牙相关，本轮暂不测试（仅验证4G）"
+    },
+    "39": {
+      "label": "平台数据交互-01/转把标定校准",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "转把标定校准"
+          ]
+        }
+      ],
+      "block_reason": "蓝牙相关，本轮暂不测试（仅验证4G）"
+    },
+    "40": {
+      "label": "平台数据交互-02/精准续航",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "精准续航"
+          ]
+        }
+      ]
+    },
+    "41": {
+      "label": "平台数据交互-03/氮气模式",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "氮气模式"
+          ]
+        }
+      ]
+    },
+    "42": {
+      "label": "平台数据交互-04/彩蛋功能",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "彩蛋功能"
+          ]
+        }
+      ]
+    },
+    "43": {
+      "label": "平台数据交互-05/TCS",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "TCS"
+          ]
+        }
+      ]
+    },
+    "44": {
+      "label": "平台数据交互-06/自动驻车",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "自动驻车"
+          ]
+        }
+      ]
+    },
+    "45": {
+      "label": "平台数据交互-07/冬眠模式",
+      "force": {
+        "result": "Blocked-NoRun",
+        "block_reason": "无法执行"
+      }
+    },
+    "46": {
+      "label": "平台数据交互-08/桌面小组件",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "桌面小组件"
+          ]
+        }
+      ],
+      "block_reason": "蓝牙相关，本轮暂不测试（仅验证4G）"
+    },
+    "47": {
+      "label": "平台数据交互-09/车辆蓝牙广播",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "车辆蓝牙广播"
+          ]
+        }
+      ]
+    },
+    "48": {
+      "label": "平台数据交互-05/Watch控车",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "Watch控车"
+          ]
+        }
+      ]
+    },
+    "49": {
+      "label": "平台数据交互-06/设备信息",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "设备信息"
+          ]
+        }
+      ]
+    },
+    "50": {
+      "label": "平台数据交互-07/其他功能",
+      "sources": [
+        {
+          "table": 0,
+          "keys": [
+            "其他功能"
+          ]
+        }
+      ]
+    },
+    "54": {
+      "label": "PRETEST-01",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-01"
+          ]
+        }
+      ]
+    },
+    "55": {
+      "label": "PRETEST-02",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-02"
+          ]
+        }
+      ]
+    },
+    "56": {
+      "label": "PRETEST-03",
+      "sources": [
+        {
+          "table": 3,
+          "keys": [
+            "PRETEST-01-003",
+            "PRETEST-01-004"
+          ]
+        }
+      ]
+    },
+    "57": {
+      "label": "PRETEST-04/串口功能检查",
+      "force": {
+        "result": "Blocked-NoRun",
+        "block_reason": "无法执行"
+      }
+    },
+    "59": {
+      "label": "FCT-01/FCT测试",
+      "force": {
+        "result": "Blocked-NoRun",
+        "block_reason": "无法执行"
+      }
+    }
+  },
+  "hide": {
+    "路测": {
+      "rows": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "摘要": {
+      "rows": [
+        45,
+        46
+      ]
+    },
+    "测试计划": {
+      "rows": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    "常规功能": {
+      "cols": [
+        "F:Y"
+      ]
+    },
+    "常规压力": {
+      "cols": [
+        "H:BD"
+      ]
+    }
+  },
+  "summary": {
+    "matrix": [
+      "PASS",
+      "FAIL",
+      "PASS",
+      "FAIL",
+      "PASS",
+      "FAIL",
+      "BLOCK"
+    ],
+    "current_row": 25,
+    "runs": [
+      [
+        "FF000000",
+        "[本框内的1~8点，需要同步在报告和邮件中更新，其中5,6,7,8可以在邮件中说明即可]：\n1. 版本：QDM559_STM32G0B0_APP_01.001.01.001_V22\n2. 测试结果判定："
+      ],
+      [
+        "FFFF0000",
+        "FAIL"
+      ],
+      [
+        "FF000000",
+        "\n    原因:基础功能存在BUG\n3. 测试风险：\n"
+      ],
+      [
+        "FFFF0000",
+        "           1）原始NMEA存在比较明显的漂移，定位轨迹精度待优化（QDM559EA-135）\n           2）路测后有定位但APP无法显示轨迹，需等待APP更新后确认（QDM559EA-127）\n           3）组合升级压力测试出现1次TFT固件转发失败（QDM559EA-106）\n           4）客户反馈在美洲信号很差，正常停在屋子里仪表显示信号弱，暂无进度（QDM559EA-128）\n"
+      ],
+      [
+        "FF000000",
+        "4. 测试报告路径（邮件中添加路径即可）\n5. 功能项测试情况列表：block需说明，如：1）测试策略\n6. 缺陷链接（缺陷链接），报告罗列详细缺陷问题统计表，邮件罗列新增缺陷和历史A类缺陷\n7. 压力测试：Fail,邮件罗列fail项\n8. 修改点测试结果：PASS，邮件不罗列修改点"
+      ]
+    ]
+  },
+  "plan_start_row": 18,
+  "plan": [
+    {
+      "item": "整车",
+      "count": 175,
+      "manpower": 2,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "GNSS",
+      "count": 69,
+      "manpower": 1,
+      "status": "FAIL",
+      "remark": "QDM559EA-127\nST[QDM_559][protocol]APP显示有轨迹数据，但是APP点击进去无法显示轨迹；期望轨迹数据正常；100%\nQDM559EA-135\nST[QDM_559][GNSS]原始NMEA存在比较明显的漂移；期望定位轨迹在预期范围内；必现"
+    },
+    {
+      "item": "POWERONOFF",
+      "count": 18,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "Network",
+      "count": 20,
+      "manpower": 0.5,
+      "status": "FAIL",
+      "remark": "QDM559EA-128\nST[QDM_559][NETWORK][客户问题]在美洲反馈信号很差，正常停在屋子里，就仪表显示很差"
+    },
+    {
+      "item": "PRETEST",
+      "count": 7,
+      "manpower": 0.5,
+      "status": "PASS",
+      "remark": ""
+    },
+    {
+      "item": "OTA",
+      "count": 40,
+      "manpower": 0.5,
+      "status": "FAIL",
+      "remark": "QDM559EA-106\nST[QDM_559][OTA]平台挂测组合升级压力，出现1次固件转发失败；期望升级成功；小概率"
+    }
+  ],
+  "jira": {
+    "account": "venus.li@ikotek.com",
+    "password": "A@@@@Aa13106680957",
+    "jql": "project = QDM559EA AND issuetype = ST-BUG ORDER BY key DESC",
+    "bug_keys": [
+      "QDM559EA-135",
+      "QDM559EA-134",
+      "QDM559EA-133",
+      "QDM559EA-131",
+      "QDM559EA-128",
+      "QDM559EA-127",
+      "QDM559EA-123",
+      "QDM559EA-120",
+      "QDM559EA-115",
+      "QDM559EA-106",
+      "QDM559EA-101"
+    ],
+    "project_label": "QDM559",
+    "out": "C:\\Users\\venus.li\\.qwenpaw\\workspaces\\default\\skills\\版本系统测试报告生成\\configs\\jira_qdm559_V22.json"
+  },
+  "new_bugs": [
+    "QDM559EA-135"
+  ],
+  "bug_remarks": {
+    "QDM559EA-134": "V22复测PASS，问题关闭",
+    "QDM559EA-133": "新版本6.10.11客户APP明显改善，JIRA关闭",
+    "QDM559EA-131": "新版本已修复，JIRA关闭",
+    "QDM559EA-128": "暂无进度",
+    "QDM559EA-127": "使用6.10.11版本APP路测后有定位无轨迹",
+    "QDM559EA-123": "V22挂测组合升级50次，TFT固件转发失败1次",
+    "QDM559EA-120": "主要为网络问题，放在空旷区域有网络，问题关闭",
+    "QDM559EA-115": "组合升级测试50次，出现一次TFT固件转发失败，未复现该问题",
+    "QDM559EA-106": "V22平台挂测组合升级压力，出现1次固件转发失败，后续继续复现",
+    "QDM559EA-101": "V22平台挂测ECU升级100次PASS，可关闭"
+  },
+  "pressure": {
+    "9": [
+      "QDM559_STM32G0B0_APP_01.001.01.001_V22",
+      "868105049574252",
+      "7天在线记录",
+      "PASS",
+      "仅出现重复上线踢下线（设备重连导致），无异常离线",
+      "Venus",
+      ""
+    ],
+    "10": [
+      "QDM559_STM32G0B0_APP_01.001.01.001_V22",
+      "868105049574252",
+      "100次",
+      "PASS",
+      "ECU升级100次成功100次(100/0)，平均耗时80.9s",
+      "Venus",
+      ""
+    ],
+    "12": [
+      "QDM559_STM32G0B0_APP_01.001.01.001_V22",
+      "48DGZ2602J0022",
+      "50次",
+      "FAIL",
+      "50次成功49次，TFT固件转发失败1次",
+      "Venus",
+      "QDM559EA-106\nST[QDM_559][OTA]组合升级压测失败，期望升级成功，小概率"
+    ]
+  },
+  "pressure_hide_rows": [
+    11,
+    13,
+    14
+  ],
+  "road_test": {
+    "dir": "D:\\work\\QDM559\\版本测试\\APP\\001_V22\\测试用例\\路测",
+    "scene_order": [
+      "整体",
+      "公司周边",
+      "大马路",
+      "小区",
+      "村子"
+    ],
+    "start_row": 6,
+    "one_per_scene": false,
+    "number_start": 5,
+    "date": "2026-09-24",
+    "version": "QDM559_STM32G0B0_APP_01.001.01.001_V22",
+    "content": "路测",
+    "result": "Pass with comments",
+    "remark": "原始NMEA存在比较明显的漂移，已提 QDM559EA-135",
+    "box": [
+      2100,
+      400
+    ],
+    "quality": 82
+  },
+  "platform": {
+    "enabled": true,
+    "env": "prod",
+    "out_dir": "",
+    "do": [
+      "summary",
+      "test-plan",
+      "function",
+      "pressure",
+      "road-test",
+      "jira"
+    ],
+    "jira_timeout": 900,
+    "overrides": {}
+  }
+}
