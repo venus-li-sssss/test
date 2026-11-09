@@ -1,0 +1,113 @@
+{
+  "root_folder": "GiihfUC0tlDJGHdTriDcH4ljnUz",
+  "last_sync": "2026-10-14T18:18:14+08:00",
+  "software": [
+    {
+      "name": "aboot",
+      "file_token": "ZHtJbk3eHotASMx5KDdch0Z1n9c",
+      "filename": "aboot工具.rar",
+      "folder": "烧录工具",
+      "description": "ASR/aboot 烧录工具（adownload.exe，ML307C/EG800AK/QDM562 等）",
+      "keywords": [
+        "aboot",
+        "aboot工具",
+        "adownload",
+        "arom",
+        "asr",
+        "烧录",
+        "烧录工具"
+      ]
+    },
+    {
+      "name": "QFIL",
+      "file_token": "Ountbm0lXoVcOmxqryIcFspsnMc",
+      "filename": "qpst.win.2.7_installer_00486.1_QFIL2.0.2.8.zip",
+      "folder": "烧录工具",
+      "description": "高通 QPST / QFIL 烧录工具安装包（EDL 9008、firehose）",
+      "keywords": [
+        "9008",
+        "edl",
+        "firehose",
+        "qfil",
+        "qpst",
+        "qpst.win.2.7_installer_00486.1_qfil2.0.2.8",
+        "烧录工具",
+        "高通烧录"
+      ]
+    },
+    {
+      "name": "QFlash",
+      "file_token": "GcoqbZfd0o4VpQxKMRAcIiBAnJh",
+      "filename": "QFlash_V7.5_EN.zip",
+      "folder": "烧录工具",
+      "description": "移远 QFlash V7.5 多平台烧录工具",
+      "keywords": [
+        "qflash",
+        "qflash_v7.5_en",
+        "quectel",
+        "整包",
+        "烧录",
+        "烧录工具",
+        "线刷"
+      ]
+    },
+    {
+      "name": "QuecAgent",
+      "file_token": "PfRAb7HCAoYw3QxvbdWcPAa4nEG",
+      "filename": "QuecAgent-desktop.exe",
+      "folder": "AI工具",
+      "description": "QuecAgent 桌面版安装包",
+      "keywords": [
+        "agent",
+        "ai工具",
+        "quecagent",
+        "quecagent-desktop",
+        "桌面版"
+      ]
+    },
+    {
+      "name": "SSCOM",
+      "file_token": "T5MqbKajYo25MixZDe3cRQCJnAe",
+      "filename": "SSCOM.rar",
+      "folder": "串口工具",
+      "description": "串口调试助手",
+      "keywords": [
+        "sscom",
+        "串口助手",
+        "串口工具",
+        "串口调试"
+      ]
+    },
+    {
+      "name": "WindTerm",
+      "file_token": "VibZbvU7Yo8CEDxpOM4cyPFinGz",
+      "filename": "WindTerm_2.6.0_Windows_Portable_x86_64.zip",
+      "folder": "串口工具",
+      "description": "跨平台终端/SSH 工具（绿色便携版）",
+      "keywords": [
+        "ssh",
+        "terminal",
+        "windterm",
+        "windterm_2.6.0_windows_portable_x86_64",
+        "串口工具",
+        "串口终端",
+        "终端"
+      ]
+    },
+    {
+      "name": "QCOM",
+      "file_token": "P5MRbbMa5onIDkx1u8aciFnanSf",
+      "filename": "QCOM_V1.6.exe",
+      "folder": "串口工具",
+      "description": "高通串口/诊断工具",
+      "keywords": [
+        "diagnostics",
+        "qcom",
+        "qcom_v1.6",
+        "串口工具",
+        "诊断",
+        "高通"
+      ]
+    }
+  ]
+}

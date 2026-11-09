@@ -1,0 +1,379 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+飞书云盘 / 知识库 免扫码访问工具（应用身份 tenant_access_token）
+
+子命令:
+  list                          列出本地 catalog 里已知软件
+  sync                          从飞书递归拉取目录，刷新 catalog 文件
+  get <name|keyword> [--out D]  按名称/关键词下载软件（支持模糊匹配）
+  dl  <file_token> [--out F]    按 file_token 直接下载
+  tree [--folder TOKEN]         打印云端目录树
+  doc <wiki_node_token|obj_token|URL>  读取飞书文档/知识库正文（纯文本）
+
+依赖: requests
+"""
+import os
+import re
+import sys
+import json
+import time
+import argparse
+from pathlib import Path
+
+import requests
+
+# ------------------------- 配置 -------------------------
+# 应用凭据不入库。按下面顺序取：
+#   1) 环境变量 FEISHU_APP_ID / FEISHU_APP_SECRET
+#   2) 本地文件 ~/.feishu_app.json：{"app_id": "cli_xxx", "app_secret": "xxx"}
+CREDS_FILE = Path.home() / ".feishu_app.json"
+
+
+def _load_app_creds():
+    app_id = os.environ.get("FEISHU_APP_ID", "").strip()
+    app_secret = os.environ.get("FEISHU_APP_SECRET", "").strip()
+    if app_id and app_secret:
+        return app_id, app_secret
+    if CREDS_FILE.exists():
+        try:
+            c = json.loads(CREDS_FILE.read_text(encoding="utf-8"))
+            app_id = app_id or (c.get("app_id") or "").strip()
+            app_secret = app_secret or (c.get("app_secret") or "").strip()
+        except Exception:
+            pass
+    if not (app_id and app_secret):
+        sys.exit(
+            "[缺少应用凭据] 请先配置飞书自建应用的 app_id / app_secret，二选一：\n"
+            "  · 环境变量：set FEISHU_APP_ID=cli_xxx && set FEISHU_APP_SECRET=xxx\n"
+            f"  · 本地文件：{CREDS_FILE} 内容 {{\"app_id\": \"cli_xxx\", \"app_secret\": \"xxx\"}}"
+        )
+    return app_id, app_secret
+
+
+APP_ID, APP_SECRET = _load_app_creds()
+BASE = "https://open.feishu.cn"
+
+# 云端根目录：基础软件存放
+ROOT_FOLDER = os.environ.get("FEISHU_ROOT_FOLDER", "GiihfUC0tlDJGHdTriDcH4ljnUz")
+
+HERE = Path(__file__).resolve().parent
+CATALOG = HERE.parent / "software_catalog.json"
+TOKEN_CACHE = Path.home() / ".feishu_tat_cache.json"
+
+
+# ------------------------- token -------------------------
+def get_token(force=False):
+    """tenant_access_token，2 小时有效，本地缓存提前 5 分钟续期。"""
+    if not force and TOKEN_CACHE.exists():
+        try:
+            c = json.loads(TOKEN_CACHE.read_text(encoding="utf-8"))
+            if c.get("app_id") == APP_ID and c.get("expire_at", 0) > time.time() + 300:
+                return c["token"]
+        except Exception:
+            pass
+    r = requests.post(f"{BASE}/open-apis/auth/v3/tenant_access_token/internal",
+                      json={"app_id": APP_ID, "app_secret": APP_SECRET}, timeout=30)
+    d = r.json()
+    if d.get("code") != 0:
+        sys.exit(f"[token 获取失败] code={d.get('code')} msg={d.get('msg')}")
+    tok = d["tenant_access_token"]
+    TOKEN_CACHE.write_text(json.dumps({"app_id": APP_ID, "token": tok,
+                                       "expire_at": time.time() + d.get("expire", 7200)}),
+                           encoding="utf-8")
+    return tok
+
+
+def H():
+    return {"Authorization": f"Bearer {get_token()}"}
+
+
+# ------------------------- drive -------------------------
+def list_folder(folder_token):
+    files, pt = [], None
+    while True:
+        params = {"folder_token": folder_token, "page_size": 200}
+        if pt:
+            params["page_token"] = pt
+        r = requests.get(f"{BASE}/open-apis/drive/v1/files", params=params, headers=H(), timeout=30)
+        d = r.json()
+        if d.get("code") != 0:
+            sys.exit(f"[列目录失败] folder={folder_token} code={d.get('code')} msg={d.get('msg')}")
+        data = d.get("data", {})
+        files += data.get("files", []) or []
+        if not data.get("has_more"):
+            return files
+        pt = data.get("next_page_token")
+
+
+def walk(folder_token, prefix=""):
+    """递归展开目录 -> [(path, name, type, token), ...]"""
+    out = []
+    for f in list_folder(folder_token):
+        p = f"{prefix}/{f['name']}"
+        out.append({"path": os.path.dirname(p), "name": f["name"],
+                    "type": f["type"], "token": f["token"]})
+        if f["type"] == "folder":
+            out += walk(f["token"], p)
+    return out
+
+
+def download(file_token, dest, attempts=5):
+    """bot 身份走 preview_download（/medias/{token}/download 会 403，缺 export 权限）。
+
+    大文件（>100MB）实测会在中途断流 IncompleteRead，所以带 Range 断点续传 + 重试。
+    """
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    url = f"{BASE}/open-apis/drive/v1/medias/{file_token}/preview_download"
+    have = tmp.stat().st_size if tmp.exists() else 0
+    total = None
+
+    for i in range(attempts):
+        h = H()
+        if have:
+            h["Range"] = f"bytes={have}-"
+        try:
+            r = requests.get(url, params={"preview_type": 16}, headers=h,
+                             timeout=(20, 180), stream=True)
+        except requests.RequestException as e:
+            print(f"[retry {i+1}/{attempts}] net error: {e}", file=sys.stderr)
+            time.sleep(2)
+            continue
+        if r.status_code == 416:            # 偏移已到位，下完了
+            break
+        if r.status_code not in (200, 206):
+            print(f"[retry {i+1}/{attempts}] http {r.status_code}: {r.text[:200]}", file=sys.stderr)
+            time.sleep(2)
+            r.close()
+            continue
+        if r.status_code == 200 and have:   # 服务端不理 Range -> 从头再来
+            have = 0
+        cl = r.headers.get("Content-Length")
+        if cl:
+            total = have + int(cl) if r.status_code == 206 else int(cl)
+        mode = "ab" if r.status_code == 206 else "wb"
+        if mode == "wb":
+            have = 0
+        last = time.time()
+        try:
+            with open(tmp, mode) as f:
+                for chunk in r.iter_content(1 << 16):
+                    f.write(chunk)
+                    have += len(chunk)
+                    if time.time() - last > 10:
+                        last = time.time()
+                        pct = f" ({have*100//total}%)" if total else ""
+                        print(f"    ... {have/1048576:.1f}"
+                              f"{f'/{total/1048576:.1f}' if total else ''} MB{pct}", flush=True)
+        except (requests.RequestException, OSError) as e:
+            print(f"[retry {i+1}/{attempts}] broken stream at {have} bytes: {e}", file=sys.stderr)
+            time.sleep(2)
+            continue
+        finally:
+            r.close()
+        if not total or have >= total:
+            break
+        print(f"[retry {i+1}/{attempts}] resume from {have}/{total}", file=sys.stderr)
+
+    if not tmp.exists():
+        sys.exit(f"[下载失败] token={file_token} 没拿到任何数据")
+    if total and have < total:
+        sys.exit(f"[下载不完整] {have}/{total} bytes，重试几次仍断流；token={file_token}")
+    if have < 100:
+        sys.exit(f"[下载失败] 只有 {have} 字节，疑似错误响应 token={file_token}")
+    os.replace(tmp, dest)
+    return have
+
+
+# ------------------------- wiki / docx -------------------------
+def resolve_node(token):
+    r = requests.get(f"{BASE}/open-apis/wiki/v2/spaces/get_node",
+                     params={"token": token}, headers=H(), timeout=30)
+    d = r.json()
+    if d.get("code") != 0:
+        return None
+    return (d.get("data") or {}).get("node")
+
+
+def read_doc(ref):
+    node_token = ref
+    m = re.search(r"/(wiki|docx|docs)/([A-Za-z0-9]+)", ref)
+    if m:
+        node_token = m.group(2)
+    obj_token, title = node_token, ""
+    n = resolve_node(node_token)
+    if n:
+        obj_token, title = n.get("obj_token", node_token), n.get("title", "")
+    items, pt = [], None
+    while True:
+        params = {"page_size": 500}
+        if pt:
+            params["page_token"] = pt
+        r = requests.get(f"{BASE}/open-apis/docx/v1/documents/{obj_token}/blocks",
+                         params=params, headers=H(), timeout=60)
+        d = r.json()
+        if d.get("code") != 0:
+            sys.exit(f"[读文档失败] doc={obj_token} code={d.get('code')} msg={d.get('msg')}")
+        data = d.get("data", {})
+        items += data.get("items", []) or []
+        if not data.get("has_more"):
+            break
+        pt = data.get("page_token")
+    return title, obj_token, items
+
+
+def block_text(b):
+    out = []
+    for key in ("text", "heading1", "heading2", "heading3", "heading4", "heading5",
+                "heading6", "heading7", "heading8", "heading9", "bullet", "ordered",
+                "code", "quote", "todo", "callout", "quote_container"):
+        seg = b.get(key)
+        if isinstance(seg, dict):
+            for el in seg.get("elements", []) or []:
+                tr = el.get("text_run") or el.get("equation") or {}
+                c = tr.get("content")
+                if c:
+                    out.append(c)
+    return "".join(out)
+
+
+# ------------------------- catalog -------------------------
+def load_catalog():
+    if not CATALOG.exists():
+        return {}
+    return json.loads(CATALOG.read_text(encoding="utf-8"))
+
+
+def save_catalog(cat):
+    CATALOG.write_text(json.dumps(cat, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def sync_catalog():
+    entries = []
+    for e in walk(ROOT_FOLDER):
+        if e["type"] == "folder":
+            continue
+        base = os.path.basename(e["path"]).strip("/") or "根目录"
+        entries.append({
+            "name": Path(e["name"]).stem,
+            "file_token": e["token"],
+            "filename": e["name"],
+            "folder": base,
+            "description": "",
+            "keywords": sorted({Path(e["name"]).stem.lower(), base.lower()}),
+        })
+    old = {s["file_token"]: s for s in (load_catalog().get("software") or [])}
+    for s in entries:
+        o = old.get(s["file_token"])
+        if o:
+            s["name"] = o.get("name") or s["name"]
+            s["description"] = o.get("description", "")
+            s["keywords"] = sorted(set(o.get("keywords", []) + s["keywords"]))
+    cat = {"root_folder": ROOT_FOLDER,
+           "last_sync": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"), "software": entries}
+    save_catalog(cat)
+    return entries
+
+
+def match(catalog, query):
+    q = query.lower().strip()
+    sw = catalog.get("software") or []
+    for s in sw:                                     # 1) 精确名
+        if s["name"].lower() == q:
+            return s
+    for s in sw:                                     # 2) 关键词
+        if any(k.lower() == q for k in s.get("keywords", [])):
+            return s
+    for s in sw:                                     # 3) 包含
+        if q in s["name"].lower() or s["name"].lower() in q:
+            return s
+        if any(q in k.lower() or k.lower() in q for k in s.get("keywords", [])):
+            return s
+    return None
+
+
+# ------------------------- cli -------------------------
+def main():
+    ap = argparse.ArgumentParser(description="飞书云盘/知识库免扫码访问")
+    ap.add_argument("cmd", choices=["list", "sync", "get", "dl", "tree", "doc"])
+    ap.add_argument("arg", nargs="?", default="")
+    ap.add_argument("--out", default="", help="输出目录或文件名")
+    ap.add_argument("--folder", default=ROOT_FOLDER, help="tree 的目录 token")
+    a = ap.parse_args()
+
+    if a.cmd == "list":
+        cat = load_catalog()
+        sw = cat.get("software") or []
+        if not sw:
+            print("(catalog 为空，先跑 sync)")
+            return
+        print("名称 | 目录 | 文件 | 说明 | file_token")
+        print("---|---|---|---|---")
+        for s in sw:
+            print(f"{s['name']} | {s.get('folder','')} | {s['filename']} | "
+                  f"{s.get('description','')} | {s['file_token']}")
+        return
+
+    if a.cmd == "sync":
+        es = sync_catalog()
+        print(f"✅ 已同步 {len(es)} 个文件 -> {CATALOG}")
+        for e in es:
+            print(f"  - {e.get('folder')}/{e['filename']}  ({e['file_token']})")
+        return
+
+    if a.cmd == "tree":
+        for e in walk(a.folder):
+            ind = "  " * (e["path"].count("/") if e["type"] == "file" else 0)
+            print(f"{ind}{'[D] ' if e['type']=='folder' else '    '}{e['name']}  {e['token']}")
+        return
+
+    if a.cmd == "dl":
+        if not a.arg:
+            sys.exit("用法: dl <file_token> --out <路径>")
+        dest = a.out or Path(a.arg).name
+        if Path(dest).is_dir():
+            dest = Path(dest) / Path(a.arg).name
+        n = download(a.arg, dest)
+        print(f"✅ {Path(dest).resolve()}  ({n:,} bytes)")
+        return
+
+    if a.cmd == "get":
+        if not a.arg:
+            sys.exit("用法: get <软件名|关键词> [--out 目录]")
+        cat = load_catalog()
+        if not (cat.get("software") or []):
+            sync_catalog()
+        s = match(cat, a.arg)
+        if not s:
+            sync_catalog()
+            s = match(load_catalog(), a.arg)
+        if not s:
+            sys.exit(f"❌ 没找到 '{a.arg}'。可用: " + ", ".join(x["name"] for x in load_catalog()["software"]))
+        dest_dir = Path(a.out or Path.cwd())
+        dest = dest_dir / s["filename"]
+        n = download(s["file_token"], dest)
+        print(f"✅ {s['name']} -> {dest.resolve()}  ({n:,} bytes)")
+        return
+
+    if a.cmd == "doc":
+        if not a.arg:
+            sys.exit("用法: doc <wiki node token / 文档链接> [--out x.md]")
+        title, obj, items = read_doc(a.arg)
+        lines = [f"# {title}", f"# doc_id={obj}  blocks={len(items)}", ""]
+        for b in items:
+            t = block_text(b)
+            if t.strip():
+                lines.append(t)
+        out = Path(a.out) if a.out else Path.cwd() / f"feishu_doc_{obj}.md"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(lines), encoding="utf-8")
+        # 控制台只输出 ASCII，避免 cp936 管道解码错乱；正文请读文件
+        print(f"OK saved: {out.resolve()}")
+        print(f"doc_id={obj} blocks={len(items)} chars={sum(len(x) for x in lines)}")
+        return
+
+
+if __name__ == "__main__":
+    main()
