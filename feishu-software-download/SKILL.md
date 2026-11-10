@@ -20,6 +20,10 @@ python scripts\feishu_dl.py search 烧录
 python scripts\feishu_dl.py search QDM562
 python scripts\feishu_dl.py search 测试报告 --all   # 连 docx/sheet/bitable/slides 一起搜
 
+# 1.5) 搜不到/不确定有没有 → find：先搜索，0 命中自动现场扫两个根目录（目录名也匹配）
+python scripts\feishu_dl.py find 烧录            # → 烧录工具/ 及其下所有文件，带完整路径
+python scripts\feishu_dl.py find 驱动 --depth 3  # 限制层数，少扫一层更快
+
 # 2) 下载：先云端搜索，唯一命中直接下；多个命中会列候选，用 --pick 选
 python scripts\feishu_dl.py get QCOM --out D:\tools
 python scripts\feishu_dl.py get SerialTool --pick 2
@@ -28,11 +32,15 @@ python scripts\feishu_dl.py get 串口调试            # → SSCOM
 # 3) 已知 file_token 直接下
 python scripts\feishu_dl.py dl P5MRbbMa5onIDkx1u8aciFnanSf --out QCOM.exe
 
-# 4) 看目录树 / 建本地离线目录（catalog 只在搜索结果补目录时用）
-python scripts\feishu_dl.py tree                     # 默认遍历全部根目录
+# 4) 目录视角（现扫，不依赖 catalog）
+python scripts\feishu_dl.py tree                     # 默认遍历全部根目录（全量递归）
+python scripts\feishu_dl.py tree --depth 2           # 只看两层，快
 python scripts\feishu_dl.py tree --folder <folder_token>   # 只看某一个目录
-python scripts\feishu_dl.py sync            # 递归拉所有根写 software_catalog.json
-python scripts\feishu_dl.py list            # 读本地 catalog，不联网
+
+# 5) 可选：生成/刷新离线快照 catalog（不是必须，只在这两种情况下用）
+#    · 想离线 list 全量清单  · 反复查同一批文件想省网络
+python scripts\feishu_dl.py sync
+python scripts\feishu_dl.py list
 
 # 5) 读飞书文档 / 知识库正文 → 存成 UTF-8 markdown 文件
 python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEFsNcDNuEnid
@@ -54,8 +62,8 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 ## 回答用户时的约定
 
 - 下载完成必须报告：软件名、文件名、大小、**完整绝对路径**（markdown 链接形式）。
-- 用户问"有哪些软件"→ 优先 `search` + `tree`；catalog 过期会漏新文件，别用它当唯一依据。
-- 搜不到 → 换更短的关键词再搜（搜索是子串匹配，长词反而命中少），再不行 `tree` 人工看。
+- 用户问"有哪些软件 / 某个目录里有什么"→ 直接 `tree`（现扫，实时），不要拿 catalog 快照当唯一依据。
+- 搜索没命中不代表没有：**`find` 会自动降级现场扫目录**（含目录名匹配），别只回一句"没有"。
 
 ## 鉴权与接口（已实测）
 
@@ -104,28 +112,36 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 若某个目录报 `1061004 forbidden`：让目录所有者把**这个应用**（搜索应用名，不是个人）加为可阅读协作者；
 若报 `99991672 app_scope_not_applied`：开发者后台给应用补 scope（`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`、`search:docs:read`）。
 
-## 这两个目录是「活目录」，会持续更新
+## 目录会变：现看就行，不用定期同步
 
-属主是软件测试部/二科的同事，随时新增、替换、删除文件。**根目录 token 不变，新加的子目录会被 `walk` 递归自动发现，不需要改代码。**
+两个目录是**活目录**（属主随时新增/替换/删除），所以本 skill 的设计前提是 **catalog 可有可无**：
 
-| 云端发生了什么 | skill 怎么告诉你 |
-|---|---|
-| 新增文件 / 新子目录 | `sync` 打印 `🆕 新增 N 个`（带完整目录路径） |
-| 同名文件被替换（`file_token` 不变、内容变了） | `sync` 打印 `♻️ 内容/名称变过 N 个`，显示「旧时间 → 新时间」 |
-| 文件被删 / 移走 / 改名 | `sync` 打印 `🗑 上次有、这次没了 N 个` |
-| catalog 放太久 | `list` 顶部提示「已 N 天没更新」（阈值 `FEISHU_CATALOG_MAX_AGE_DAYS`，默认 7 天） |
+| 你要做什么 | 用哪条 | 是否依赖 catalog |
+|---|---|---|
+| 找某个文件（知道名字） | `search <关键词>` → 云端实时 | ❌ 不依赖 |
+| 搜索没命中，想确认"到底有没有" | `find <关键词>`（先搜索，0 命中自动现场扫两个根，**目录名也参与匹配**） | ❌ 不依赖 |
+| 看目录结构 / 某目录下有什么 | `tree [--depth N]` 现扫 | ❌ 不依赖 |
+| 下载 | `get <关键词>` → 搜索 → 现场扫目录 → catalog（三级兜底） | ❌ 基本不依赖 |
+| 反复查询、想省点网络 | `sync` 生成 catalog（可选缓存） | ✅ 仅此场景 |
 
-`list` 每行都带**更新时间**（云端 `modified_time`），判断"这是不是最新版"看它，别看 catalog 的 `last_sync`。
+**不做定期维护**：不要求每周 sync，也不建议挂定时任务。目录变了，`find` / `tree` 现看一遍就够
+（52 个文件全量扫一遍约 2~5 秒，比维护快照便宜）。
 
-### 使用约定（回答用户前先判断走哪条）
+### 什么时候才需要 `sync`
 
-1. **问"有哪些 / 最新版是哪个 / 这个目录里有什么"** → 先 `sync`（52 个文件约 2~5 秒）再 `list` / `tree`。
-   **不要拿旧快照当事实**，也不要只凭 catalog 说"没有这个文件"。
-2. **只是捞一个已知名字的文件** → 直接 `search` / `get`（云端实时，永远最新，不用 sync）。
-3. **建议每周至少 `sync` 一次**，或挂定时任务：
-   `qwenpaw cron create ... --task "python <skill>/scripts/feishu_dl.py sync"`（执行后把输出里的 🆕/♻️/🗑 贴给用户）。
-4. **根目录本身变了**（部门重组、新增根目录）→ 改 `FEISHU_ROOT_FOLDERS` + `ROOT_LABELS` 两处即可，逻辑不用动。
-5. 人工补的 `description` / `keywords` 按 `file_token` 保留；文件被删后对应条目会一起从 catalog 消失，不会留幽灵条目。
+- 想离线看全量清单（`list`）、或短时间内反复查同一批文件；
+- `find`/`tree` 都因为网络抖动失败时的降级手段。
+
+`sync` 会做增量对比，方便判断"最近云端动了什么"：
+
+- `🆕 新增 N 个` / `♻️ 内容变过 N 个`（同 `file_token`、`modified_time` 变了）/ `🗑 上次有这次没了 N 个`
+- 若距上次 `sync` 超过 `FEISHU_CATALOG_MAX_AGE_DAYS`（默认 7 天），`list` 会提示"已 N 天没更新"，**提示只是提醒你快照旧了，不代表要立刻同步**
+
+其它规则：
+
+1. 人工补的 `description` / `keywords` 按 `file_token` 保留；文件删了条目自动消失。
+2. 根目录本身变了（部门重组/新增根）→ 改 `FEISHU_ROOT_FOLDERS` + `ROOT_LABELS` 两处，逻辑不用动。
+3. 新加的子目录不用管，`walk` 递归自动发现。
 
 其它默认值：
 

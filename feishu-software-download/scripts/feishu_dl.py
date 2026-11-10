@@ -103,16 +103,43 @@ def list_folder(folder_token):
         pt = data.get("next_page_token")
 
 
-def walk(folder_token, prefix=""):
-    """递归展开目录 -> [{path,name,type,token,modified}, ...]"""
+def walk(folder_token, prefix="", depth=0, max_depth=None):
+    """递归展开目录 -> [{path,name,type,token,modified}, ...]
+
+    max_depth：None=不限；1=只看该目录下一层，2=再下一层…
+    """
     out = []
     for f in list_folder(folder_token):
         p = f"{prefix}/{f['name']}"
         out.append({"path": os.path.dirname(p), "name": f["name"],
                     "type": f["type"], "token": f["token"],
                     "modified": f.get("modified_time", "")})
-        if f["type"] == "folder":
-            out += walk(f["token"], p)
+        if f["type"] == "folder" and (max_depth is None or depth + 1 < max_depth):
+            out += walk(f["token"], p, depth + 1, max_depth)
+    return out
+
+
+def scan_roots(keyword=None, max_depth=None):
+    """现场扫两个根目录（不依赖 catalog）。
+
+    keyword 为空 -> 全部条目；否则按 文件名/目录路径 子串匹配（不区分大小写）。
+    这就是「目录可能变了，那我现看一遍」的那条路。
+    """
+    kw = (keyword or "").lower()
+    out = []
+    for root in ROOTS:
+        label = ROOT_LABELS.get(root, root[:8])
+        try:
+            items = walk(root, max_depth=max_depth)
+        except SystemExit as e:
+            print(f"[跳过 {label}] {e}")
+            continue
+        for e in items:
+            rel = (e["path"].strip("/") + "/" + e["name"]).strip("/")
+            full = f"{label}/{rel}"
+            if kw and kw not in full.lower():
+                continue
+            out.append({**e, "root": label, "full": full})
     return out
 
 
@@ -415,10 +442,11 @@ def stale_hint(cat):
 # ------------------------- cli -------------------------
 def main():
     ap = argparse.ArgumentParser(description="飞书云盘/知识库免扫码访问")
-    ap.add_argument("cmd", choices=["list", "sync", "get", "search", "dl", "tree", "doc"])
+    ap.add_argument("cmd", choices=["list", "sync", "get", "search", "find", "dl", "tree", "doc"])
     ap.add_argument("arg", nargs="?", default="")
     ap.add_argument("--out", default="", help="输出目录或文件名")
     ap.add_argument("--folder", default="", help="tree 只遍历某个目录 token（默认遍历全部根目录）")
+    ap.add_argument("--depth", type=int, default=0, help="tree/find 的递归层数（0=不限）")
     ap.add_argument("--pick", type=int, default=0, help="get 命中多项时指定第几项（从 1 开始）")
     ap.add_argument("--all", action="store_true", help="search 时连 docx/sheet/bitable/slides 一起搜")
     a = ap.parse_args()
@@ -491,13 +519,38 @@ def main():
             print("（与上次相比无变化）")
         return
 
+    if a.cmd == "find":
+        # 「搜不到就现看目录」：先云端搜索，0 命中再现场扫两个根目录（含目录名匹配）
+        if not a.arg:
+            sys.exit("用法: find <关键词> [--depth N]")
+        hits = search_api(a.arg)
+        if hits:
+            print(f"云端搜索命中 {len(hits)} 项：")
+            print("名称 | 路径 | file_token")
+            print("---|---|---")
+            cat = load_catalog()
+            for h in hits:
+                print(f"{h['title']} | {folder_of(h['token'], cat) or '(路径未知，可 find --depth / tree)'} "
+                      f"| {h['token']}")
+            return
+        print(f"云端搜索「{a.arg}」0 命中 → 现场扫目录（实时，不依赖 catalog）")
+        es = scan_roots(a.arg, a.depth or None)
+        if not es:
+            print(f"❌ 两个根目录里也没有含「{a.arg}」的文件/目录")
+            return
+        print("名称 | 类型 | 路径 | file_token")
+        print("---|---|---|---")
+        for e in es:
+            print(f"{e['name']} | {'目录' if e['type']=='folder' else '文件'} | {e['full']} | {e['token']}")
+        return
+
     if a.cmd == "tree":
         # 不给 --folder 就把所有根目录一起遍历
         targets = ([(a.folder, ROOT_LABELS.get(a.folder, ""))] if a.folder
                    else [(r, ROOT_LABELS.get(r, r[:8])) for r in ROOTS])
         for tok, label in targets:
             print(f"### {label or tok} ({tok})")
-            for e in walk(tok):
+            for e in walk(tok, max_depth=a.depth or None):
                 ind = "  " * (e["path"].count("/") + 1)
                 print(f"{ind}{'[D] ' if e['type']=='folder' else '    '}{e['name']}  {e['token']}")
             print()
@@ -519,19 +572,28 @@ def main():
         # 1) 先走云端实时搜索（永远是最新的，不依赖 sync）
         hits = search_api(a.arg)
         if not hits:
-            # 2) 搜不到再退回本地 catalog 模糊匹配
+            # 2) 搜不到就现场扫目录（目录随时在变，扫一遍最靠得住）
+            es = [e for e in scan_roots(a.arg) if e["type"] == "file"]
+            hits = [{"title": e["name"], "token": e["token"], "type": "FILE",
+                     "file_type": "", "url": "", "owner": "", "path": e["full"]}
+                    for e in es]
+        if not hits:
+            # 3) 最后才退回本地 catalog 模糊匹配（离线兜底）
             cat = load_catalog()
             local = match_all(cat, a.arg)
             if not local:
-                sys.exit(f"❌ 云端与本地 catalog 都没有 '{a.arg}'")
+                sys.exit(f"❌ 云端搜索、现场扫目录、本地 catalog 都没有 '{a.arg}'；"
+                         f"试 find <更短的关键词> 或 tree 看目录")
             hits = [{"title": s["filename"], "token": s["file_token"],
-                     "type": "FILE", "file_type": "", "url": "", "owner": ""}
+                     "type": "FILE", "file_type": "", "url": "", "owner": "",
+                     "path": s.get("folder", "")}
                     for s in local]
         if len(hits) > 1 and not a.pick:
             cat = load_catalog()
             print(f"命中 {len(hits)} 项，用 --pick N 指定要下哪个：")
             for i, h in enumerate(hits, 1):
-                print(f"  [{i}] {h['title']}  |  {folder_of(h['token'], cat) or '-'}  |  {h['token']}")
+                print(f"  [{i}] {h['title']}  |  {h.get('path') or folder_of(h['token'], cat) or '-'}  "
+                      f"|  {h['token']}")
             sys.exit(2)
         h = hits[a.pick - 1] if a.pick else hits[0]
         dest_dir = Path(a.out or Path.cwd())
