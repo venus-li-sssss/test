@@ -1,0 +1,13 @@
+# Python 缓存（不要提交）
+__pycache__/
+*.pyc
+*.pyo
+
+# 本地凭据 / 令牌缓存
+.credentials.json
+.token_cache.json
+.feishu_tat_cache.json
+
+# 运行产物
+*.part
+script_log_*.txt
