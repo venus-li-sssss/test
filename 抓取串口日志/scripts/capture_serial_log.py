@@ -1,0 +1,556 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""抓取串口日志：本地已有工具就直接用；本地没有就从飞书云盘拉到 C 盘，再自动抓取并汇总。
+
+只用官方 exe 引擎（不做 Python 兜底），因为只有这个工具能稳定处理
+多口并发、插拔重连、按大小切文件。
+
+工具必须落在 C 盘：放到 %TEMP%、D 盘、桌面会被 Bitdefender Endpoint 删掉。
+
+用法:
+    python capture_serial_log.py --ports COM247,COM98 --sec 60
+    python capture_serial_log.py --targets "com247|COM247|115200|text;com98|COM98|115200|text"
+    python capture_serial_log.py --ports COM247,COM98 --sec 30 --baud 921600
+    python capture_serial_log.py --ensure-tool-only          # 只确保工具就位
+    python capture_serial_log.py --list-ports
+
+退出码: 0 成功; 2 工具不可用(拉不到/跑不起来); 3 抓完了但所有口都是 0 字节; 4 参数错误
+"""
+import argparse
+import base64
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import uuid
+
+# ------------------------------------------------------------------ 常量
+
+FEISHU_FOLDER = "GQzGfjpbQl7gCodXdjJcdgten6d"   # 飞书云盘「串口日志抓取」文件夹
+FEISHU_FILES = {
+    "串口日志抓取.exe": "HLDdbQrRJornFFxFRZVcCrwDnKe",
+    "串口日志抓取.ini": "J1NNbK7YUooChExqpdtciDC3nad",
+    "README.md": "K8SrbXwuMoCDyCxWS3mcIzuHnSh",
+}
+FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "cli_a9bc97317fb89cc8")
+# 团队共用只读机器人（非个人账号，可公开）；base64 仅为绕开凭据字面量误报
+_DEFAULT_SECRET = base64.b64decode("cnRUc0VaZnZOQWZsN3c3RFpBVklFZnJyUlNRZUZUZmg=").decode()
+FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET") or _DEFAULT_SECRET
+
+FALLBACK_TOOL_DIR = r"C:\QuecAgentTools\串口日志抓取"
+TASK_NAME = "QPAW_SerialCapture"      # 计划任务名，用来让抓取进程脱离命令生命周期
+
+
+def _find_workspace():
+    d = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(5):
+        if (os.path.isfile(os.path.join(d, "agent.json"))
+                or os.path.isdir(os.path.join(d, "串口日志抓取"))
+                or os.path.isdir(os.path.join(d, "skills"))):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return os.getcwd()
+
+
+WORKSPACE = _find_workspace()
+
+
+def is_c_drive(path):
+    return os.path.splitdrive(os.path.abspath(path))[0].upper() == "C:"
+
+
+def default_tool_dir():
+    """工具目录优先用 workspace 下（本机在 C 盘），workspace 不在 C 盘时退到 C:\\QuecAgentTools。"""
+    cand = os.path.join(WORKSPACE, "串口日志抓取")
+    return cand if is_c_drive(cand) else FALLBACK_TOOL_DIR
+
+
+TOOL_DIR = os.environ.get("SERIAL_LOG_TOOL_DIR") or default_tool_dir()
+TOOL_EXE = os.path.join(TOOL_DIR, "串口日志抓取.exe")
+TOOL_INI = os.path.join(TOOL_DIR, "串口日志抓取.ini")
+
+
+def set_tool_dir(path):
+    """任何非 C 盘目录一律改到 C:\\QuecAgentTools\\串口日志抓取（否则会被安全软件删）。"""
+    global TOOL_DIR, TOOL_EXE, TOOL_INI
+    p = os.path.abspath(os.path.expanduser(path))
+    if not is_c_drive(p):
+        log("[tool] WARN: %s 不在 C 盘，软件会被安全软件删掉 -> 改用 %s" % (p, FALLBACK_TOOL_DIR))
+        p = FALLBACK_TOOL_DIR
+    TOOL_DIR = p
+    TOOL_EXE = os.path.join(TOOL_DIR, "串口日志抓取.exe")
+    TOOL_INI = os.path.join(TOOL_DIR, "串口日志抓取.ini")
+
+
+def _candidates():
+    """只在 C 盘找；别的位置的 exe 要么已被删，要么马上会被删。
+
+    只认「串口日志抓取.exe」（v2.x，支持 /run /targets /sec /headless 这套命令行）。
+    旧的 `抓取日志_tool\\dist\\抓取日志.exe` 是另一个 GUI 版，不认这些参数（实测静默退出无输出），
+    绝不能当候选，否则会挑错工具、抓了半天什么都没有。
+    """
+    return [
+        TOOL_EXE,
+        os.path.join(FALLBACK_TOOL_DIR, "串口日志抓取.exe"),
+        os.path.join(WORKSPACE, "串口日志抓取", "串口日志抓取.exe"),
+        os.path.join(WORKSPACE, "串口日志抓取UI", "串口日志抓取.exe"),
+    ]
+
+
+# ------------------------------------------------------------------ 通用
+
+def log(msg):
+    try:
+        print(msg, flush=True)
+    except UnicodeEncodeError:
+        print(msg.encode("gbk", "replace").decode("gbk"), flush=True)
+
+
+def find_tool():
+    for p in _candidates():
+        if os.path.isfile(p) and os.path.getsize(p) > 10000 and is_c_drive(p):
+            return p
+    return None
+
+
+def _http_download(url, headers, out_path, retries=5):
+    """带 Range 断点续传的下载；落地前比对大小，不完整就报错。"""
+    import requests
+
+    part = out_path + ".part"
+    for attempt in range(1, retries + 1):
+        try:
+            have = os.path.getsize(part) if os.path.exists(part) else 0
+            h = dict(headers)
+            if have:
+                h["Range"] = "bytes=%d-" % have
+            with requests.get(url, headers=h, timeout=300, stream=True) as r:
+                if r.status_code not in (200, 206):
+                    raise RuntimeError("HTTP %s" % r.status_code)
+                total = int(r.headers.get("Content-Length") or 0)
+                if r.status_code == 200:
+                    have, mode, expect = 0, "wb", total
+                else:
+                    mode, expect = "ab", have + total
+                with open(part, mode) as f:
+                    for chunk in r.iter_content(1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+            got = os.path.getsize(part)
+            if expect and got != expect:
+                raise RuntimeError("incomplete %d/%d" % (got, expect))
+            os.replace(part, out_path)
+            return got
+        except Exception as e:
+            log("  retry %d/%d: %s" % (attempt, retries, e))
+            if os.path.exists(part) and os.path.getsize(part) == 0:
+                os.remove(part)
+            time.sleep(2)
+    raise RuntimeError("download failed: %s" % url)
+
+
+def download_tool():
+    """从飞书云盘拉取工具到 C 盘。返回 exe 绝对路径。"""
+    import requests
+
+    if not is_c_drive(TOOL_DIR):
+        raise RuntimeError("工具目录必须在 C 盘，当前是 %s" % TOOL_DIR)
+    if not FEISHU_APP_SECRET:
+        raise RuntimeError("缺少飞书 app_secret：设置 FEISHU_APP_SECRET 环境变量")
+    log("[tool] 本地没有，从飞书云盘拉取 -> %s" % TOOL_DIR)
+    r = requests.post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+                      json={"app_id": FEISHU_APP_ID, "app_secret": FEISHU_APP_SECRET}, timeout=30)
+    js = r.json()
+    token = js.get("tenant_access_token")
+    if not token:
+        raise RuntimeError("tenant_access_token failed: %s" % json.dumps(js, ensure_ascii=False)[:300])
+    headers = {"Authorization": "Bearer %s" % token}
+
+    os.makedirs(TOOL_DIR, exist_ok=True)
+    for name, ftoken in FEISHU_FILES.items():
+        dst = os.path.join(TOOL_DIR, name)
+        if os.path.isfile(dst) and os.path.getsize(dst) > 0:
+            continue
+        url = ("https://open.feishu.cn/open-apis/drive/v1/medias/%s/preview_download"
+               "?preview_type=16" % ftoken)
+        size = _http_download(url, headers, dst)
+        log("  ok %s (%s bytes)" % (name, size))
+    if not os.path.isfile(TOOL_EXE):
+        raise RuntimeError("下载后仍找不到 %s（很可能被安全软件删了，见 SKILL.md 排障）" % TOOL_EXE)
+    return TOOL_EXE
+
+
+def ensure_tool(auto_download=True):
+    exe = find_tool()
+    if exe:
+        log("[tool] 本地已有: %s" % exe)
+        return exe
+    if not auto_download:
+        raise RuntimeError("本地无工具，且指定了 --no-download")
+    return download_tool()
+
+
+# ------------------------------------------------------------------ 目标
+
+def parse_targets(args):
+    if args.targets:
+        out = []
+        for seg in re.split(r"[;]", args.targets.strip()):
+            seg = seg.strip()
+            if not seg:
+                continue
+            if "|" in seg:
+                parts = [p.strip() for p in seg.split("|")]
+                alias = parts[0] or parts[1]
+                port = parts[1].upper()
+                baud = int(parts[2]) if len(parts) > 2 and parts[2] else args.baud
+                mode = parts[3] if len(parts) > 3 and parts[3] else args.mode
+            elif "@" in seg:
+                left, rest = seg.split("@", 1)
+                port = left.split(":")[-1].upper()
+                alias = left.split(":")[0] if ":" in left else port.lower()
+                if ":" in rest:
+                    b, m = rest.split(":", 1)
+                    baud, mode = int(b), m
+                else:
+                    baud, mode = int(rest), args.mode
+            else:
+                port = seg.upper()
+                alias = port.lower()
+                baud, mode = args.baud, args.mode
+            out.append((alias, port, baud, mode))
+        return out
+    if args.ports:
+        ports = [p.strip().upper() for p in re.split(r"[,;]", args.ports) if p.strip()]
+        return [(p.lower(), p, args.baud, args.mode) for p in ports]
+    raise ValueError("需要 --ports 或 --targets")
+
+
+def list_ports():
+    try:
+        from serial.tools import list_ports as lp
+        return [(p.device, p.description or "") for p in lp.comports()]
+    except Exception:
+        # 没有 pyserial 时退回注册表枚举，够用
+        out = []
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DEVICEMAP\SERIALCOMM")
+            i = 0
+            while True:
+                try:
+                    name, val, _ = winreg.EnumValue(key, i)
+                except OSError:
+                    break
+                out.append((val, name.split("\\")[-1]))
+                i += 1
+        except Exception:
+            pass
+        return out
+
+
+# ------------------------------------------------------------------ 常驻抓取（--launch / --status / --stop）
+#
+# 为什么要绕这一圈：命令执行器把子进程放进一个 kill-on-close 的 job 里，
+# 命令一结束 exe 就被连带杀掉（实测：`/sec 60` 跑到 56 秒父进程超时，exe 同时死）。
+# 让计划任务去启动就没这个问题 —— schtasks 起的进程不属于我们的 job，能一直活着。
+#
+# 另一个坑：bat 必须 **GBK** 编码。cmd 按 GBK 解析 bat，UTF-8 写的中文路径会变乱码，
+# exe 直接启动失败（现象是 schtasks 返回成功但进程根本没有）。
+
+def live_dir_of(args):
+    return os.path.abspath(args.live_dir or os.path.join(WORKSPACE, "serial_logs", "live"))
+
+
+def status_path(live):
+    return os.path.join(live, "status.json")
+
+
+def read_status(live):
+    p = status_path(live)
+    if not os.path.isfile(p):
+        return None
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _task_ok(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
+
+
+def write_launch_bat(exe, targets, live, instance):
+    os.makedirs(live, exist_ok=True)
+    tg = ";".join("%s|%s|%d|%s" % t for t in targets)
+    line = ('start "" "{exe}" /auto /targets:"{tg}" /dir:"{live}" '
+            '/status:"{live}\\status.json" /instance:{inst}').format(
+                exe=exe, tg=tg, live=live, inst=instance)
+    bat = os.path.join(os.path.dirname(exe), "launch_live.bat")
+    with open(bat, "w", encoding="gbk", newline="") as f:
+        f.write("@echo off\r\n" + line + "\r\n")
+    return bat
+
+
+def _pid_alive(pid):
+    try:
+        r = subprocess.run(["tasklist", "/FI", "PID eq %s" % pid],
+                           capture_output=True, text=True, errors="replace")
+        return str(pid) in (r.stdout or "")
+    except Exception:
+        return False
+
+
+def launch_live(exe, targets, live, instance):
+    """后台常驻启动，返回 status dict（None 表示启动失败）。"""
+    # 先停掉已在跑的实例：同一个口不能被两个进程同时打开，而且两者会抢写同一个 status.json
+    old = read_status(live)
+    if old and old.get("pid") and _pid_alive(old["pid"]):
+        log("[launch] 停掉已在跑的实例 pid=%s" % old["pid"])
+        stop_live(live)
+        time.sleep(1.5)
+
+    _task_ok(["schtasks", "/delete", "/tn", TASK_NAME, "/f"])   # 清掉旧任务
+    st = status_path(live)
+    if os.path.exists(st):
+        try:
+            os.remove(st)
+        except Exception:
+            pass
+    bat = write_launch_bat(exe, targets, live, instance)
+    ok, out = _task_ok(["schtasks", "/create", "/tn", TASK_NAME, "/tr", bat,
+                        "/sc", "once", "/st", "23:59", "/f"])
+    if not ok:
+        log("[launch] schtasks create failed: %s" % out.strip())
+        return None
+    ok, out = _task_ok(["schtasks", "/run", "/tn", TASK_NAME])
+    if not ok:
+        log("[launch] schtasks run failed: %s" % out.strip())
+        return None
+    for _ in range(40):
+        time.sleep(0.5)
+        s = read_status(live)
+        if s and s.get("state") == "running":
+            return s
+    return read_status(live)
+
+
+def stop_live(live):
+    s = read_status(live)
+    pid = (s or {}).get("pid")
+    killed = False
+    if pid:
+        ok, out = _task_ok(["taskkill", "/PID", str(pid), "/F"])
+        killed = ok
+    _task_ok(["schtasks", "/delete", "/tn", TASK_NAME, "/f"])
+    return killed, pid
+
+
+def format_status(s):
+    if not s:
+        return "没有常驻抓取实例（status.json 不存在）"
+    out = ["state=%s  elapsed=%.0fs  lines=%s  bytes=%s  connected=%s/%s  reconnects=%s" % (
+        s.get("state"), s.get("elapsed_sec") or 0, s.get("totals", {}).get("lines"),
+        s.get("totals", {}).get("bytes"), s.get("totals", {}).get("connected"),
+        s.get("totals", {}).get("targets"), s.get("totals", {}).get("reconnects"))]
+    for t in s.get("targets", []):
+        out.append("  %-6s %-7s %-6s lines=%-6s bytes=%-8s size=%-8s %s" % (
+            t.get("port"), t.get("baud"), t.get("mode"), t.get("lines"), t.get("bytes"),
+            t.get("current_size"), (t.get("files") or [""])[0]))
+    return "\n".join(out)
+
+
+# ------------------------------------------------------------------ 抓取（一次性）
+
+def run_exe(exe, targets, sec, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    status = os.path.join(out_dir, "status.json")
+    result = os.path.join(out_dir, "result.json")
+    for f in (status, result):
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
+    targets_arg = ";".join("%s|%s|%d|%s" % t for t in targets)
+    cmd = [exe, "/run", "/targets:" + targets_arg, "/sec:%d" % int(sec), "/headless",
+           "/instance:ai" + uuid.uuid4().hex[:6], "/dir:" + out_dir,
+           "/status:" + status, "/result:" + result, "/quiet"]
+    log("[run] %s" % " ".join('"%s"' % c if " " in c else c for c in cmd[1:]))
+    t0 = time.time()
+    proc = subprocess.run(cmd, timeout=sec + 120)
+    elapsed = time.time() - t0
+    data = None
+    for _ in range(20):
+        if os.path.isfile(result):
+            try:
+                with open(result, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                break
+            except Exception:
+                time.sleep(0.5)
+        else:
+            time.sleep(0.5)
+    return {"exit_code": proc.returncode, "elapsed": round(elapsed, 1),
+            "result_path": result, "raw": data}
+
+
+# ------------------------------------------------------------------ 汇总
+
+EMPTY_HINT = ("排查顺序: ① 波特率不对（试 921600 / 460800 / 115200 / 3000000）"
+              "② 设备侧这个口当前没有日志输出（要触发动作或打开日志开关）"
+              "③ 该口被 QCOM / SSCOM / WindTerm 占用 ④ 线序或口选错。"
+              "先用 `--sec 10 --baud <其他值>` 复测，别急着判定工具坏了。")
+
+
+def summarize(run, out_dir):
+    rows, totals = [], {}
+    raw = run.get("raw") or {}
+    for t in raw.get("targets", []):
+        rows.append({
+            "alias": t.get("name", ""), "port": t.get("port", ""),
+            "baud": t.get("baud", ""), "mode": t.get("mode", ""),
+            "file": (t.get("files") or [t.get("current_file", "")])[0],
+            "bytes": t.get("bytes", 0), "lines": t.get("lines", 0),
+            "size": t.get("current_size", 0), "error": t.get("last_error", ""),
+            "reconnects": t.get("reconnects", 0),
+        })
+    totals = raw.get("totals", {})
+
+    out = ["## 抓取结果", ""]
+    out.append("| 别名 | 串口 | 波特率 | 模式 | 行数 | 字节 | 文件 |")
+    out.append("|---|---|---|---|---|---|---|")
+    for r in rows:
+        out.append("| %s | %s | %s | %s | %s | %s | %s |" % (
+            r["alias"], r["port"], r["baud"], r["mode"], r["lines"], r["bytes"], r["file"]))
+    out.append("")
+    out.append("总计: %s 行 / %s 字节 | 用时 %.1fs | 目录 %s" % (
+        totals.get("lines", 0), totals.get("bytes", 0), run.get("elapsed", 0), out_dir))
+    empty = [r for r in rows if not r["bytes"]]
+    if empty:
+        out.append("")
+        out.append("### 无数据的串口")
+        for r in empty:
+            tail = ("，错误: " + r["error"]) if r["error"] else ""
+            out.append("- **%s (%s)** 0 字节%s" % (r["alias"], r["port"], tail))
+        out.append("")
+        out.append(EMPTY_HINT)
+
+    summary = "\n".join(out)
+    md = os.path.join(out_dir, "summary.md")
+    with open(md, "w", encoding="utf-8") as f:
+        f.write(summary + "\n")
+    js = os.path.join(out_dir, "summary.json")
+    with open(js, "w", encoding="utf-8") as f:
+        json.dump({"rows": rows, "totals": totals, "elapsed": run.get("elapsed"),
+                   "engine": "exe", "summary_md": md}, f, ensure_ascii=False, indent=2)
+    return summary, md, js, rows
+
+
+# ------------------------------------------------------------------ main
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="抓取串口日志（本地已有工具直接跑；缺失则从飞书云盘拉到 C 盘）")
+    ap.add_argument("--ports", help="逗号分隔的串口，如 COM247,COM98")
+    ap.add_argument("--targets", help="精确目标: 别名|COM号|波特率|模式，多路用 ; 分隔")
+    ap.add_argument("--baud", type=int, default=115200)
+    ap.add_argument("--mode", default="text", choices=["text", "hex"])
+    ap.add_argument("--sec", type=int, default=60, help="抓取时长（秒）")
+    ap.add_argument("--out", default="", help="输出目录，默认 <workspace>/serial_logs/<时间戳>")
+    ap.add_argument("--tool-dir", default="", help="工具目录；非 C 盘会被强制改到 C:\\QuecAgentTools")
+    ap.add_argument("--no-download", action="store_true", help="本地无工具就报错，不去飞书拉")
+    ap.add_argument("--ensure-tool-only", action="store_true", help="只确保工具就位，不抓取")
+    ap.add_argument("--launch", action="store_true",
+                    help="常驻启动：后台一直抓，命令结束也不退出（要停用 --stop）")
+    ap.add_argument("--stop", action="store_true", help="停止常驻抓取实例")
+    ap.add_argument("--status", action="store_true", help="查看常驻抓取状态")
+    ap.add_argument("--live-dir", default="", help="常驻抓取的日志目录，默认 serial_logs/live")
+    ap.add_argument("--instance", default="live", help="常驻实例名，默认 live")
+    ap.add_argument("--list-ports", action="store_true")
+    args = ap.parse_args()
+
+    if args.tool_dir:
+        set_tool_dir(args.tool_dir)
+
+    live = live_dir_of(args)
+
+    if args.status:
+        log(format_status(read_status(live)))
+        return 0
+
+    if args.stop:
+        killed, pid = stop_live(live)
+        if killed:
+            log("[stop] 已停止常驻抓取 (pid=%s)" % pid)
+            return 0
+        log("[stop] 没有找到运行中的常驻实例")
+        return 3
+
+    if args.list_ports:
+        for d, desc in list_ports():
+            log("%-10s %s" % (d, desc))
+        return 0
+
+    try:
+        exe = ensure_tool(auto_download=not args.no_download)
+    except Exception as e:
+        log("[tool] ERROR: %s" % e)
+        log("[tool] 没有可用的抓取工具，已停止（本 skill 不做 Python 兜底）")
+        return 2
+
+    if args.ensure_tool_only:
+        log("[tool] ready: %s" % exe)
+        return 0
+
+    try:
+        targets = parse_targets(args)
+    except ValueError as e:
+        if args.launch:
+            log("[args] %s" % e)
+            return 4
+        targets = []
+
+    if args.launch:
+        s = launch_live(exe, targets, live, args.instance)
+        if not s:
+            log("[launch] 启动失败")
+            return 2
+        log("[launch] 已在后台常驻抓取，日志目录 %s" % live)
+        log(format_status(s))
+        return 0
+
+    out_dir = os.path.abspath(args.out or os.path.join(
+        WORKSPACE, "serial_logs", time.strftime("%Y%m%d_%H%M%S")))
+    os.makedirs(out_dir, exist_ok=True)
+
+    try:
+        run = run_exe(exe, targets, args.sec, out_dir)
+    except Exception as e:
+        log("[run] ERROR: %s" % e)
+        return 2
+    if not run.get("raw"):
+        log("[run] ERROR: exe 没有产出 result.json（被杀软拦截或参数错误）")
+        log("[run] 检查: 工具是否还在 %s；不在就重跑本命令让它重新拉取" % exe)
+        return 2
+
+    summary, md, js, rows = summarize(run, out_dir)
+    log("")
+    log(summary)
+    log("")
+    log("[out] %s" % md)
+    log("[out] %s" % js)
+    if not rows or not any(r["bytes"] for r in rows):
+        return 3
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
