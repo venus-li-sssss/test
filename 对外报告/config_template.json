@@ -1,0 +1,126 @@
+{
+  "_说明": "通用对外测试报告配置骨架。复制成 configs/<项目>_<版本>.json 后逐项填写；所有字符串都支持 {project}/{version}/{date}/{tester}/{company} 等占位符（取值来自 report 与 test_info）。不需要的段落整段删掉即可，脚本会跳过。",
+  "report": {
+    "title": "{project} {version} 测试报告",
+    "version": "{version}",
+    "date": "{date}",
+    "author": "{tester}",
+    "status": "受控文件",
+    "output_pattern": "Ikotek_{project}_{version}_测试报告_{date}.docx"
+  },
+  "template": "media/base_template.docx",
+  "template_replacements": {
+    "<模板封面的旧型号串>": "{project}",
+    "<模板封面的旧版本号>": "{version}",
+    "<模板封面的旧日期>": "{date}"
+  },
+  "header_replacements": {
+    "<模板页眉里的旧型号串>": "{project}"
+  },
+  "revision": {
+    "version": "1.0",
+    "date": "{date}",
+    "author": "{tester}",
+    "note": "初始版本"
+  },
+  "test_info": {
+    "project": "{project}",
+    "tester": "{tester}",
+    "location": "<测试地点，如 佛山>",
+    "period": "<YYYY/MM/DD HH:MM – YYYY/MM/DD HH:MM>",
+    "samples": "<中文数量，如 2片>",
+    "imei": "<样品编号 / IMEI / SN>",
+    "components": {
+      "<部件类型，如 ECU>": "<版本，如 0242>",
+      "<部件类型，如 DIS>": "<版本>",
+      "HW": "<硬件版本>"
+    }
+  },
+  "labels": {
+    "测试项目": "测试项目",
+    "测试人员": "测试人员",
+    "测试地点": "测试地点",
+    "测试周期": "测试周期",
+    "样品数量": "样品数量",
+    "sample_id": "样品编号",
+    "versions": "版本信息",
+    "software": "软件",
+    "part": "部件类型",
+    "version": "版本信息",
+    "hardware": "硬件",
+    "steps": "测试步骤",
+    "result": "测试结果",
+    "remark": "备注"
+  },
+  "purpose": {
+    "heading": "1. 测试目的",
+    "text": "为验证{project}的修改点及基本功能，对{project}在常温下进行了功能和修改点测试。该报告主要总结了具体测试项以及测试数据。"
+  },
+  "content_heading": "2. 测试内容",
+  "env": {
+    "enabled": true,
+    "heading": "2.1 测试环境",
+    "image": "media/env_image.png",
+    "image_width_cm": 15,
+    "caption": "图表 1：常温测试环境"
+  },
+  "sections": [
+    {
+      "heading": "2.2 修改点测试",
+      "items": [
+        {
+          "title": "<修改点标题，编号自动补>",
+          "steps": ["<步骤 1>", "<步骤 2>"],
+          "result": "PASS",
+          "remark": ""
+        }
+      ]
+    },
+    {
+      "heading": "2.3 基本功能测试",
+      "items": [
+        {
+          "title": "<功能项标题>",
+          "steps": ["<步骤 1>", "<步骤 2>"],
+          "result": "PASS",
+          "remark": ""
+        }
+      ]
+    },
+    {
+      "heading": "2.4 稳定性测试",
+      "items": [
+        {
+          "title": "<压力项标题>",
+          "steps": ["<步骤 1>", "<步骤 2>"],
+          "result": "PASS",
+          "remark": "<PASS 时这里写测试数据：次数/成功率/耗时>"
+        }
+      ]
+    }
+  ],
+  "conclusion": {
+    "enabled": true,
+    "heading": "3. 测试结论",
+    "summary_heading": "3.1 测试小结",
+    "bugs_heading": "问题统计表"
+  },
+  "test_summary": [
+    "1）<小结 1，涉及的问题带上编号>",
+    "2）<小结 2>"
+  ],
+  "bug_labels": {
+    "bug_id": "Bug 号",
+    "severity": "Bug 严重等级",
+    "description": "Bug 描述",
+    "remark": "备注"
+  },
+  "bugs": [
+    {
+      "id": "<问题编号>",
+      "severity": "<A-Critical / B-Major / C-Minor>",
+      "description": "<问题描述>",
+      "remark": "<当前状态与处理结论>"
+    }
+  ]
+}
