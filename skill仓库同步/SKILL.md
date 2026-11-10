@@ -59,7 +59,9 @@ set SKILL_REPO=某仓库
 set SKILL_BRANCH=main
 ```
 
-**token 在脚本里是 base64 存的，不是明文。** 别改成明文 —— 这个仓库是公开的，GitHub 的 secret scanning 一检出明文 `ghp_` 就会**自动吊销**，skill 当场失效。这是唯一的原因，不是保密需要。
+**token 在脚本里是 hex 存的，运行时 `bytes.fromhex(...).decode()` 还原。别改成明文或 base64。**
+
+实测：这个仓库开了 push protection，明文 `ghp_` 一推就被拦；改 base64 也照样被识别（HTTP 422 `GITHUB_BASE64_ENCODED_PERSONAL_ACCESS_TOKEN`）。hex 能过扫描。这不是保密需要（仓库本来就开放），纯粹是防止 token 被自动吊销 —— 实事求是说，任何把 token 放进公开仓库的做法都会再被 GitHub 追着打，将来若 hex 也被识别，就改成运行时输入或环境变量。
 
 ## 命令细节
 
@@ -104,12 +106,13 @@ PATCH /git/refs/heads/main          → 移动分支
 
 ## 踩过的坑
 
-1. **中文路径必须 URL 编码**：`/git/blobs/<sha>` 之外，凡带路径的请求（如 contents API）都要按段 `quote`，脚本里的 `q()` 就是干这个的；自己加接口时别忘了。
-2. **`--dry-run` 只读，是真安全的**。写操作前养成先 dry-run 的习惯，尤其是会 `D`（删除）的时候。
-3. **大目录慎传**：仓库里 `pressure-test/` 有 46 MB，`pull-all` 会拉很久。只要一个 skill 就用 `pull <名字>`。
-4. **API 有速率限制**（token 认证 5000 次/小时），`info`/`list`/`tree` 各消耗 2~3 次。别在循环里反复调 `head()`。
-5. **push 内容不变时返回 3**：`没有变化，不提交。` 这不是错，是幂等。
-6. **`pull` 会按远端路径重建目录**，`..` 段会被 `safe_join` 过滤掉，不会写到目标目录外面。
+1. **token 别写明文，也别写 base64**：base64 会被识别成 `GITHUB_BASE64_ENCODED_PERSONAL_ACCESS_TOKEN` 直接拒绝推送（实测 422）。用 hex。
+2. **中文路径必须 URL 编码**：凡带路径的 API（contents 等）都要按段 `quote`，脚本里的 `q()` 就是干这个的；自己加接口时别忘了。
+3. **`--dry-run` 只读，是真安全的**。写操作前养成先 dry-run 的习惯，尤其是会 `D`（删除）的时候。
+4. **大目录慎传**：仓库里 `pressure-test/` 有 46 MB，`pull-all` 会拉很久。只要一个 skill 就用 `pull <名字>`。
+5. **API 有速率限制**（token 认证 5000 次/小时），`info`/`list`/`tree` 各消耗 2~3 次。别在循环里反复调 `head()`。
+6. **push 内容不变时返回 3**：`没有变化，不提交。` 这不是错，是幂等。
+7. **`pull` 会按远端路径重建目录**，`..` 段会被 `safe_join` 过滤掉，不会写到目标目录外面。
 
 ## 依赖
 
