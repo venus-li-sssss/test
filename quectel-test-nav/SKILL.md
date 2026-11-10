@@ -41,7 +41,7 @@ python <skill目录>/scripts/nav.py --json 串口    # 输出 JSON，便于程�
    GET https://api.github.com/repos/venus-li-sssss/test/contents/<subdir>
    Header: Authorization: token <GH_TOKEN>
    ```
-   `GH_TOKEN` 已内置在 `scripts/nav.py` 顶部（`ghp_...`），直接复用。
+   `GH_TOKEN` 从 `scripts/config.local.json`（或环境变量 `GITHUB_TOKEN`）读取，见下文"凭据配置"。
 3. 找到该目录下的 `SKILL.md`（或 `.md` 说明文件），用 raw 地址读取：
    `https://raw.githubusercontent.com/venus-li-sssss/test/main/<subdir>/SKILL.md`
 4. 按那份 SKILL.md 的指引执行（它会告诉你具体脚本、参数、配置文件怎么写）。
@@ -59,9 +59,18 @@ python <skill目录>/scripts/nav.py --json 串口    # 输出 JSON，便于程�
 - `quectel-attendance` —— 考勤数据获取
 - `ninebot-project` —— 九号客户平台
 
+## 凭据配置
+
+token 不写死在代码里，按以下优先级读取：
+
+1. 环境变量 `NAV_PORTAL_TOKEN`（导航 Bearer token）、`GITHUB_TOKEN`（GitHub PAT）；
+2. 本地文件 `scripts/config.local.json`（参考 `scripts/config.example.json`）。
+
+`config.local.json` 已在 `.gitignore` 中，**不要提交到 git**。换机器时复制 `config.example.json` 为 `config.local.json` 填入真实 token 即可。
+
 ## 注意事项
 
-- **token 可能过期**：若 `nav.py` 返回 401/403，或 GitHub API 报 401，说明导航 Bearer token 或 GitHub token 轮换了，向用户要新 token 后更新 `scripts/nav.py` 顶部常量。
+- **token 可能过期**：若 `nav.py` 报 "nav portal token missing" 或返回 401/403，或 GitHub API 报 401，说明导航 Bearer token 或 GitHub token 轮换了，更新 `scripts/config.local.json`（或环境变量）即可。
 - **导航是活的**：分类和链接会增删，`references/catalog.md` 只是快照；执行前以 `nav.py` 实时结果为准。
 - **内网链接需要登录态**：ticket.ikotek.com、smod.quectel.com、qdisk.quectel.com、BPM、QHR 等内网系统在浏览器里通常已有 SSO 登录态；无登录态时引导用户手动登录。
 - 完整分类快照和每个入口的状态见 `references/catalog.md`。
