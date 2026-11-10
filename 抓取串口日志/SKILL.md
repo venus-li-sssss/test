@@ -92,17 +92,49 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 2. `C:\QuecAgentTools\串口日志抓取\串口日志抓取.exe`
 3. `<workspace>\串口日志抓取UI\串口日志抓取.exe`
 
-**本地没有就去飞书云盘拉**（免扫码）：
+**本地没有就去飞书云盘拉**（免扫码，应用身份 `tenant_access_token`）：
 
-- 导航入口：`GET https://scnrhostplnc.feishuapp.com/app/app_17fwfnp4pvy/openapi/nav/links`
-  （用户给的 Bearer token 只在那台机器有效，**不要写进 skill、不要外传**）
-- 「测试环境搭建 → 串口日志抓取」→ 云盘文件夹 `GQzGfjpbQl7gCodXdjJcdgten6d`
-- 脚本内置该文件夹的 file_token + 团队只读机器人凭据，用 `preview_download?preview_type=16` 落盘
+- 云盘文件夹：`GQzGfjpbQl7gCodXdjJcdgten6d`（「测试环境搭建 → 串口日志抓取」）
+- 团队只读机器人凭据内置在脚本里（`cli_a9bc97317fb89cc8`，可公开）；
+  token 缓存在 `~/.feishu_tat_cache.json`（2h，提前 5 分钟续期）
+- 下载走 `preview_download?preview_type=16`（`/medias/xxx/download` 对 bot 会 403）
 
-云端更新后重取 token：
+### 拉取流程（2026-11-10 重构，别再改回写死 token）
+
+```
+取 tenant_access_token（有缓存）
+  → 列 FEISHU_FOLDER，按文件名取**当前** file_token
+  → 逐个 preview_download（Range 断点续传，最多 5 次）
+  → 校验 exe > 10KB 才算成功
+```
+
+- **写死的 `FEISHU_FILES` 只是兜底**：列目录失败时才用
+- **云端替换文件后 token 会变**，脚本会自动跟随并在日志里说
+  `[tool] 云端 file_token 已变化，自动跟随最新: xxx`
+- **下载失败会自动刷新 token 重试一次**（401/403/1061004 多半是 token 过期或换应用）
+- 怀疑本地工具是旧版：加 `--refresh-tool` 强制重下
 
 ```bat
-python <feishu-software-download skill 目录>\scripts\feishu_dl.py tree --folder GQzGfjpbQl7gCodXdjJcdgten6d
+python scripts\capture_serial_log.py --ensure-tool-only              :: 只确保工具就位
+python scripts\capture_serial_log.py --ensure-tool-only --refresh-tool  :: 强制重拉最新版
+```
+
+### 拉取失败怎么排（按顺序看日志）
+
+| 日志/现象 | 原因 | 处理 |
+|---|---|---|
+| `WARN: 列目录失败(...) 回退脚本内置 token` 后仍成功 | 列目录接口抖动，内置 token 还能用 | 正常，可忽略；持续出现再查权限 |
+| `列目录失败 code=1061004` | 文件夹没共享给这个应用 | 让目录所有者把应用加为**可阅读**协作者（搜应用名，不是人名） |
+| `HTTP 403` / `code=1061004` 下载时 | token 过期或应用被移出协作者 | 脚本已自动刷新重试；仍失败看权限 |
+| `HTTP 404` | file_token 失效（云端替换过文件，且列目录也失败） | 网络恢复后重跑；或 `--refresh-tool` |
+| `拉下来的 exe 只有 N 字节` | 接口返回了错误 JSON，被当成文件写盘 | 看上面错误码；清掉 `%TOOL_DIR%\串口日志抓取.exe` 后重跑 |
+| `下载后仍找不到 ...exe` | 被安全软件/EDR 删了 | 工具目录必须在 **C 盘**（`C:\QuecAgentTools\串口日志抓取\`），见下方"踩过的坑" |
+| `retry 1/5 ... retry 5/5` 全失败 | 网络断流 | 已带 Range 续传 + 5 次重试；仍失败就稍后重跑（会从 `.part` 续上） |
+
+云端更新后想核对目录里有哪些、token 是什么：
+
+```bat
+python <feishu-software-download skill>\scripts\feishu_dl.py find 串口日志抓取
 ```
 
 ## 依赖

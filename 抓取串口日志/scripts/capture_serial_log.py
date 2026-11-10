@@ -29,11 +29,16 @@ import uuid
 # ------------------------------------------------------------------ 常量
 
 FEISHU_FOLDER = "GQzGfjpbQl7gCodXdjJcdgten6d"   # 飞书云盘「串口日志抓取」文件夹
+# ⚠️ 下面这些 file_token 只是**兜底**。云端每次替换文件，token 就会变；
+#    正常流程是先列 FEISHU_FOLDER 按文件名取最新 token（见 _resolve_tokens）。
 FEISHU_FILES = {
     "串口日志抓取.exe": "HLDdbQrRJornFFxFRZVcCrwDnKe",
     "串口日志抓取.ini": "J1NNbK7YUooChExqpdtciDC3nad",
     "README.md": "K8SrbXwuMoCDyCxWS3mcIzuHnSh",
 }
+FEISHU_BASE = "https://open.feishu.cn"
+_TOKEN_CACHE = os.path.join(os.path.expanduser("~"), ".feishu_tat_cache.json")
+MIN_EXE_BYTES = 10000          # 小于这个大小的一定不是真 exe（多半是错误 JSON）
 FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "cli_a9bc97317fb89cc8")
 # 团队共用只读机器人（非个人账号，可公开）；base64 仅为绕开凭据字面量误报
 _DEFAULT_SECRET = base64.b64decode("cnRUc0VaZnZOQWZsN3c3RFpBVklFZnJyUlNRZUZUZmg=").decode()
@@ -154,45 +159,125 @@ def _http_download(url, headers, out_path, retries=5):
     raise RuntimeError("download failed: %s" % url)
 
 
-def download_tool():
-    """从飞书云盘拉取工具到 C 盘。返回 exe 绝对路径。"""
+def _feishu_token(force=False):
+    """tenant_access_token，带本地缓存（2h，提前 5 分钟续期）。"""
     import requests
 
-    if not is_c_drive(TOOL_DIR):
-        raise RuntimeError("工具目录必须在 C 盘，当前是 %s" % TOOL_DIR)
     if not FEISHU_APP_SECRET:
         raise RuntimeError("缺少飞书 app_secret：设置 FEISHU_APP_SECRET 环境变量")
-    log("[tool] 本地没有，从飞书云盘拉取 -> %s" % TOOL_DIR)
-    r = requests.post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+    if not force and os.path.isfile(_TOKEN_CACHE):
+        try:
+            with open(_TOKEN_CACHE, "r", encoding="utf-8") as fh:
+                c = json.load(fh)
+            if c.get("app_id") == FEISHU_APP_ID and c.get("expire_at", 0) > time.time() + 300:
+                return c["token"]
+        except Exception:
+            pass
+    r = requests.post(FEISHU_BASE + "/open-apis/auth/v3/tenant_access_token/internal",
                       json={"app_id": FEISHU_APP_ID, "app_secret": FEISHU_APP_SECRET}, timeout=30)
     js = r.json()
     token = js.get("tenant_access_token")
     if not token:
         raise RuntimeError("tenant_access_token failed: %s" % json.dumps(js, ensure_ascii=False)[:300])
-    headers = {"Authorization": "Bearer %s" % token}
+    try:
+        with open(_TOKEN_CACHE, "w", encoding="utf-8") as fh:
+            json.dump({"app_id": FEISHU_APP_ID, "token": token,
+                       "expire_at": time.time() + js.get("expire", 7200)}, fh)
+    except Exception:
+        pass
+    return token
 
+
+def _list_folder_files(folder_token, token):
+    """列文件夹（自动翻页）-> {文件名: file_token}，只收 file。"""
+    import requests
+
+    out, pt = {}, None
+    while True:
+        params = {"folder_token": folder_token, "page_size": 200}
+        if pt:
+            params["page_token"] = pt
+        r = requests.get(FEISHU_BASE + "/open-apis/drive/v1/files", params=params,
+                         headers={"Authorization": "Bearer %s" % token}, timeout=30)
+        js = r.json()
+        if js.get("code") != 0:
+            raise RuntimeError("列目录失败 code=%s msg=%s" % (js.get("code"), js.get("msg")))
+        data = js.get("data") or {}
+        for f in data.get("files") or []:
+            if f.get("type") == "file":
+                out[f["name"]] = f["token"]
+        if not data.get("has_more"):
+            return out
+        pt = data.get("page_token")
+
+
+def _resolve_tokens(token):
+    """按「文件夹 + 文件名」取最新 file_token，取不到才退回写死的值。
+
+    历史坑：云端一旦替换 exe/ini，file_token 就变了，写死的旧 token 直接 404，
+    表现出来就是「有时候能拉、有时候拉取失败」。
+    """
+    try:
+        live = _list_folder_files(FEISHU_FOLDER, token)
+    except Exception as e:
+        log("[tool] WARN: 列目录失败(%s)，回退脚本内置 token" % e)
+        return dict(FEISHU_FILES)
+    missing = [n for n in FEISHU_FILES if n not in live]
+    if missing:
+        log("[tool] WARN: 目录里没找到 %s，该文件回退内置 token" % ",".join(missing))
+    changed = [n for n in FEISHU_FILES if live.get(n) and live[n] != FEISHU_FILES[n]]
+    if changed:
+        log("[tool] 云端 file_token 已变化，自动跟随最新: %s" % ",".join(changed))
+    return {n: live.get(n) or FEISHU_FILES[n] for n in FEISHU_FILES}
+
+
+def download_tool(force=False):
+    """从飞书云盘拉取工具到 C 盘。返回 exe 绝对路径。
+
+    force=True 时即使本地已有也重下（用于怀疑本地工具过期）。
+    """
+    if not is_c_drive(TOOL_DIR):
+        raise RuntimeError("工具目录必须在 C 盘，当前是 %s" % TOOL_DIR)
     os.makedirs(TOOL_DIR, exist_ok=True)
-    for name, ftoken in FEISHU_FILES.items():
+    log("[tool] 从飞书云盘拉取 -> %s" % TOOL_DIR)
+    token = _feishu_token()
+    tokens = _resolve_tokens(token)
+
+    for name, ftoken in tokens.items():
         dst = os.path.join(TOOL_DIR, name)
-        if os.path.isfile(dst) and os.path.getsize(dst) > 0:
+        if not force and os.path.isfile(dst) and os.path.getsize(dst) > 0:
             continue
-        url = ("https://open.feishu.cn/open-apis/drive/v1/medias/%s/preview_download"
-               "?preview_type=16" % ftoken)
-        size = _http_download(url, headers, dst)
+        url = ("%s/open-apis/drive/v1/medias/%s/preview_download?preview_type=16"
+               % (FEISHU_BASE, ftoken))
+        try:
+            size = _http_download(url, {"Authorization": "Bearer %s" % token}, dst)
+        except Exception as e:
+            # 401/403/1061004 多是 token 过期或换应用；刷新一次 token 再试，别直接判死
+            log("  [retry] %s 失败(%s) -> 刷新 token 重试" % (name, e))
+            token = _feishu_token(force=True)
+            tokens = _resolve_tokens(token)
+            url = ("%s/open-apis/drive/v1/medias/%s/preview_download?preview_type=16"
+                   % (FEISHU_BASE, tokens[name]))
+            size = _http_download(url, {"Authorization": "Bearer %s" % token}, dst)
         log("  ok %s (%s bytes)" % (name, size))
+
     if not os.path.isfile(TOOL_EXE):
         raise RuntimeError("下载后仍找不到 %s（很可能被安全软件删了，见 SKILL.md 排障）" % TOOL_EXE)
+    actual = os.path.getsize(TOOL_EXE)
+    if actual < MIN_EXE_BYTES:
+        raise RuntimeError("拉下来的 exe 只有 %d 字节，不是有效程序（多半是接口返回了错误 JSON），"
+                           "见 SKILL.md 排障" % actual)
     return TOOL_EXE
 
 
-def ensure_tool(auto_download=True):
-    exe = find_tool()
-    if exe:
+def ensure_tool(auto_download=True, force=False):
+    exe = find_tool() if not force else None
+    if exe and not force:
         log("[tool] 本地已有: %s" % exe)
         return exe
     if not auto_download:
         raise RuntimeError("本地无工具，且指定了 --no-download")
-    return download_tool()
+    return download_tool(force=force)
 
 
 # ------------------------------------------------------------------ 目标
@@ -468,6 +553,8 @@ def main():
     ap.add_argument("--tool-dir", default="", help="工具目录；非 C 盘会被强制改到 C:\\QuecAgentTools")
     ap.add_argument("--no-download", action="store_true", help="本地无工具就报错，不去飞书拉")
     ap.add_argument("--ensure-tool-only", action="store_true", help="只确保工具就位，不抓取")
+    ap.add_argument("--refresh-tool", action="store_true",
+                    help="强制重新从飞书云盘拉取工具（本地已有也重下，用于怀疑工具过期）")
     ap.add_argument("--launch", action="store_true",
                     help="常驻启动：后台一直抓，命令结束也不退出（要停用 --stop）")
     ap.add_argument("--stop", action="store_true", help="停止常驻抓取实例")
@@ -500,7 +587,7 @@ def main():
         return 0
 
     try:
-        exe = ensure_tool(auto_download=not args.no_download)
+        exe = ensure_tool(auto_download=not args.no_download, force=args.refresh_tool)
     except Exception as e:
         log("[tool] ERROR: %s" % e)
         log("[tool] 没有可用的抓取工具，已停止（本 skill 不做 Python 兜底）")
