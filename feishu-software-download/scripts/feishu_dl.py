@@ -225,6 +225,49 @@ def block_text(b):
     return "".join(out)
 
 
+# ------------------------- 云端实时搜索 -------------------------
+# 走 /open-apis/search/v2/doc_wiki/search（tenant_access_token 可用，需 scope search:docs:read）
+# 已知边界：
+#   1) 只按「文件名/标题」命中，不按目录名命中（搜 "QDM559" 搜不到 QDM559/ 下的 V0.2.4.0.bin）
+#   2) 文件夹本身不进索引，搜不到 folder
+#   3) doc_filter.folder_tokens 在本租户实测未生效，搜索范围 = 应用可见的全部云盘
+SEARCH_API = f"{BASE}/open-apis/search/v2/doc_wiki/search"
+
+
+def search_api(query, doc_types=("FILE",), page_size=20):
+    # 注意：page_size 上限 20，传 30 会 99992402 field validation failed
+    body = {"query": query, "page_size": min(page_size, 20),
+            "doc_filter": {"doc_types": list(doc_types)}}
+    r = requests.post(SEARCH_API,
+                      data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                      headers={**H(), "Content-Type": "application/json; charset=utf-8"},
+                      timeout=30)
+    d = r.json()
+    if d.get("code") != 0:
+        sys.exit(f"[搜索失败] code={d.get('code')} msg={d.get('msg')}")
+    out = []
+    for u in (d.get("data") or {}).get("res_units") or []:
+        m = u.get("result_meta") or {}
+        title = re.sub(r"</?h>", "", u.get("title_highlighted") or "")
+        out.append({
+            "title": title,
+            "token": m.get("token", ""),
+            "type": m.get("doc_types", ""),
+            "file_type": m.get("file_type", ""),
+            "url": m.get("url", ""),
+            "owner": m.get("owner_name", ""),
+        })
+    return out
+
+
+def folder_of(token, catalog):
+    """搜索不带路径，用 catalog(sync 出来的) 反查目录；查不到就返回空。"""
+    for s in (catalog.get("software") or []):
+        if s.get("file_token") == token:
+            return s.get("folder", "")
+    return ""
+
+
 # ------------------------- catalog -------------------------
 def load_catalog():
     if not CATALOG.exists():
@@ -325,6 +368,8 @@ def main():
     ap.add_argument("arg", nargs="?", default="")
     ap.add_argument("--out", default="", help="输出目录或文件名")
     ap.add_argument("--folder", default=ROOT_FOLDER, help="tree/search 的根目录 token")
+    ap.add_argument("--pick", type=int, default=0, help="get 命中多项时指定第几项（从 1 开始）")
+    ap.add_argument("--all", action="store_true", help="search 时连 docx/sheet/bitable/slides 一起搜")
     a = ap.parse_args()
 
     if a.cmd == "list":
@@ -342,12 +387,19 @@ def main():
 
     if a.cmd == "search":
         if not a.arg:
-            sys.exit("用法: search <关键词>")
+            sys.exit("用法: search <关键词> [--all]")
+        types = ("FILE", "DOCX", "SHEET", "BITABLE", "SLIDES") if a.all else ("FILE",)
+        hits = search_api(a.arg, doc_types=types)
+        if not hits:
+            print(f"❌ 云端搜索「{a.arg}」无命中")
+            return
         cat = load_catalog()
-        if not (cat.get("software") or []):
-            sync_catalog()
-            cat = load_catalog()
-        print_hits(a.arg, match_all(cat, a.arg))
+        print(f"云端命中 {len(hits)} 项（实时，不依赖 catalog）：")
+        print("名称 | 类型 | 目录(来自catalog) | file_token")
+        print("---|---|---|---")
+        for h in hits:
+            print(f"{h['title']} | {h['file_type'] or h['type']} | "
+                  f"{folder_of(h['token'], cat) or '-'} | {h['token']}")
         return
 
     if a.cmd == "sync":
@@ -375,20 +427,29 @@ def main():
 
     if a.cmd == "get":
         if not a.arg:
-            sys.exit("用法: get <软件名|关键词> [--out 目录]")
-        cat = load_catalog()
-        if not (cat.get("software") or []):
-            sync_catalog()
-        s = match(cat, a.arg)
-        if not s:
-            sync_catalog()
-            s = match(load_catalog(), a.arg)
-        if not s:
-            sys.exit(f"❌ 没找到 '{a.arg}'。可用: " + ", ".join(x["name"] for x in load_catalog()["software"]))
+            sys.exit("用法: get <文件名|关键词> [--out 目录] [--pick N]")
+        # 1) 先走云端实时搜索（永远是最新的，不依赖 sync）
+        hits = search_api(a.arg)
+        if not hits:
+            # 2) 搜不到再退回本地 catalog 模糊匹配
+            cat = load_catalog()
+            local = match_all(cat, a.arg)
+            if not local:
+                sys.exit(f"❌ 云端与本地 catalog 都没有 '{a.arg}'")
+            hits = [{"title": s["filename"], "token": s["file_token"],
+                     "type": "FILE", "file_type": "", "url": "", "owner": ""}
+                    for s in local]
+        if len(hits) > 1 and not a.pick:
+            cat = load_catalog()
+            print(f"命中 {len(hits)} 项，用 --pick N 指定要下哪个：")
+            for i, h in enumerate(hits, 1):
+                print(f"  [{i}] {h['title']}  |  {folder_of(h['token'], cat) or '-'}  |  {h['token']}")
+            sys.exit(2)
+        h = hits[a.pick - 1] if a.pick else hits[0]
         dest_dir = Path(a.out or Path.cwd())
-        dest = dest_dir / s["filename"]
-        n = download(s["file_token"], dest)
-        print(f"✅ {s['name']} -> {dest.resolve()}  ({n:,} bytes)")
+        dest = dest_dir / h["title"]
+        n = download(h["token"], dest)
+        print(f"✅ {h['title']} -> {dest.resolve()}  ({n:,} bytes)")
         return
 
     if a.cmd == "doc":

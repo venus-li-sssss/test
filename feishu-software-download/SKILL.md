@@ -13,49 +13,63 @@ name: feishu-software-download
 脚本：`scripts/feishu_dl.py`（依赖 `requests`）。所有命令在 skill 目录下执行，或用绝对路径。
 
 ```bash
-# 1) 看有哪些软件（读本地 catalog，不联网）
-python scripts\feishu_dl.py list
-
-# 1.5) 在「软件测试部/软件测试二科」范围内模糊搜索（列出全部候选，不下载）
+# 1) 云端实时搜索（推荐入口，不用 sync，永远是最新的）
 python scripts\feishu_dl.py search 烧录
 python scripts\feishu_dl.py search QDM562
+python scripts\feishu_dl.py search 测试报告 --all   # 连 docx/sheet/bitable/slides 一起搜
 
-# 2) 下载（按名称或关键词，模糊匹配；--out 不给就落到当前目录）
+# 2) 下载：先云端搜索，唯一命中直接下；多个命中会列候选，用 --pick 选
 python scripts\feishu_dl.py get QCOM --out D:\tools
+python scripts\feishu_dl.py get SerialTool --pick 2
 python scripts\feishu_dl.py get 串口调试            # → SSCOM
-python scripts\feishu_dl.py get qfil                # → QPST/QFIL 安装包
 
-# 3) 云端加了新文件后，重新拉目录（保留已有人工写的 name/说明/关键词）
-python scripts\feishu_dl.py sync
-
-# 4) 已知 file_token 直接下
+# 3) 已知 file_token 直接下
 python scripts\feishu_dl.py dl P5MRbbMa5onIDkx1u8aciFnanSf --out QCOM.exe
 
-# 5) 云端目录树（排查"文件到底在哪"）
-python scripts\feishu_dl.py tree
+# 4) 看目录树 / 建本地离线目录（catalog 只在搜索不到时兜底）
+python scripts\feishu_dl.py tree --folder <folder_token>
+python scripts\feishu_dl.py sync            # 递归拉目录写 software_catalog.json
+python scripts\feishu_dl.py list            # 读本地 catalog，不联网
 
-# 6) 读飞书文档 / 知识库正文 → 存成 UTF-8 markdown 文件
+# 5) 读飞书文档 / 知识库正文 → 存成 UTF-8 markdown 文件
 python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEFsNcDNuEnid
 ```
 
 `doc` 的正文**只写文件、不打印到控制台**（Windows cp936 管道会把 UTF-8 中文打成乱码），
 控制台只回 `OK saved: <绝对路径>`，然后用 `read_file` 读那个 md。
 
+## 搜索接口的三个硬边界（2026-11-10 实测）
+
+1. **只按文件名/标题命中，不按目录名命中**：搜 `QDM559` 搜不到 `QDM559/V0.2.4.0.bin`
+   （文件名里没有 QDM559）。所以要"某目录下有什么"，得用 `tree`/`sync`，不能靠搜索。
+2. **文件夹本身不进索引**：`doc_types=FOLDER` 永远返回 0 条，搜不到 folder。
+3. **`page_size` 上限 20**，传 30 直接 `99992402 field validation failed`；
+   `doc_filter.folder_tokens` 在租户实测**未生效**，搜索范围 = 应用可见的全部云盘。
+
+结论：**搜索用来"按文件名捞文件"，遍历用来"回答某目录有啥"**，两条路都要。
+
 ## 回答用户时的约定
 
 - 下载完成必须报告：软件名、文件名、大小、**完整绝对路径**（markdown 链接形式）。
-- 用户问"有哪些软件"→ 跑 `list`，把结果整理成表格（名称/所在目录/说明）。
-- 用户要的软件不在目录里 → 先 `sync` 再匹配；仍没有就告知可用列表，并问是不是放到别的目录了。
+- 用户问"有哪些软件"→ 优先 `search` + `tree`；catalog 过期会漏新文件，别用它当唯一依据。
+- 搜不到 → 换更短的关键词再搜（搜索是子串匹配，长词反而命中少），再不行 `tree` 人工看。
 
 ## 鉴权与接口（已实测）
 
-| 用途 | 接口 |
-|---|---|
-| 取 token（2h 有效，脚本自动缓存续期） | `POST /open-apis/auth/v3/tenant_access_token/internal` |
-| 列目录 | `GET /open-apis/drive/v1/files?folder_token=<folder>` |
-| **下载文件** | `GET /open-apis/drive/v1/medias/<file_token>/preview_download?preview_type=16` |
-| Wiki 节点 → 文档 id | `GET /open-apis/wiki/v2/spaces/get_node?token=<node_token>` |
-| 文档正文 | `GET /open-apis/docx/v1/documents/<obj_token>/blocks?page_size=500` |
+| 用途 | 接口 | 所需 scope |
+|---|---|---|
+| 取 token（2h 有效，脚本自动缓存续期） | `POST /open-apis/auth/v3/tenant_access_token/internal` | — |
+| **云端搜索** | `POST /open-apis/search/v2/doc_wiki/search`（返回 `data.res_units`，不是 items） | `search:docs:read` |
+| 列目录 | `GET /open-apis/drive/v1/files?folder_token=<folder>` | `drive:drive:readonly` |
+| **下载文件** | `GET /open-apis/drive/v1/medias/<file_token>/preview_download?preview_type=16` | `drive:drive:readonly` |
+| Wiki 节点 → 文档 id | `GET /open-apis/wiki/v2/spaces/get_node?token=<node_token>` | `wiki:*` |
+| 文档正文 | `GET /open-apis/docx/v1/documents/<obj_token>/blocks?page_size=500` | `docx:document:readonly` |
+
+## 已知边界（别踩）
+
+1. **搜索命中结果的字段是 `res_units`**，每项在 `result_meta.token` / `title_highlighted`（标题带 `<h>` 高亮标签，要剥掉）。
+2. **机器人应用没有云盘根目录**：`files list` 不带 `folder_token` 返回空列表，不能用它遍历全盘。
+3. **搜索不给路径**：要显示"在哪个目录"，只能拿 `file_token` 去 catalog（`sync` 产物）反查。
 
 ⚠️ **三条踩过坑的结论**，不要改回去：
 
@@ -122,7 +136,10 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 | `99991672 app_scope_not_applied` | 应用缺 scope（`drive:drive:readonly` / `wiki:*` / `docx:document:readonly`） | 开发者后台申请应用身份权限：`https://open.feishu.cn/app/<app_id>/auth` |
 | 下载 403 / 空响应 | 用了 `/medias/.../download` | 换 `preview_download?preview_type=16`（脚本已内置） |
 | token 401 / app_secret 无效 | Secret 被重置 | 后台重置 Secret 后更新环境变量 `FEISHU_APP_SECRET` 或 `~/.feishu_app.json` |
-| `没找到 'xxx'` | 目录未同步 / 文件在别的目录 | `sync` → `tree` 确认 |
+| 搜不到文件 | 关键词太长 / 目标在别的目录 / 文件名里没有该词 | 换更短关键词再 `search` → 仍没有就 `tree` 人工看 |
+| `99992402 field validation failed` | `page_size` > 20 | 脚本已限制 20，别调大 |
+| 搜索 0 条但目录里明明有 | 搜的是目录名（目录不进索引） | 用 `tree`/`sync`，别用 `search` |
+| 列根目录返回空 | 机器人应用没有云盘根目录 | 必须给 `folder_token`（`tree --folder`） |
 | 文档 blocks 为 0 | 传的是 wiki node 而不是 docx obj_token | 用 `doc <wiki链接>`，脚本会先 `get_node` 换 `obj_token` |
 | 解压出来中文文件名是乱码（`├ⁿ┴ε.txt`） | 包里文件名是 GBK 存的、没打 UTF-8 标记，`zipfile` 按 cp437 解 | 见下面「落地之后」的还原一行代码，别用右键"全部解压缩" |
 
