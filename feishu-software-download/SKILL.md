@@ -83,6 +83,8 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
    `IncompleteRead` 断掉。脚本已内置 `Range: bytes=<have>-` 断点续传 + 最多 5 次重试，
    落地前先比对 Content-Length，不完整就报错不冒充成功 —— 别把它简化回单次 `iter_content`。
 
+## 配置与搜索范围
+
 **内置「团队共用只读机器人」凭据，开箱即用**（不是个人账号，可公开）：
 
 - APP_ID `cli_a9bc97317fb89cc8`，租户 `quectel.feishu.cn`
@@ -101,6 +103,29 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 
 若某个目录报 `1061004 forbidden`：让目录所有者把**这个应用**（搜索应用名，不是个人）加为可阅读协作者；
 若报 `99991672 app_scope_not_applied`：开发者后台给应用补 scope（`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`、`search:docs:read`）。
+
+## 这两个目录是「活目录」，会持续更新
+
+属主是软件测试部/二科的同事，随时新增、替换、删除文件。**根目录 token 不变，新加的子目录会被 `walk` 递归自动发现，不需要改代码。**
+
+| 云端发生了什么 | skill 怎么告诉你 |
+|---|---|
+| 新增文件 / 新子目录 | `sync` 打印 `🆕 新增 N 个`（带完整目录路径） |
+| 同名文件被替换（`file_token` 不变、内容变了） | `sync` 打印 `♻️ 内容/名称变过 N 个`，显示「旧时间 → 新时间」 |
+| 文件被删 / 移走 / 改名 | `sync` 打印 `🗑 上次有、这次没了 N 个` |
+| catalog 放太久 | `list` 顶部提示「已 N 天没更新」（阈值 `FEISHU_CATALOG_MAX_AGE_DAYS`，默认 7 天） |
+
+`list` 每行都带**更新时间**（云端 `modified_time`），判断"这是不是最新版"看它，别看 catalog 的 `last_sync`。
+
+### 使用约定（回答用户前先判断走哪条）
+
+1. **问"有哪些 / 最新版是哪个 / 这个目录里有什么"** → 先 `sync`（52 个文件约 2~5 秒）再 `list` / `tree`。
+   **不要拿旧快照当事实**，也不要只凭 catalog 说"没有这个文件"。
+2. **只是捞一个已知名字的文件** → 直接 `search` / `get`（云端实时，永远最新，不用 sync）。
+3. **建议每周至少 `sync` 一次**，或挂定时任务：
+   `qwenpaw cron create ... --task "python <skill>/scripts/feishu_dl.py sync"`（执行后把输出里的 🆕/♻️/🗑 贴给用户）。
+4. **根目录本身变了**（部门重组、新增根目录）→ 改 `FEISHU_ROOT_FOLDERS` + `ROOT_LABELS` 两处即可，逻辑不用动。
+5. 人工补的 `description` / `keywords` 按 `file_token` 保留；文件被删后对应条目会一起从 catalog 消失，不会留幽灵条目。
 
 其它默认值：
 

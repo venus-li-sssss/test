@@ -3,7 +3,7 @@
     "GiihfUC0tlDJGHdTriDcH4ljnUz",
     "F2T4fV4h1lzryvdGvc0cGxOHn1c"
   ],
-  "last_sync": "2026-11-10T16:18:06+08:00",
+  "last_sync": "2026-11-10T16:46:49+08:00",
   "software": [
     {
       "name": "txdqdnb_160853",
@@ -11,6 +11,7 @@
       "filename": "txdqdnb_160853.7z",
       "folder": "基础软件存放/定位工具/图新地图",
       "root": "基础软件存放",
+      "modified_ts": "1794291891",
       "description": "",
       "keywords": [
         "txdqdnb_160853",
@@ -24,6 +25,7 @@
       "filename": "QGNSS_V1.7_Build1202.7z",
       "folder": "基础软件存放/定位工具",
       "root": "基础软件存放",
+      "modified_ts": "1794277996",
       "description": "",
       "keywords": [
         "qgnss_v1.7_build1202",
@@ -37,6 +39,7 @@
       "filename": "串口日志抓取.exe",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290740",
       "description": "",
       "keywords": [
         "串口日志抓取",
@@ -50,6 +53,7 @@
       "filename": "串口日志抓取.ini",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290739",
       "description": "",
       "keywords": [
         "串口日志抓取",
@@ -63,6 +67,7 @@
       "filename": "串口日志抓取.cs",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290738",
       "description": "",
       "keywords": [
         "串口日志抓取",
@@ -76,6 +81,7 @@
       "filename": "README.md",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290738",
       "description": "",
       "keywords": [
         "readme",
@@ -89,6 +95,7 @@
       "filename": "build.bat",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290737",
       "description": "",
       "keywords": [
         "build",
@@ -102,6 +109,7 @@
       "filename": "AssemblyInfo.cs",
       "folder": "基础软件存放/串口工具/CMD抓取日志/V01/串口日志抓取",
       "root": "基础软件存放",
+      "modified_ts": "1794290736",
       "description": "",
       "keywords": [
         "assemblyinfo",
@@ -115,6 +123,7 @@
       "filename": "SSCOM.rar",
       "folder": "基础软件存放/串口工具",
       "root": "基础软件存放",
+      "modified_ts": "1791959165",
       "description": "串口调试助手",
       "keywords": [
         "sscom",
@@ -131,6 +140,7 @@
       "filename": "WindTerm_2.6.0_Windows_Portable_x86_64.zip",
       "folder": "基础软件存放/串口工具",
       "root": "基础软件存放",
+      "modified_ts": "1791959153",
       "description": "跨平台终端/SSH 工具（绿色便携版）",
       "keywords": [
         "ssh",
@@ -150,6 +160,7 @@
       "filename": "QCOM_V1.6.exe",
       "folder": "基础软件存放/串口工具",
       "root": "基础软件存放",
+      "modified_ts": "1791959145",
       "description": "高通串口/诊断工具",
       "keywords": [
         "diagnostics",
@@ -168,6 +179,7 @@
       "filename": "Notepad++.zip",
       "folder": "基础软件存放/办公软件/notepad",
       "root": "基础软件存放",
+      "modified_ts": "1794279924",
       "description": "",
       "keywords": [
         "notepad++",
@@ -181,6 +193,7 @@
       "filename": "高级文本编辑器(PilotEdit Lite)14.6.0.zip",
       "folder": "基础软件存放/办公软件/大文件日志读取",
       "root": "基础软件存放",
+      "modified_ts": "1794277956",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -194,6 +207,7 @@
       "filename": "Everything.7z",
       "folder": "基础软件存放/办公软件/everything",
       "root": "基础软件存放",
+      "modified_ts": "1794276225",
       "description": "",
       "keywords": [
         "everything",
@@ -207,6 +221,7 @@
       "filename": "QWinLog_V1.6.8_2021_0125.rar",
       "folder": "基础软件存放/qpst",
       "root": "基础软件存放",
+      "modified_ts": "1794278683",
       "description": "",
       "keywords": [
         "qwinlog_v1.6.8_2021_0125",
@@ -220,6 +235,7 @@
       "filename": "tap-windows-9.21.1.rar",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794278612",
       "description": "",
       "keywords": [
         "tap-windows-9.21.1",
@@ -233,6 +249,7 @@
       "filename": "高通usb驱动.rar",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276164",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -246,6 +263,7 @@
       "filename": "Quectel_Windows_USB_Driver(U)_For_ECM_RNDIS_V1.0.12(1)(2).7z",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276162",
       "description": "",
       "keywords": [
         "quectel_windows_usb_driver(u)_for_ecm_rndis_v1.0.12(1)(2)",
@@ -259,6 +277,7 @@
       "filename": "Quectel_LTE&5G_Windows_USB_Driver_V2.2.3.7z",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276148",
       "description": "",
       "keywords": [
         "quectel_lte&5g_windows_usb_driver_v2.2.3",
@@ -272,6 +291,7 @@
       "filename": "Quectel_ASR_Series_UMTS&LTE_Windows10_USB_Driver_Customer_V1.0.8(1).zip",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276148",
       "description": "",
       "keywords": [
         "quectel_asr_series_umts&lte_windows10_usb_driver_customer_v1.0.8(1)",
@@ -285,6 +305,7 @@
       "filename": "Quectel_ASR_Series_UMTS&LTE_Windows_USB_Driver_Customer_V1.0.2.7z",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276146",
       "description": "",
       "keywords": [
         "quectel_asr_series_umts&lte_windows_usb_driver_customer_v1.0.2",
@@ -298,6 +319,7 @@
       "filename": "QuecPython_USB_Driver_Win10_U_G.zip",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276144",
       "description": "",
       "keywords": [
         "quecpython_usb_driver_win10_u_g",
@@ -311,6 +333,7 @@
       "filename": "EC200U_quectel_name.zip",
       "folder": "基础软件存放/驱动",
       "root": "基础软件存放",
+      "modified_ts": "1794276143",
       "description": "",
       "keywords": [
         "ec200u_quectel_name",
@@ -324,6 +347,7 @@
       "filename": "UCANFD to CANFDNET Tool V1.0.1.exe",
       "folder": "基础软件存放/CAN/ZQWL-USB-CANFD",
       "root": "基础软件存放",
+      "modified_ts": "1794278593",
       "description": "",
       "keywords": [
         "ucanfd to canfdnet tool v1.0.1",
@@ -337,6 +361,7 @@
       "filename": "ZQWL-USB-CANFD-Tool V1.3.6.exe",
       "folder": "基础软件存放/CAN/ZQWL-USB-CANFD",
       "root": "基础软件存放",
+      "modified_ts": "1794278573",
       "description": "",
       "keywords": [
         "zqwl-usb-canfd-tool v1.3.6",
@@ -350,6 +375,7 @@
       "filename": "ZCANPRO_Setup_V2.2.5(20230203).rar",
       "folder": "基础软件存放/CAN/ZCANPRO",
       "root": "基础软件存放",
+      "modified_ts": "1794276165",
       "description": "",
       "keywords": [
         "zcanpro_setup_v2.2.5(20230203)",
@@ -363,6 +389,7 @@
       "filename": "插入图片对象.xlsm",
       "folder": "基础软件存放/excel插入图片/对象/源excel",
       "root": "基础软件存放",
+      "modified_ts": "1794278071",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -376,6 +403,7 @@
       "filename": "插入图片.xlsm",
       "folder": "基础软件存放/excel插入图片/对象/源excel",
       "root": "基础软件存放",
+      "modified_ts": "1794278070",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -389,6 +417,7 @@
       "filename": "插入图片对象.xlam",
       "folder": "基础软件存放/excel插入图片/对象/宏",
       "root": "基础软件存放",
+      "modified_ts": "1794278066",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -402,6 +431,7 @@
       "filename": "插入图片.xlam",
       "folder": "基础软件存放/excel插入图片/对象/宏",
       "root": "基础软件存放",
+      "modified_ts": "1794278066",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -415,6 +445,7 @@
       "filename": "excel快速插入图片说明.docx",
       "folder": "基础软件存放/excel插入图片/对象/宏",
       "root": "基础软件存放",
+      "modified_ts": "1794278065",
       "description": "",
       "keywords": [
         "excel快速插入图片说明",
@@ -428,6 +459,7 @@
       "filename": "CATStudio_V3_0_1_76.7z",
       "folder": "基础软件存放/抓取模组日志",
       "root": "基础软件存放",
+      "modified_ts": "1794276142",
       "description": "",
       "keywords": [
         "catstudio_v3_0_1_76",
@@ -441,6 +473,7 @@
       "filename": "QWinLog_V2.3(1).zip",
       "folder": "基础软件存放/抓取模组日志",
       "root": "基础软件存放",
+      "modified_ts": "1794276046",
       "description": "",
       "keywords": [
         "qwinlog_v2.3(1)",
@@ -454,6 +487,7 @@
       "filename": "JLink_V836.zip",
       "folder": "基础软件存放/Jlink",
       "root": "基础软件存放",
+      "modified_ts": "1794276045",
       "description": "",
       "keywords": [
         "jlink_v836",
@@ -467,6 +501,7 @@
       "filename": "rtt_t2-master.zip",
       "folder": "基础软件存放/Jlink",
       "root": "基础软件存放",
+      "modified_ts": "1794276042",
       "description": "",
       "keywords": [
         "rtt_t2-master",
@@ -480,6 +515,7 @@
       "filename": "V0.2.4.2.bin",
       "folder": "基础软件存放/九号上位机升级/升级版本包/QDM559",
       "root": "基础软件存放",
+      "modified_ts": "1794194745",
       "description": "",
       "keywords": [
         "v0.2.4.2",
@@ -493,6 +529,7 @@
       "filename": "V0.2.4.0.bin",
       "folder": "基础软件存放/九号上位机升级/升级版本包/QDM559",
       "root": "基础软件存放",
+      "modified_ts": "1794194724",
       "description": "",
       "keywords": [
         "v0.2.4.0",
@@ -506,6 +543,7 @@
       "filename": "QDM562_diff_upgrade_764_to_765.bin",
       "folder": "基础软件存放/九号上位机升级/升级版本包/QDM562",
       "root": "基础软件存放",
+      "modified_ts": "1794194658",
       "description": "",
       "keywords": [
         "qdm562_diff_upgrade_764_to_765",
@@ -519,6 +557,7 @@
       "filename": "QDM562_diff_rollback_765_to_764.bin",
       "folder": "基础软件存放/九号上位机升级/升级版本包/QDM562",
       "root": "基础软件存放",
+      "modified_ts": "1794194657",
       "description": "",
       "keywords": [
         "qdm562_diff_rollback_765_to_764",
@@ -532,6 +571,7 @@
       "filename": "SerialTool_v1.0.2.zip",
       "folder": "基础软件存放/九号上位机升级/上位机(备用)",
       "root": "基础软件存放",
+      "modified_ts": "1794194461",
       "description": "",
       "keywords": [
         "serialtool_v1.0.2",
@@ -545,6 +585,7 @@
       "filename": "QDM562上位机升级_V3.0.py",
       "folder": "基础软件存放/九号上位机升级/上位机升级脚本",
       "root": "基础软件存放",
+      "modified_ts": "1794194120",
       "description": "",
       "keywords": [
         "qdm562上位机升级_v3.0",
@@ -558,6 +599,7 @@
       "filename": "device.yaml",
       "folder": "基础软件存放/九号上位机升级/上位机升级脚本",
       "root": "基础软件存放",
+      "modified_ts": "1794194120",
       "description": "",
       "keywords": [
         "device",
@@ -571,6 +613,7 @@
       "filename": "SerialTool.exe",
       "folder": "基础软件存放/九号上位机升级",
       "root": "基础软件存放",
+      "modified_ts": "1794194158",
       "description": "",
       "keywords": [
         "serialtool",
@@ -584,6 +627,7 @@
       "filename": "README.md",
       "folder": "基础软件存放/防锁屏",
       "root": "基础软件存放",
+      "modified_ts": "1793932180",
       "description": "",
       "keywords": [
         "readme",
@@ -597,6 +641,7 @@
       "filename": "防锁屏F15.exe",
       "folder": "基础软件存放/防锁屏",
       "root": "基础软件存放",
+      "modified_ts": "1793932140",
       "description": "",
       "keywords": [
         "基础软件存放",
@@ -610,6 +655,7 @@
       "filename": "qpst.win.2.7_installer_00486.1_QFIL2.0.2.8.zip",
       "folder": "基础软件存放/烧录工具/QFlash",
       "root": "基础软件存放",
+      "modified_ts": "1791969796",
       "description": "高通 QPST / QFIL 烧录工具安装包（EDL 9008、firehose）",
       "keywords": [
         "9008",
@@ -630,6 +676,7 @@
       "filename": "QFlash_V7.5_EN.zip",
       "folder": "基础软件存放/烧录工具/QFlash",
       "root": "基础软件存放",
+      "modified_ts": "1791969787",
       "description": "移远 QFlash V7.5 多平台烧录工具",
       "keywords": [
         "qflash",
@@ -649,6 +696,7 @@
       "filename": "FreqChip_Download V1.3.9.zip",
       "folder": "基础软件存放/烧录工具/FreqChip",
       "root": "基础软件存放",
+      "modified_ts": "1792043405",
       "description": "",
       "keywords": [
         "freqchip_download v1.3.9",
@@ -662,6 +710,7 @@
       "filename": "aboot工具.rar",
       "folder": "基础软件存放/烧录工具/aboot",
       "root": "基础软件存放",
+      "modified_ts": "1791969870",
       "description": "ASR/aboot 烧录工具（adownload.exe，ML307C/EG800AK/QDM562 等）",
       "keywords": [
         "aboot",
@@ -681,6 +730,7 @@
       "filename": "QuecAgent-desktop.exe",
       "folder": "基础软件存放/AI工具",
       "root": "基础软件存放",
+      "modified_ts": "1791966548",
       "description": "QuecAgent 桌面版安装包",
       "keywords": [
         "agent",
@@ -698,6 +748,7 @@
       "filename": "EG915.zip",
       "folder": "项目环境搭建/通用模组文档",
       "root": "项目环境搭建",
+      "modified_ts": "1794279190",
       "description": "",
       "keywords": [
         "eg915",
@@ -711,6 +762,7 @@
       "filename": "BG95.zip",
       "folder": "项目环境搭建/通用模组文档",
       "root": "项目环境搭建",
+      "modified_ts": "1794279174",
       "description": "",
       "keywords": [
         "bg95",

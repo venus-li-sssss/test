@@ -50,6 +50,10 @@ _roots_env = os.environ.get("FEISHU_ROOT_FOLDERS") or os.environ.get("FEISHU_ROO
 ROOTS = [t.strip() for t in _roots_env.split(",") if t.strip()]
 ROOT_FOLDER = ROOTS[0]                            # 单根兼容
 
+# 两个根目录是「活目录」，随时会有人加/改/删文件；catalog 只是某一刻的快照。
+# catalog 超过这么多天没 sync，list 会提示过期。
+STALE_DAYS = int(os.environ.get("FEISHU_CATALOG_MAX_AGE_DAYS", "7"))
+
 HERE = Path(__file__).resolve().parent
 CATALOG = HERE.parent / "software_catalog.json"
 TOKEN_CACHE = Path.home() / ".feishu_tat_cache.json"
@@ -100,12 +104,13 @@ def list_folder(folder_token):
 
 
 def walk(folder_token, prefix=""):
-    """递归展开目录 -> [(path, name, type, token), ...]"""
+    """递归展开目录 -> [{path,name,type,token,modified}, ...]"""
     out = []
     for f in list_folder(folder_token):
         p = f"{prefix}/{f['name']}"
         out.append({"path": os.path.dirname(p), "name": f["name"],
-                    "type": f["type"], "token": f["token"]})
+                    "type": f["type"], "token": f["token"],
+                    "modified": f.get("modified_time", "")})
         if f["type"] == "folder":
             out += walk(f["token"], p)
     return out
@@ -301,6 +306,7 @@ def sync_catalog():
                 "filename": e["name"],
                 "folder": base,
                 "root": label,
+                "modified_ts": e.get("modified", ""),
                 "description": "",
                 "keywords": sorted({Path(e["name"]).stem.lower(), base.lower(), label.lower()}),
             })
@@ -371,6 +377,41 @@ def print_hits(query, hits):
         print(f"{s['name']} | {s.get('folder', '')} | {s['filename']} | {s['file_token']}")
 
 
+def fmt_ts(ts):
+    """飞书时间戳（秒，字符串）-> 2026-11-10 16:18"""
+    if not ts:
+        return "-"
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(int(ts)))
+    except Exception:
+        return str(ts)
+
+
+def catalog_age_days(cat):
+    """catalog 距上次 sync 多少天；没有 last_sync 返回 None。"""
+    ts = cat.get("last_sync")
+    if not ts:
+        return None
+    try:
+        from datetime import datetime
+        then = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S+08:00")
+        return (datetime.now() - then).total_seconds() / 86400
+    except Exception:
+        return None
+
+
+def stale_hint(cat):
+    """活目录会一直变，catalog 过期就明确说出来，别拿旧快照当事实。"""
+    age = catalog_age_days(cat)
+    if age is None:
+        return "⚠️ catalog 没有 last_sync，先跑 sync"
+    if age > STALE_DAYS:
+        return (f"⚠️ catalog 已 {age:.1f} 天没更新（阈值 {STALE_DAYS} 天）。"
+                f"这两个目录会持续变动，回答「有哪些/最新版本是什么」前先跑 sync，"
+                f"或直接用 search（实时）")
+    return ""
+
+
 # ------------------------- cli -------------------------
 def main():
     ap = argparse.ArgumentParser(description="飞书云盘/知识库免扫码访问")
@@ -388,11 +429,15 @@ def main():
         if not sw:
             print("(catalog 为空，先跑 sync)")
             return
-        print("名称 | 目录 | 文件 | 说明 | file_token")
+        hint = stale_hint(cat)
+        if hint:
+            print(hint)
+        print(f"# catalog last_sync={cat.get('last_sync')}  文件 {len(sw)} 个")
+        print("名称 | 目录 | 文件 | 更新时间 | file_token")
         print("---|---|---|---|---")
         for s in sw:
             print(f"{s['name']} | {s.get('folder','')} | {s['filename']} | "
-                  f"{s.get('description','')} | {s['file_token']}")
+                  f"{fmt_ts(s.get('modified_ts'))} | {s['file_token']}")
         return
 
     if a.cmd == "search":
@@ -402,6 +447,10 @@ def main():
         hits = search_api(a.arg, doc_types=types)
         if not hits:
             print(f"❌ 云端搜索「{a.arg}」无命中")
+            print("   可能原因：① 关键词太长（搜索是子串匹配，越短越松）"
+                  " ② 文件名里没有这个词（目录名不参与匹配）")
+            print("   下一步：换更短的词再 search；要目录视角就跑 tree；"
+                  "怀疑是新文件就 tree 直接看，不用等 sync")
             return
         cat = load_catalog()
         print(f"云端命中 {len(hits)} 项（实时，不依赖 catalog）：")
@@ -413,10 +462,33 @@ def main():
         return
 
     if a.cmd == "sync":
+        old = {s["file_token"]: s for s in (load_catalog().get("software") or [])}
         es = sync_catalog()
+        new_tokens = {e["file_token"] for e in es}
+        added = [e for e in es if e["file_token"] not in old]
+        removed = [s for t, s in old.items() if t not in new_tokens]
+        # 「更新」= 同一个 file_token，但云端 modified_time 变了（文件被替换/改名）
+        # 旧 catalog 没有 modified_ts 字段时不参与比较，避免首轮全量误报
+        updated = [e for e in es
+                   if e["file_token"] in old
+                   and old[e["file_token"]].get("modified_ts")
+                   and str(old[e["file_token"]].get("modified_ts")) != str(e.get("modified_ts"))]
         print(f"✅ 已同步 {len(es)} 个文件 -> {CATALOG}")
-        for e in es:
-            print(f"  - {e.get('folder')}/{e['filename']}  ({e['file_token']})")
+        if added:
+            print(f"🆕 新增 {len(added)} 个：")
+            for e in added:
+                print(f"   + {e.get('folder')}/{e['filename']}  ({e['file_token']})")
+        if updated:
+            print(f"♻️ 内容/名称变过 {len(updated)} 个：")
+            for e in updated:
+                print(f"   ~ {e.get('folder')}/{e['filename']}  "
+                      f"{fmt_ts(old[e['file_token']].get('modified_ts'))} -> {fmt_ts(e.get('modified_ts'))}")
+        if removed:
+            print(f"🗑 上次有、这次没了 {len(removed)} 个（被删/移走/改名）：")
+            for s in removed:
+                print(f"   - {s.get('folder')}/{s['filename']}  ({s['file_token']})")
+        if not (added or updated or removed):
+            print("（与上次相比无变化）")
         return
 
     if a.cmd == "tree":
