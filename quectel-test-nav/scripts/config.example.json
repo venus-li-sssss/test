@@ -1,0 +1,4 @@
+{
+  "nav_portal_token": "Bearer token from the Miaoda nav app OpenAPI",
+  "github_token": "ghp_... personal access token for repo venus-li-sssss/test"
+}
