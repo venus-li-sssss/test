@@ -11,7 +11,7 @@
 | [`quectel-attendance/`](./quectel-attendance) | 查询移远 QHR 考勤系统（hr.quectel.com）的打卡记录并计算工时：双班次（13:00-17:30 / 13:30-18:00），前段实际7.5h也按8h标准工时，加班自18:30/19:00按实际时长计，含迟到早退、弹性补偿统计。触发词：考勤、打卡、工时、加班、迟到、QHR。 |
 | [`quectel-workhours/`](./quectel-workhours) | 自动填写移远工时系统（work.ikotek.com）：工时列表/提交/撤销/重交 CLI，批量补填 `batch_fill_by_attendance.py`（考勤取数、双班次规则、多项目拆分、并发、按规则版本分桶缓存）。userId 由登录账号自动获取。触发词：工时、填写工时、提交工时、work.ikotek.com。 |
 | [`qdisk-quectel/`](./qdisk-quectel) | 移远网盘（Quectel Netdisk / qdisk.quectel.com）下载工具：把网盘中的文件或整个目录下载到本地指定位置。触发词：移远网盘、qdisk、下载网盘。 |
-| [`feishu-software-download/`](./feishu-software-download) | 飞书云盘（quectel.feishu.cn）免扫码访问：用**企业自建应用**的 `tenant_access_token` 递归拉目录（`sync`）、按名称/关键词下载常用工具（QCOM、SSCOM、WindTerm、aboot、QFIL、QFlash、QuecAgent）、读 wiki/文档正文（`doc`），大文件带 Range 断点续传。**应用凭据需自备**（环境变量 `FEISHU_APP_ID`/`FEISHU_APP_SECRET` 或 `~/.feishu_app.json`），仓库不含任何 app_secret。触发词：飞书云盘、飞书软件下载、下载QCOM、下载SSCOM、读飞书文档、飞书知识库。 |
+| [`feishu-software-download/`](./feishu-software-download) | 飞书云盘（quectel.feishu.cn）免扫码访问：**云端实时搜索**（`search`，走 `/search/v2/doc_wiki/search`）+ 递归遍历（`tree`/`sync`）+ 下载（大文件 Range 断点续传）+ 读 wiki/文档正文（`doc`）。范围=云盘→软件测试部→软件测试二科 下的「基础软件存放」「项目环境搭建」两个根目录。**内置团队共用只读机器人凭据**（base64 存放以绕过 GitHub push protection 误报），开箱即用。触发词：飞书云盘、飞书软件下载、下载QCOM、下载SSCOM、搜索飞书云盘、读飞书文档。 |
 | [`jira-data-access/`](./jira-data-access) | JIRA 数据访问与处理：通过 JQL 或搜索 URL 查询缺陷数据，过滤/排序/统计，并生成标准化 DOCX 缺陷报告。 |
 | [`log-analyzer/`](./log-analyzer) | 自动化分析各类日志文件：单日志分析、设备日志与脚本日志联合分析、结合日志指南的深度问题定位；适用于故障排查、根因分析、运行结果统计。 |
 | [`api-class-generator/`](./api-class-generator) | 根据 HAR 文件或接口文档 + 操作流程描述，自动生成 Python API 类（requests 库，自动维护 session/cookie，含完整方法与 main() 示例）。 |

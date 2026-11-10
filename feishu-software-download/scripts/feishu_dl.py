@@ -39,9 +39,16 @@ APP_ID = os.environ.get("FEISHU_APP_ID", _DEFAULT_APP_ID)
 APP_SECRET = os.environ.get("FEISHU_APP_SECRET", _DEFAULT_APP_SECRET)
 BASE = "https://open.feishu.cn"
 
-# 搜索根目录：云盘 -> 软件测试部 -> 软件测试二科
-# 也可用 FEISHU_ROOT_FOLDER=<folder_token> 或 --folder 覆盖
-ROOT_FOLDER = os.environ.get("FEISHU_ROOT_FOLDER", "GiihfUC0tlDJGHdTriDcH4ljnUz")
+# 搜索/遍历根目录（云盘 -> 软件测试部 -> 软件测试二科 下的两个入口，可多个，逗号分隔）
+# 也可用 FEISHU_ROOT_FOLDERS=a,b 覆盖；单根老写法 FEISHU_ROOT_FOLDER=x 仍兼容
+DEFAULT_ROOTS = "GiihfUC0tlDJGHdTriDcH4ljnUz,F2T4fV4h1lzryvdGvc0cGxOHn1c"
+ROOT_LABELS = {
+    "GiihfUC0tlDJGHdTriDcH4ljnUz": "基础软件存放",
+    "F2T4fV4h1lzryvdGvc0cGxOHn1c": "项目环境搭建",
+}
+_roots_env = os.environ.get("FEISHU_ROOT_FOLDERS") or os.environ.get("FEISHU_ROOT_FOLDER") or DEFAULT_ROOTS
+ROOTS = [t.strip() for t in _roots_env.split(",") if t.strip()]
+ROOT_FOLDER = ROOTS[0]                            # 单根兼容
 
 HERE = Path(__file__).resolve().parent
 CATALOG = HERE.parent / "software_catalog.json"
@@ -281,19 +288,22 @@ def save_catalog(cat):
 
 def sync_catalog():
     entries = []
-    for e in walk(ROOT_FOLDER):
-        if e["type"] == "folder":
-            continue
-        rel = e["path"].strip("/")
-        base = rel or "根目录"
-        entries.append({
-            "name": Path(e["name"]).stem,
-            "file_token": e["token"],
-            "filename": e["name"],
-            "folder": base,
-            "description": "",
-            "keywords": sorted({Path(e["name"]).stem.lower(), base.lower()}),
-        })
+    for root in ROOTS:
+        label = ROOT_LABELS.get(root, root[:8])
+        for e in walk(root):
+            if e["type"] == "folder":
+                continue
+            rel = e["path"].strip("/")
+            base = f"{label}/{rel}" if rel else label
+            entries.append({
+                "name": Path(e["name"]).stem,
+                "file_token": e["token"],
+                "filename": e["name"],
+                "folder": base,
+                "root": label,
+                "description": "",
+                "keywords": sorted({Path(e["name"]).stem.lower(), base.lower(), label.lower()}),
+            })
     old = {s["file_token"]: s for s in (load_catalog().get("software") or [])}
     for s in entries:
         o = old.get(s["file_token"])
@@ -301,7 +311,7 @@ def sync_catalog():
             s["name"] = o.get("name") or s["name"]
             s["description"] = o.get("description", "")
             s["keywords"] = sorted(set(o.get("keywords", []) + s["keywords"]))
-    cat = {"root_folder": ROOT_FOLDER,
+    cat = {"root_folders": ROOTS,
            "last_sync": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"), "software": entries}
     save_catalog(cat)
     return entries
@@ -367,7 +377,7 @@ def main():
     ap.add_argument("cmd", choices=["list", "sync", "get", "search", "dl", "tree", "doc"])
     ap.add_argument("arg", nargs="?", default="")
     ap.add_argument("--out", default="", help="输出目录或文件名")
-    ap.add_argument("--folder", default=ROOT_FOLDER, help="tree/search 的根目录 token")
+    ap.add_argument("--folder", default="", help="tree 只遍历某个目录 token（默认遍历全部根目录）")
     ap.add_argument("--pick", type=int, default=0, help="get 命中多项时指定第几项（从 1 开始）")
     ap.add_argument("--all", action="store_true", help="search 时连 docx/sheet/bitable/slides 一起搜")
     a = ap.parse_args()
@@ -410,9 +420,15 @@ def main():
         return
 
     if a.cmd == "tree":
-        for e in walk(a.folder):
-            ind = "  " * (e["path"].count("/") if e["type"] == "file" else 0)
-            print(f"{ind}{'[D] ' if e['type']=='folder' else '    '}{e['name']}  {e['token']}")
+        # 不给 --folder 就把所有根目录一起遍历
+        targets = ([(a.folder, ROOT_LABELS.get(a.folder, ""))] if a.folder
+                   else [(r, ROOT_LABELS.get(r, r[:8])) for r in ROOTS])
+        for tok, label in targets:
+            print(f"### {label or tok} ({tok})")
+            for e in walk(tok):
+                ind = "  " * (e["path"].count("/") + 1)
+                print(f"{ind}{'[D] ' if e['type']=='folder' else '    '}{e['name']}  {e['token']}")
+            print()
         return
 
     if a.cmd == "dl":

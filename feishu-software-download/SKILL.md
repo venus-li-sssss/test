@@ -1,12 +1,14 @@
 ---
-description: '免扫码（应用身份 bot）访问飞书云盘下载常用软件工具（QCOM、SSCOM、WindTerm、QFlash、QFIL、aboot 等），并可读取飞书文档/知识库正文。全程只需要 requests + 一个 app_id/app_secret，不需要用户登录、不需要扫码、不依赖 lark-cli。触发词：下载QCOM、下载SSCOM、下载WindTerm、下载QFlash、下载QFIL、下载aboot、飞书软件下载、从飞书下载软件、串口工具下载、烧录工具下载、有哪些软件、同步软件目录、读飞书文档、飞书知识库、wiki 内容、tenant_access_token 访问云盘。'
+description: '免扫码（应用身份 bot）访问飞书云盘：云端实时搜索 + 递归遍历 + 下载常用软件与文档（QCOM、SSCOM、WindTerm、QFlash、QFIL、aboot、驱动、CAN 工具、升级版本包等），并可读取飞书文档/知识库正文。范围=云盘→软件测试部→软件测试二科 下的「基础软件存放」「项目环境搭建」两个根目录。只需 requests + 内置共享机器人凭据，不扫码、不依赖 lark-cli。触发词：下载QCOM、下载SSCOM、下载WindTerm、下载QFlash、下载QFIL、下载aboot、飞书软件下载、从飞书下载软件、串口工具下载、烧录工具下载、驱动下载、有哪些软件、搜索飞书云盘、云盘里有没有、同步软件目录、读飞书文档、飞书知识库、wiki 内容、tenant_access_token 访问云盘。'
 name: feishu-software-download
 ---
 
 # 飞书软件下载（应用身份，免扫码）
 
-从飞书云盘「基础软件存放」目录下载常用测试工具，并读取飞书文档 / 知识库正文。
+从飞书云盘 `云盘 → 软件测试部 → 软件测试二科` 下的**「基础软件存放」「项目环境搭建」**两个目录
+下载常用测试工具/文档，并读取飞书文档 / 知识库正文。
 **统一走应用身份 `tenant_access_token` + Python requests**：不扫码、不管用户登录态、换机器换账号都能用。
+**优先用云端实时搜索**（`search`/`get`），catalog 只是离线兜底 + 补目录名。
 
 ## 快速上手
 
@@ -26,9 +28,10 @@ python scripts\feishu_dl.py get 串口调试            # → SSCOM
 # 3) 已知 file_token 直接下
 python scripts\feishu_dl.py dl P5MRbbMa5onIDkx1u8aciFnanSf --out QCOM.exe
 
-# 4) 看目录树 / 建本地离线目录（catalog 只在搜索不到时兜底）
-python scripts\feishu_dl.py tree --folder <folder_token>
-python scripts\feishu_dl.py sync            # 递归拉目录写 software_catalog.json
+# 4) 看目录树 / 建本地离线目录（catalog 只在搜索结果补目录时用）
+python scripts\feishu_dl.py tree                     # 默认遍历全部根目录
+python scripts\feishu_dl.py tree --folder <folder_token>   # 只看某一个目录
+python scripts\feishu_dl.py sync            # 递归拉所有根写 software_catalog.json
 python scripts\feishu_dl.py list            # 读本地 catalog，不联网
 
 # 5) 读飞书文档 / 知识库正文 → 存成 UTF-8 markdown 文件
@@ -85,47 +88,44 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 - APP_ID `cli_a9bc97317fb89cc8`，租户 `quectel.feishu.cn`
 - 想换成自己的应用时用环境变量覆盖：`FEISHU_APP_ID` / `FEISHU_APP_SECRET`
 
-**搜索范围**：`云盘 → 软件测试部 → 软件测试二科`（默认根目录，`FEISHU_ROOT_FOLDER` 可覆盖）。
-`sync` 会把该目录整棵树递归拉进 `software_catalog.json`，`search` / `get` 都在这个范围内匹配。
+**搜索范围**：`云盘 → 软件测试部 → 软件测试二科` 下的两个根目录（多根，已内置）：
+
+| 根目录 | folder_token | 内容 |
+|---|---|---|
+| 基础软件存放 | `GiihfUC0tlDJGHdTriDcH4ljnUz` | 串口/烧录/驱动/CAN/日志工具、九号上位机、升级版本包…（实测递归 84 项） |
+| 项目环境搭建 | `F2T4fV4h1lzryvdGvc0cGxOHn1c` | 通用模组文档（EG915/BG95）、QDM562 |
+
+- 换/加根目录：`FEISHU_ROOT_FOLDERS=<token1>,<token2>`（单个老写法 `FEISHU_ROOT_FOLDER=<token>` 仍兼容）
+- `sync` 递归拉**所有根**写进 `software_catalog.json`（当前 52 个文件）
+- `tree` 不给 `--folder` 就一次遍历所有根；`search`/`get` 走云端实时搜索，范围 = 应用可见云盘
 
 若某个目录报 `1061004 forbidden`：让目录所有者把**这个应用**（搜索应用名，不是个人）加为可阅读协作者；
-若报 `99991672 app_scope_not_applied`：开发者后台给应用补 scope（`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`）。
+若报 `99991672 app_scope_not_applied`：开发者后台给应用补 scope（`drive:drive:readonly`、`wiki:wiki:readonly`、`docx:document:readonly`、`search:docs:read`）。
 
 其它默认值：
 
 - token 缓存：`~/.feishu_tat_cache.json`（提前 300s 续期，不用每次重取）
-- 目录不同请改 `FEISHU_ROOT_FOLDER` 或用 `--folder` 指定
 
 ## 软件目录
 
-`software_catalog.json`（与 SKILL.md 同目录）：
+`software_catalog.json`（与 SKILL.md 同目录）由 `sync` 生成，结构：
 
 ```json
 {
-  "root_folder": "GiihfUC0tlDJGHdTriDcH4ljnUz",
+  "root_folders": ["GiihfUC0tlDJGHdTriDcH4ljnUz", "F2T4fV4h1lzryvdGvc0cGxOHn1c"],
+  "last_sync": "2026-11-10T16:18:06+08:00",
   "software": [
     {"name": "QCOM", "file_token": "P5MRbbMa5onIDkx1u8aciFnanSf",
-     "filename": "QCOM_V1.6.exe", "folder": "串口工具",
-     "description": "高通串口/诊断工具", "keywords": ["qcom", "高通", "串口工具"]}
+     "filename": "QCOM_V1.6.exe", "folder": "基础软件存放/串口工具",
+     "description": "高通串口/诊断工具", "keywords": ["qcom", "高通", "基础软件存放/串口工具"]}
   ]
 }
 ```
 
-匹配顺序：`name` 全等 → `keywords` 全等 → `name`/`keywords` 互为包含（不区分大小写）。
+`folder` 是「根目录名/相对路径」，用来给搜索结果补目录、回答"某目录下有什么"。
 `sync` 后人工补的 `name`/`description`/`keywords` 会按 `file_token` 保留，不会被云端文件名冲掉。
 
-当前目录（2026-10-14 实测）：
-
-| 名称 | 目录 | 文件 |
-|---|---|---|
-| QCOM | 串口工具 | QCOM_V1.6.exe |
-| SSCOM | 串口工具 | SSCOM.rar |
-| WindTerm | 串口工具 | WindTerm_2.6.0_Windows_Portable_x86_64.zip |
-| aboot | 烧录工具 | aboot工具.rar |
-| QFIL | 烧录工具 | qpst.win.2.7_installer_00486.1_QFIL2.0.2.8.zip |
-| QFlash | 烧录工具 | QFlash_V7.5_EN.zip |
-| QuecAgent | AI工具 | QuecAgent-desktop.exe |
-
+> 别再手工维护这张表：`list` 打全量、`tree` 打目录树、`search` 打云端命中。三者任一都比手写表格准。
 > 相关但不同职责的 skill：`flash-tools` / `qflash` 讲**怎么用**这些烧录工具，本 skill 只负责**把工具捞下来**。
 
 ## 错误处理
