@@ -519,6 +519,64 @@ class QMeeting(object):
             'fountTimeEnd': end,
         }) or []
 
+    # -- 会议室详情 / 图片 -----------------------------------------------------
+    def room_detail(self, room_id):
+        """单个会议室详情：名称/容量/类型/区域/设施/照片/位置导航图/门口屏编号。"""
+        return self.get('/api/meet/room/detail/%s' % str(room_id))
+
+    def find_room(self, key, day=None):
+        """roomId 原样返回；否则按名称关键词在会议室日历里找（唯一即返回）。"""
+        key = str(key).strip()
+        if key.isdigit():
+            return key
+        day = day or today_str()
+        rooms = self.calendar(day, self.area_ids()[0])
+        kw = key.lower()
+        hit = [r for r in rooms if kw in (r.get('name') or '').lower()
+               or kw in (r.get('cnName') or '').lower()]
+        if not hit:
+            raise SystemExit('没有匹配「%s」的会议室' % key)
+        exact = [r for r in hit if (r.get('name') or '').lower() == kw]
+        if len(exact) == 1:
+            return str(exact[0]['roomId'])
+        if len(hit) == 1:
+            return str(hit[0]['roomId'])
+        raise SystemExit('「%s」匹配到多个会议室，请用 roomId 或更完整的名称：\n%s' % (
+            key, '\n'.join('  %s  %s' % (r.get('roomId'), r.get('name')) for r in hit[:20])))
+
+    def room_media(self, room_id):
+        """会议室信息 + 照片 + 位置导航图（图片是公网 URL，无需 token）。"""
+        d = self.room_detail(room_id) or {}
+        base = d.get('roomBase') or {}
+        head = d.get('roomHeard') or {}
+        fac = d.get('roomFacility') or {}
+        info = {
+            'roomId': str(room_id),
+            'name': head.get('name') or '',
+            'cnName': head.get('cnName') or '',
+            'capacity': base.get('seatingCapacity'),
+            'roomType': (base.get('typeDimensionDto') or {}).get('name') or '',
+            'area': (base.get('officeAreaDto') or {}).get('name') or '',
+            'facilities': [f.get('name') for f in (fac.get('facilityList') or []) if f.get('name')],
+            'teleconference': fac.get('teleconferenceType') or '',
+            'zoomAccount': fac.get('zoomAccount') or '',
+            'zoomLink': fac.get('zoomLink') or '',
+            'platform': ((fac.get('meetingRoomResourceReserveVo') or {}).get('platformTypeName') or ''),
+            'panels': [p.get('exhibitionPanelCode') for p in (fac.get('panelInfoList') or [])
+                       if p.get('exhibitionPanelCode')],
+            'photos': [],
+            'guide': None,
+        }
+        for f in base.get('imageFiles') or []:
+            if f.get('link'):
+                info['photos'].append({'name': f.get('originalName') or f.get('name') or 'photo.jpg',
+                                       'url': f.get('link')})
+        g = base.get('locationGuideImageFile') or {}
+        if g.get('link'):
+            info['guide'] = {'name': g.get('originalName') or g.get('name') or 'guide.jpg',
+                             'url': g.get('link')}
+        return info
+
     def booking_step(self):
         cfg = self.get('/api/meet/system/config') or {}
         slot = cfg.get('bookingTimeSlotConfig') or {}
@@ -754,6 +812,27 @@ def _pad(s, width):
     return s + ' ' * max(0, width - _w(s))
 
 
+def safe_name(name, default='file'):
+    """把 originalName 变成安全的本地文件名（保留扩展名）。"""
+    name = (name or default).strip().replace('\\', '_').replace('/', '_')
+    name = re.sub(r'[<>:"|?*\x00-\x1f]', '_', name)
+    name = re.sub(r'\s+', ' ', name).strip(' .')
+    return name or default
+
+
+def download_file(url, dest):
+    """下载图片到本地（qos.quectel.com 的图片是公开 URL，不需要 token）。"""
+    r = requests.get(url, timeout=90, headers={'user-agent': UA})
+    if r.status_code >= 400:
+        raise ApiError('下载失败 HTTP %s: %s' % (r.status_code, url))
+    d = os.path.dirname(dest)
+    if d and not os.path.isdir(d):
+        os.makedirs(d, exist_ok=True)
+    with open(dest, 'wb') as f:
+        f.write(r.content)
+    return len(r.content)
+
+
 # --------------------------------------------------------------------------- #
 # 命令
 # --------------------------------------------------------------------------- #
@@ -914,7 +993,97 @@ def cmd_detail(a):
     print('说明     : %s' % (d.get('explanation') or ''))
     print('状态     : %s' % (d.get('cancellationReason') and ('已取消:' + d['cancellationReason']) or '正常'))
     print('参会人   : %s' % ', '.join(p.get('partUserName') or '' for p in parts))
+    if getattr(a, 'save', None):
+        files = []
+        for r in rooms:
+            rid = r.get('roomId')
+            if not rid:
+                continue
+            try:
+                files += _save_media(qm, qm.room_media(rid),
+                                     os.path.join(a.save, str(rid)), guide_only=False)
+            except Exception as e:
+                print('  会议室 %s 图片下载失败：%s' % (rid, e), file=sys.stderr)
+        if files:
+            print('\n图片已保存 %d 个：' % len(files))
+            for f in files:
+                print('  ' + f)
+        else:
+            print('\n（该会议没有可下载的会议室照片/导航图）')
     return d
+
+
+def cmd_room(a):
+    """会议室详情 + 照片 + 位置导航图。"""
+    qm = QMeeting()
+    rid = qm.find_room(a.room)
+    info = qm.room_media(rid)
+    if a.json:
+        print(json.dumps(info, ensure_ascii=False, indent=2))
+    else:
+        print('会议室 : %s (roomId=%s)' % (info['name'], info['roomId']))
+        print('区域   : %s   类型: %s   容量: %s 人' % (info['area'], info['roomType'],
+                                                  info['capacity']))
+        if info['facilities']:
+            print('设施   : %s' % ', '.join(info['facilities']))
+        if info['platform']:
+            print('资源平台: %s' % info['platform'])
+        if info['teleconference'] or info['zoomAccount']:
+            print('房间会议: %s %s %s' % (info['teleconference'] or '-',
+                                        info['zoomAccount'] or '',
+                                        info['zoomLink'] or ''))
+        if info['panels']:
+            print('门口屏 : %s' % ', '.join(info['panels']))
+        print('照片   : %d 张' % len(info['photos']))
+        for i, p in enumerate(info['photos'], 1):
+            print('  %d. %-28s %s' % (i, p['name'], p['url']))
+        if info['guide']:
+            print('导航图 : %-28s %s' % (info['guide']['name'], info['guide']['url']))
+        else:
+            print('导航图 : （没有配置）')
+    if a.save:
+        files = _save_media(qm, info, a.save, guide_only=False)
+        print('\n已保存 %d 个文件：' % len(files))
+        for f in files:
+            print('  ' + f)
+    return info
+
+
+def _save_media(qm, info, out_dir, guide_only=False):
+    """把照片/导航图下载到 out_dir，返回本地绝对路径列表。"""
+    targets = []
+    if not guide_only:
+        targets += [(p['name'], p['url']) for p in info['photos']]
+    if info.get('guide'):
+        targets.append((info['guide']['name'], info['guide']['url']))
+    files = []
+    room_tag = '%s-%s' % (info['roomId'], safe_name(info.get('name') or 'room', 'room'))
+    for idx, (name, url) in enumerate(targets, 1):
+        dest = os.path.join(out_dir, '%s_%02d-%s' % (room_tag, idx, safe_name(name)))
+        download_file(url, dest)
+        files.append(os.path.abspath(dest))
+    return files
+
+
+def cmd_images(a):
+    """批量下载会议室照片 + 位置导航图。"""
+    qm = QMeeting()
+    out_dir = a.out or os.path.join(os.getcwd(), 'room-images')
+    all_files = []
+    for key in a.rooms:
+        rid = qm.find_room(key)
+        info = qm.room_media(rid)
+        sub = os.path.join(out_dir, '%s-%s' % (rid, safe_name(info['name'], 'room')))
+        files = _save_media(qm, info, sub, guide_only=a.guide_only)
+        all_files += files
+        print('%-6s %-30s 照片 %d 张%s → %s' % (
+            rid, info['name'], len(info['photos']),
+            '（跳过）' if a.guide_only else '', os.path.abspath(sub)))
+        for f in files:
+            print('   ' + f)
+    if not all_files:
+        print('没有可下载的图片（该会议室没配照片/导航图）')
+    return all_files
 
 
 def cmd_book(a):
@@ -1044,7 +1213,19 @@ def main(argv=None):
 
     s = sub.add_parser('detail', help='会议详情')
     s.add_argument('booking_id')
+    s.add_argument('--save', help='顺带把这个会议的会议室照片/导航图下载到这里')
     s.set_defaults(func=cmd_detail)
+
+    s = sub.add_parser('room', help='会议室详情：照片 + 位置导航图')
+    s.add_argument('room', help='roomId 或名称关键词（如 Malaga / 306-FS-B10-3F-Male）')
+    s.add_argument('--save', help='把照片和导航图下载到这个目录')
+    s.set_defaults(func=cmd_room)
+
+    s = sub.add_parser('images', help='批量下载会议室照片和位置导航图')
+    s.add_argument('rooms', nargs='+', help='roomId 或名称关键词，可多个')
+    s.add_argument('--out', help='输出目录（默认 ./room-images）')
+    s.add_argument('--guide-only', action='store_true', help='只下位置导航图')
+    s.set_defaults(func=cmd_images)
 
     s = sub.add_parser('book', help='预订会议室')
     s.add_argument('--room', required=True, help='roomId 或名称关键词')

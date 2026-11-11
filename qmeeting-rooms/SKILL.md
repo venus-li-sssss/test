@@ -72,7 +72,13 @@ python scripts/qmeeting.py calendar --date 2026-11-12 [--area FoShan] [--room Le
 python scripts/qmeeting.py mine [--status MY_BOOKING|MY_INVITED|WEEK|DAY|MONTHLY|ALL_MEETING] [--include-finished]
 
 # 会议详情（含会议号/线上会议链接/参会人/状态）
-python scripts/qmeeting.py detail 599349
+python scripts/qmeeting.py detail 599349 [--save 目录]     # --save 顺带下这个会议的会议室照片+导航图
+
+# 会议室详情：照片 + 位置导航图（roomId 或名称关键词都行）
+python scripts/qmeeting.py room Malaga [--save 目录] [--json]
+
+# 批量下载会议室照片 + 位置导航图（发图给用户、写进报告/PPT 都靠它）
+python scripts/qmeeting.py images 148 306-FS-B10-3F-Male --out D:\pics [--guide-only]
 
 # 预订（先 --dry-run 看 payload，再真下单）
 python scripts/qmeeting.py book --room Malaga --date 2026-11-12 --start 14:00 --end 15:00 \
@@ -102,6 +108,10 @@ python scripts/qmeeting.py config
 
 **「3F 还有哪间空着」** → `calendar --date 今天 --area FoShan-B10-3F`，看「全天空闲」的；再 `rooms` 复核时段。
 
+**「这间会议室长什么样？怎么走？」** → `room <名称或roomId>` 直接给照片 + 楼层导航图链接；
+要发给用户/写进报告就 `images <名称> --out 目录` 下载到本地，再把绝对路径给用户。
+**「这个会（bookingId）的会议室照片发我」** → `detail <bookingId> --save 目录`。
+
 ## 3. 必须知道的坑（都实测过）
 
 1. **`recommend/listByUser` 不按办公区域过滤**，会把全公司 200+ 会议室都返回。
@@ -125,6 +135,19 @@ python scripts/qmeeting.py config
    `-p` 只在脚本/CI 里配合环境变量用，敲在命令行会留在 shell 历史里。
 10. **密码绝不进仓库**：如果要把这个 skill 传到 GitHub / 技能市场，只传 `SKILL.md`、
     `reference/`、`scripts/` 三个目录本身即可 —— 账号信息从来不在这三处（在 `~/.qmeeting/` 用户目录）。
+
+## 3.1 会议室图片 / 位置导航图
+
+| 项 | 说明 |
+|---|---|
+| 接口 | `GET /api/meet/room/detail/<roomId>`（单个会议室，最省事） |
+| 照片 | `roomBase.imageFiles[]`，每项有 `originalName`（如 `Male会议室-前.jpg`）和 `link` |
+| 导航图 | `roomBase.locationGuideImageFile`（楼层指引图，如 `FS-B10-3F（Male).jpg`） |
+| 图片地址 | `https://qos.quectel.com/tenant-1-quectel/upload/...`，**公网可直取，不需要 token**（实测 200 / image/jpeg） |
+| 其他来源 | `room/calendarView` 的每间房也有 `imageFiles`/`locationGuideImageFile`；`appointed/detail`/`app-book/detail` 有 `guideMap` |
+| 没有独立"图片接口" | 图片是挂在会议室对象上的字段，别去找 `/room/images` 这类路径（实测全 404） |
+
+一句话：**查图用 `room`/`images`，发图给用户就 `--save`/`--out` 下载后给绝对路径**。
 
 ## 4. 安全约定
 

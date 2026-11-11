@@ -148,6 +148,61 @@ POST /api/meet/recommend/numberOfDays ["148"] → 90
 POST /api/meet/system/whetherToShowBusy ["148"] → true
 ```
 
+## 会议室详情 / 图片 / 位置导航图
+
+```
+GET /api/meet/room/detail/<roomId>
+```
+返回（节选）：
+```json
+{
+  "id": "148",
+  "roomHeard": {"name": "306-FS-B10-3F-Male", "cnName": ""},
+  "roomBase": {
+    "seatingCapacity": 6,
+    "typeDimensionDto": {"name": "VTC Room"},
+    "officeAreaDto": {"name": "3F"},
+    "areaDto": {"name": ""},
+    "imageFileIdList": ["2532089", "2532090"],
+    "imageFiles": [{
+      "link": "https://qos.quectel.com/tenant-1-quectel/upload/2023-09-25/4da63a95-....jpg",
+      "originalName": "Male会议室-前.jpg",
+      "fileSize": "221625", "attachId": "2532089"
+    }],
+    "locationGuideImageFile": {
+      "link": "https://qos.quectel.com/tenant-1-quectel/upload/2023-11-10/11d3bd51-....jpg",
+      "originalName": "FS-B10-3F（Male).jpg"
+    }
+  },
+  "roomFacility": {
+    "facilityList": [{"id": "2", "name": "TV"}, {"id": "6", "name": "飞书"}],
+    "zoomAccount": "8139611807",
+    "zoomLink": "https://meeting.tencent.com/p/8139611807",
+    "teleconferenceType": "腾讯会议",
+    "panelInfoList": [{"exhibitionPanelCode": "1280495993",
+                       "templateInfo": {"name": "check in app"}}],
+    "meetingRoomResourceReserveVo": {"platformType": "LARK", "platformTypeName": "飞书"}
+  }
+}
+```
+
+要点：
+
+- **图片是公网 URL**：`https://qos.quectel.com/...` 直接 GET 就 200，不需要 token（想存本地直接下）。
+- **没有"按房间取图"的专用接口**：`/api/meet/room/detail`、`/room/info`、`/room/images`、
+  `/app-book/room/detail` 全部 404；图片是会议室对象的字段。**唯一带 roomId 的是
+  `GET /api/meet/room/detail/<roomId>`**。
+- 图片字段在多处出现，按场景选：
+  | 场景 | 字段位置 |
+  |---|---|
+  | 单间会议室详情 | `room/detail/{id}` → `roomBase.imageFiles` / `roomBase.locationGuideImageFile` |
+  | 某区域当天所有会议室 | `room/calendarView` → 每间房 `imageFiles` / `locationGuideImageFile` / `areaLocationGuideImageFile` |
+  | 已预订会议的房间 | `appointed/detail/{bookingId}` 或 `app-book/detail/{bookingId}` → `roomBaseInfoVos[].guideMap` + `imageFiles` |
+  | 推荐列表 | `recommend/listByUser` 里这几项**恒为 null**（不返回图片），别指望它 |
+- `roomFacility` 里三处平台信息可能互相矛盾（`facilityList` 有飞书、`teleconferenceType` 写腾讯会议、
+  `meetingRoomResourceReserveVo.platformType` 是 LARK）—— 显示时三个都标出来，不要只取一个下结论。
+- `panelInfoList[].exhibitionPanelCode` 是门口屏/签到屏编号，可用于签到场景。
+
 ## 我的会议
 
 ```
