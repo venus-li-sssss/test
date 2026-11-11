@@ -17,6 +17,10 @@ metadata:
 - 登录：SSO（`sso-web.quectel.com`），token 有效期 24h，**refresh token 会自动续期**
 - token 存放：`%USERPROFILE%\.qmeeting\token.json`（不在 skill 目录里，不会被同步出去）
 
+> **这个 skill 本身不含任何账号信息。** 谁拉下来就用**谁自己的账号**：
+> 第一次跑会问账号密码，token 存在各自的用户目录，多人共用同一份 skill 也互不影响。
+> 仓库里只有代码和文档，连示例都是占位符（`<你的账号>` / `name@example.com`）。
+
 ## 0. 先确认登录状态
 
 ```bash
@@ -72,7 +76,7 @@ python scripts/qmeeting.py detail 599349
 
 # 预订（先 --dry-run 看 payload，再真下单）
 python scripts/qmeeting.py book --room Malaga --date 2026-11-12 --start 14:00 --end 15:00 \
-    --theme "QDM562 周会" --participant "Harrison Zheng" --participant someone@quectel.com \
+    --theme "QDM562 周会" --participant "Harrison Zheng" --participant name@example.com \
     --explain "议程..." [--reminder 15] [--platform LARK] [--dry-run]
 
 # 取消（必须带 --yes 才真的提交；不带只做预览）
