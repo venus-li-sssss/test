@@ -14,8 +14,9 @@ content-type: application/json
 POST https://sso-web.quectel.com/api/uaa/oauth/token
 Content-Type: application/x-www-form-urlencoded
 
-# 密码登录（前端用 RSA 加密 password，脚本不实现）
-grant_type=password&username=<邮箱>&password=<RSA密文>&scope=ui&client_id=quectel&client_secret=quectel&auth_type=rsa_area
+# 账号密码登录
+grant_type=password&username=<邮箱或工号>&password=<RSA密文>&scope=ui
+  &client_id=quectel&client_secret=quectel&auth_type=rsa_area
 
 # 刷新（refresh_token 会轮换，务必覆盖保存）
 grant_type=refresh_token&refresh_token=<原始uuid>&scope=ui&client_id=quectel&client_secret=quectel
@@ -24,11 +25,54 @@ grant_type=refresh_token&refresh_token=<原始uuid>&scope=ui&client_id=quectel&c
 ```json
 {"access_token":"uuid","refresh_token":"uuid","expires_in":86399,"scope":"ui","code":"0",
  "data":{"access_token":"...","expires_in":"2026-11-12 09:38:49",
-         "userInfo":{"id":"18178","username":"venus.li","workEmail"? :"...","tenantId":"1"}}}
+         "userInfo":{"id":"<userId>","username":"<登录名>","tenantId":"1"}}}
 ```
 > `refresh_token` 传原始 UUID，**不要**带 `bearer` 前缀（带前缀会返回
 > `The current user login information has expired`）。
 > 前端 Cookie：`quectel_token=bearer<uuid>`、`quectel_refresh_token=<uuid>`。
+
+### 密码的 RSA 加密（纯 Python 复刻）
+
+SSO 登录页（`sso-web.quectel.com`）的登录逻辑在 `js/Login.<hash>.js` + 共享块
+`js/Login~factoryLogin.<hash>.js` 里，等价 JS：
+
+```js
+// sso_login_shared.js 模块 869c 的 export c
+function c(text, out='base64', inp='utf8') {
+  const rsa = new Encrypt();               // jsencrypt 派生
+  rsa.setOptions({ encryptionScheme: 'pkcs1' });
+  rsa.importKey(<硬编码 2048 位公钥 'MIIBIjANBgkq...'>, 'pkcs8-public-pem');
+  return rsa.encrypt(text, out, inp);      // → base64(256 字节)
+}
+// sso_login.js：area 页签下
+f.password = c(f.password); f.auth_type = 'rsa_area';
+```
+
+等价 Python（脚本里的 `rsa_encrypt()`，无第三方依赖）：
+
+1. `base64.b64decode(公钥)` → 手写 DER 解析出 `SEQUENCE{n, e}`（2048 位 / e=65537）
+2. `EM = 0x00 || 0x02 || PS(非零随机, 长度 k-3-len) || 0x00 || password_utf8`
+3. `c = pow(int(EM), e, n)` → 256 字节 → base64（长度 344）
+
+实测校验：自建密钥对往返（含中文密码）与 `cryptography` 解密结果一致；
+对真实公钥加密结果同样是 256 B / 344 字符，与抓包里的密文长度一致。
+
+**公钥怎么更新**（SSO 换 key 后的修法）：打开 `https://sso-web.quectel.com/`，
+取 `js/app.*.js` 里的 chunk 映射找到 `Login~factoryLogin` 的 hash，下载该 js，
+搜 `MII` 拿到 392 字符的新公钥，替换 `qmeeting.py` 里的 `SSO_RSA_PUBKEY` 常量。
+
+### MFA
+
+```
+POST /api/uaa/mfa-open/check   {"username":"<账号>","password":"<RSA密文>"}
+→ {"code":0,"data":{"isPass":true,"mfaConfigVo":{"webMfaConfig":{...}},"isJumpMfaStep":"?"}}
+→ 账号密码错: {"success":false,"code":400,"msg":"username or password is incorrect"}
+```
+前端逻辑：`needMFA = 非内网 && webMfaConfig 里有 'Y'`，此时会弹短信/邮件验证码弹窗，
+后续用 `auth_type=multi_acc_login` + `key=<loginKey>` 再换 token。
+**开了 MFA 的账号没法只靠密码登录**，脚本遇到会提示改用 HAR/Cookie 方式。
+token 接口返回 `code:102` 也代表需要 MFA。
+
 
 ## 我 / 组织
 
@@ -37,7 +81,7 @@ grant_type=refresh_token&refresh_token=<原始uuid>&scope=ui&client_id=quectel&c
 | 我的信息 | `GET /api/org/employee/getMyInfo?fileId=` → `data.employeeVo{userId,enName,legalName,deptName,workEmail}` |
 | 我所在园区 | `GET /api/meet/system/area` → `data{id:"12",name:"FoShan"}` |
 | 员工搜索 | `POST /api/org/employee/page` `{"workStatus":"IN_SERVICE","pageNumber":1,"pageSize":20,"name":"<关键词>","key":"<关键词>"}` → `data.records[]{userId,enName,legalName,workEmail,deptName}` |
-| 按 userId 查员工 | `POST /api/org/employee/selectEmpBaseInfoByUserIds` `["18178"]` |
+| 按 userId 查员工 | `POST /api/org/employee/selectEmpBaseInfoByUserIds` `["<userId>"]` |
 
 ## 办公区域
 
@@ -83,14 +127,14 @@ availableTimeSlots[], unAvailableTimeSlots[], using[]{start,end,bookingId,bookin
 POST /api/meet/room/calendarView
 {"officeAreaIds":["61","62"],"facilityIds":[],"periodOfTimeStart":"","periodOfTimeEnd":"",
  "roomName":"","dateStr":"2026-11-12","fountTimeStart":"07:00","fountTimeEnd":"23:59"}
-→ data[ room{... , using:[{start:"14:00",end:"16:00",bookingName:"Jorf Li",bookingTheme,state:"BOOKED"}]} ]
+→ data[ room{... , using:[{start:"14:00",end:"16:00",bookingName:"<预订人>",bookingTheme,state:"BOOKED"}]} ]
 ```
 `using` 为空 = 全天空闲。**只有这个接口会按 officeAreaIds 过滤**（FoShan 3F 返回 9 间、FoShan 全园区 20 间）。
 
 ### 3) 我的空闲/占用（按人）
 
 ```
-POST /api/meet/recommend/checkAvailability  {"userIds":["18178"],"bookingId":"","dateStr":"2026-11-12"}
+POST /api/meet/recommend/checkAvailability  {"userIds":["<userId>"],"bookingId":"","dateStr":"2026-11-12"}
 → data[{userId,userName,periods:[]}]
 ```
 
@@ -150,17 +194,17 @@ POST /api/meet/appointed/create
   "chooseZoomMeetingRoomId":"148",              // = 会议室 roomId
   "ruleType":"SINGLE", "isRecurrenceMeeting":"N", "recurrenceRule":null, "recurrenceMeetingCode":"",
   "reminderTimeBeforeStart":15, "explanation":"<备注>", "fileIdList":[],
-  "bookingUser":{"userId":"18178","userFullName":"Venus Li 黎卓明","deptNameList":null},
-  "bookingUserId":"18178",
+  "bookingUser":{"userId":"<userId>","userFullName":"<你的姓名>","deptNameList":null},
+  "bookingUserId":"<userId>",
   "isPublicConference":"N", "enableParticipantManagement":"N",
   "enableCheckInNoAuthWithExhibitionPanel":"Y", "enableEndInAdvanceNoAuthWithExhibitionPanel":"Y",
-  "cancellationReason":"", "participantsNum":1, "participants":["18178"], "roomIds":["148"],
+  "cancellationReason":"", "participantsNum":1, "participants":["<userId>"], "roomIds":["148"],
   "meetingPassword":"", "muteEnableJoin":"Y", "autoCloudRecord":"N", "useRoomMeetingCode":false,
   "platformType":"LARK",                        // LARK|TEAMS|ZOOM|TENCENT
   "enablePassword":"N", "visibleToParticipants":"N", "roomRequired":"Y",
   "bookingSource":"USER", "hasRoom":"Y", "useOnlineMeeting":"Y", "simplerBooking":"N"
 }
-→ data{bookingId:"645864", error:["306-FS-B10-3F-Male黎卓明 冲突"]}
+→ data{bookingId:"645864", error:["306-FS-B10-3F-Male<你的姓名> 冲突"]}
 ```
 **注意**：`error` 非空时会议其实**已经创建**（实测房间被占用、detail 可查）。
 是否成功以 `bookingId` + `GET appointed/detail/<id>` 为准。

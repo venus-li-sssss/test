@@ -23,16 +23,29 @@ metadata:
 python scripts/qmeeting.py whoami
 ```
 
-失败（提示未登录 / 登录过期）就按下面重新登录：
+失败（提示未登录 / 登录过期）就按下面重新登录。**推荐账号密码登录**：
 
 | 方式 | 命令 | 场景 |
 |---|---|---|
-| HAR/DevTools 文件 | `qmeeting.py login --devtools download.devtools` | 用户刚从浏览器导出了网络日志（最省事） |
-| Cookie | `qmeeting.py login --cookie "quectel_token=bearerXXXX; quectel_refresh_token=YYYY"` | 用户从 DevTools → Application → Cookie 复制的整串 |
+| **账号密码**（推荐） | `qmeeting.py login --ask` | 第一次用；交互式问账号和密码，**密码不落盘、不上传** |
+| 账号（一条命令） | `qmeeting.py login -u 你的账号` | 只给账号，密码仍交互式询问（避免进命令历史） |
+| HAR/DevTools 文件 | `qmeeting.py login --devtools download.devtools` | 账号开了 MFA，或不想输密码时 |
+| Cookie | `qmeeting.py login --cookie "quectel_token=bearerXXXX; quectel_refresh_token=YYYY"` | 从浏览器 DevTools → Application → Cookie 复制 |
 | Token | `qmeeting.py login --token "bearerXXXX" [--refresh-token YYYY]` | 只有 access token |
 
-> 登录不需要密码：SSO 登录页的密码是 RSA 加密后提交的，脚本不做密码登录。
-> 需要新 token 时：让用户浏览器登录 qmeeting → 导出 HAR → `login --devtools`。
+**登录行为约定（重要）**
+
+- `~/.qmeeting/token.json` 里**只存 token**（access/refresh/到期时间/账号名），**从不存密码**。
+- 首次要账号，**之后就再也不问了**：token 24h 过期后自动用 refresh_token 续期（会轮换）。
+- 只有当 refresh_token 也失效时才需要重新给账号 —— 此时任何命令都会自动提示登录（有 `QMEETING_USERNAME` / `QMEETING_PASSWORD` 环境变量就直接用，没有就交互式问）。
+- 本 skill 的代码和仓库里**没有任何账号信息**，只有 SSO 登录页的 RSA 公钥（公开信息，用来加密密码）。
+- **账号开了 MFA（短信/邮件验证码）时密码登录走不通**，会提示改用 `--devtools`。
+- 也可以不显式 login：直接跑 `whoami`/`rooms`，没 token 时会自动走上面的询问流程（终端交互时）。
+
+> 实现说明：SSO 登录页把密码用固定 RSA 公钥做 PKCS#1 v1.5 加密后 base64 提交
+> （`auth_type=rsa_area`）。脚本用纯 Python 复刻了这套加密（`pow` + 手写 DER 解析），
+> 不需要 `cryptography` 等额外依赖。若哪天 SSO 换了公钥，症状是「账号或密码错误」，
+> 按 `reference/api.md` 里「公钥怎么更新」一节替换常量即可。
 
 ## 1. 命令速查
 
@@ -104,6 +117,10 @@ python scripts/qmeeting.py config
 7. **中文乱码**：脚本在 GBK 控制台自动用 GBK 输出；把输出重定向到文件或用 `--json` 落盘时，
    先 `set QMEETING_OUTPUT_ENCODING=utf-8`（PowerShell：`$env:QMEETING_OUTPUT_ENCODING="utf-8"`）。
 8. `--date` 支持 `today` / `tomorrow` / `YYYY-MM-DD`；日期时间统一按 **GMT+8** 计算。
+9. **别把账号写进命令里**：用 `login --ask`，或只给 `-u` 让密码交互输入；
+   `-p` 只在脚本/CI 里配合环境变量用，敲在命令行会留在 shell 历史里。
+10. **密码绝不进仓库**：如果要把这个 skill 传到 GitHub / 技能市场，只传 `SKILL.md`、
+    `reference/`、`scripts/` 三个目录本身即可 —— 账号信息从来不在这三处（在 `~/.qmeeting/` 用户目录）。
 
 ## 4. 安全约定
 

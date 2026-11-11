@@ -17,7 +17,9 @@
 """
 
 import argparse
+import base64
 import datetime
+import getpass
 import json
 import os
 import re
@@ -115,6 +117,64 @@ def _now():
     return int(time.time())
 
 
+# --------------------------------------------------------------------------- #
+# SSO 账号登录
+# 前端 sso_login_shared.js 里用 RSA 公钥做 PKCS#1 v1.5 加密再 base64，
+# 这里用纯 Python 复刻（pow + 手工 DER 解析），不引入加密库依赖。
+# 公钥是 SSO 登录页的公开信息，不是任何人的凭证。
+# --------------------------------------------------------------------------- #
+SSO_RSA_PUBKEY = (
+    'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAre5YnMJtO+gtwkeeq07f5UfywHM2LQ5T4jzV'
+    'zYUYJOQN0AUAYkmoIt7rIfAN6q5nEby3zupXznBo/Y5SsRtXDoG53xHucpqE5SXD4J6kNnxj+JjecQ7ef'
+    '0ev5MTOb+eREybymosgs7xr/eprv2O4GmipUwXVTWusbL/xjPzfP603JGz/r6xR94k5K8NXqHLQVBKURa5Q'
+    'K3x9sUyX5ZxYop6llF3BdkIafB8aERw5iJa7i8fFK6UmIbhGQ8rLYYGj61229NayMgIuWJ3SGmUWWq0RyC'
+    'Ejt96I6ZWwOqygkiEXj3PoQEmTUIxmEgrWQ5UxSHT/XDai5sbj7IueMqncPQIDAQAB')
+
+
+def _der_tlv(buf, i=0):
+    """极简 DER TLV 解析：返回 (tag, value, next_index)。"""
+    tag = buf[i]
+    ln = buf[i + 1]
+    i += 2
+    if ln & 0x80:
+        n = ln & 0x7F
+        ln = int.from_bytes(buf[i:i + n], 'big')
+        i += n
+    return tag, buf[i:i + ln], i + ln
+
+
+def _rsa_pub_from_spki(b64key):
+    body = _der_tlv(base64.b64decode(b64key))[1]      # SubjectPublicKeyInfo
+    _, _, i = _der_tlv(body, 0)                       # AlgorithmIdentifier
+    bitstr = _der_tlv(body, i)[1]                     # BIT STRING
+    if bitstr and bitstr[0] == 0:                     # 未用位数
+        bitstr = bitstr[1:]
+    tlv = _der_tlv(bitstr)                            # RSAPublicKey SEQUENCE
+    seq = tlv[1]
+    _, nbytes, j = _der_tlv(seq, 0)
+    _, ebytes, _ = _der_tlv(seq, j)
+    return int.from_bytes(nbytes, 'big'), int.from_bytes(ebytes, 'big')
+
+
+_RSA_N, _RSA_E = _rsa_pub_from_spki(SSO_RSA_PUBKEY)
+
+
+def rsa_encrypt(text):
+    """等价于前端 encrypt(text, "base64", "utf8")：PKCS#1 v1.5 → base64。"""
+    msg = text.encode('utf-8')
+    k = (_RSA_N.bit_length() + 7) // 8
+    if len(msg) > k - 11:
+        raise ValueError('密码过长')
+    ps = bytearray()
+    while len(ps) < k - 3 - len(msg):
+        b = os.urandom(1)[0]
+        if b:                       # PKCS#1 v1.5 要求 PS 非零
+            ps.append(b)
+    em = b'\x00\x02' + bytes(ps) + b'\x00' + msg
+    c = pow(int.from_bytes(em, 'big'), _RSA_E, _RSA_N)
+    return base64.b64encode(c.to_bytes(k, 'big')).decode()
+
+
 def load_token_file():
     if not os.path.exists(TOKEN_FILE):
         return {}
@@ -197,15 +257,91 @@ class QMeeting(object):
         return bool(self.tok.get('access_token'))
 
     def _ensure(self, force=False):
-        if not self._has_token():
-            raise SystemExit('未登录。先执行：python qmeeting.py login --devtools <导出的HAR文件>\n'
-                             '或者：python qmeeting.py login --token "bearerXXXX-...."')
         exp = int(self.tok.get('expires_at') or 0)
-        if force or (exp and exp - 120 <= _now()):
-            if self.tok.get('refresh_token'):
+        need = force or not self._has_token() or (exp and exp - 120 <= _now())
+        if not need:
+            return
+        if self.tok.get('refresh_token'):
+            try:
                 self._refresh()
-            elif exp and exp <= _now():
-                raise SystemExit('token 已过期且没有 refresh_token，请重新 login。')
+                return
+            except SystemExit:
+                if not self._has_token():
+                    raise
+                # 刷新失败但有旧 token：继续用（可能还没真过期）
+                return
+        if not self._has_token():
+            # 没 token 也没 refresh_token → 有账号就用，没账号就问
+            self.login_with_account()
+        elif exp and exp <= _now():
+            self.login_with_account()
+
+    def login_with_account(self, username=None, password=None):
+        """账号登录：参数 > 环境变量 > 交互式询问。密码不落盘、不上传。"""
+        u = username or os.environ.get('QMEETING_USERNAME')
+        p = password or os.environ.get('QMEETING_PASSWORD')
+        if not (u and p):
+            if not sys.stdin or not sys.stdin.isatty():
+                raise SystemExit(
+                    '未登录。可以任选一种方式：\n'
+                    '  1) 账号登录：python qmeeting.py login --ask\n'
+                    '  2) HAR 文件：python qmeeting.py login --devtools <导出的文件>\n'
+                    '  3) 直接给 token：python qmeeting.py login --token "bearerXXXX"')
+            if not u:
+                u = input('移远账号（邮箱或工号）: ').strip()
+            if not p:
+                p = getpass.getpass('密码（只用于换 token，不会保存）: ')
+        if not u or not p:
+            raise SystemExit('账号或密码为空，已取消。')
+        self.password_login(u, p)
+
+    def password_login(self, username, password):
+        enc = rsa_encrypt(password)
+        # 1) 登录前的 MFA 预检（前端必调，顺带能拿到更准确的错误信息）
+        try:
+            chk = requests.post(SSO + '/api/uaa/mfa-open/check', timeout=30,
+                                headers={'content-type': 'application/json', 'user-agent': UA},
+                                json={'username': username, 'password': enc}).json()
+            data = chk.get('data') or {}
+            if data.get('isPass') is False:
+                raise SystemExit('账号或密码错误：%s' % (data.get('errorMessage') or chk.get('msg') or ''))
+            if chk.get('success') is False and not data:
+                raise SystemExit('账号或密码错误：%s' % (chk.get('msg') or 'mfa-open/check 失败'))
+        except SystemExit:
+            raise
+        except Exception:
+            pass  # 预检接口异常不影响主流程
+        # 2) 换 token
+        form = {
+            'grant_type': 'password',
+            'username': username,
+            'password': enc,
+            'scope': 'ui',
+            'client_id': 'quectel',
+            'client_secret': 'quectel',
+            'auth_type': 'rsa_area',
+        }
+        try:
+            j = requests.post(SSO + '/api/uaa/oauth/token', data=form, timeout=30,
+                              headers={'Content-Type': 'application/x-www-form-urlencoded',
+                                       'User-Agent': UA}).json()
+        except Exception as e:
+            raise SystemExit('登录请求失败：%s' % e)
+        if not j.get('access_token'):
+            code = j.get('code')
+            if code in (102, '102'):
+                raise SystemExit('这个账号开了 MFA（短信/邮件验证码），密码登录走不通。\n'
+                                 '请改用浏览器登录后：qmeeting.py login --devtools <HAR文件>')
+            raise SystemExit('登录失败：%s' % (j.get('msg') or j))
+        self.tok['access_token'] = norm_bearer(j['access_token'])
+        if j.get('refresh_token'):
+            self.tok['refresh_token'] = strip_bearer(j['refresh_token'])
+        self.tok['expires_at'] = _now() + int(j.get('expires_in') or 86000)
+        self.tok['username'] = username          # 只记账号，不记密码
+        self.tok.pop('me', None)
+        save_token(self.tok)
+        self._me = {}
+        return self.me(refresh=True)
 
     def _refresh(self):
         url = SSO + '/api/uaa/oauth/token'
@@ -222,13 +358,14 @@ class QMeeting(object):
             j = r.json()
         except Exception as e:
             raise SystemExit('刷新 token 失败：%s' % e)
-        if not j.get('access_token'):
-            raise SystemExit('刷新 token 失败：%s' % (j.get('msg') or j))
-        self.tok['access_token'] = norm_bearer(j['access_token'])
-        if j.get('refresh_token'):
-            self.tok['refresh_token'] = strip_bearer(j['refresh_token'])
-        self.tok['expires_at'] = _now() + int(j.get('expires_in') or 86000)
-        save_token(self.tok)
+        if j.get('access_token'):
+            self.tok['access_token'] = norm_bearer(j['access_token'])
+            if j.get('refresh_token'):
+                self.tok['refresh_token'] = strip_bearer(j['refresh_token'])
+            self.tok['expires_at'] = _now() + int(j.get('expires_in') or 86000)
+            save_token(self.tok)
+            return
+        raise SystemExit('刷新 token 失败：%s' % (j.get('msg') or j))
 
     # -- http ----------------------------------------------------------------
     def headers(self):
@@ -631,11 +768,17 @@ def cmd_login(a):
     elif a.token:
         acc, ref = norm_bearer(a.token), strip_bearer(a.refresh_token or '')
     else:
-        raise SystemExit('需要 --token / --cookie / --devtools 之一')
+        # 没有任何凭证来源 → 账号登录（有账号就用，没账号就问）
+        qm = QMeeting()
+        me = qm.login_with_account(a.username, a.password)
+        print('登录成功：%s (userId=%s, %s)' % (me['fullName'], me['userId'], me['deptName']))
+        print('token 文件：%s（只存 token，不存密码）' % TOKEN_FILE)
+        return me
     if not acc:
         raise SystemExit('没解析到 access_token')
     tok.update({'access_token': acc, 'refresh_token': ref or tok.get('refresh_token', ''),
-                'expires_at': _now() + 86000, 'saved_at': datetime.datetime.now(TZ).strftime('%Y-%m-%d %H:%M:%S')})
+                'expires_at': _now() + 86000,
+                'saved_at': datetime.datetime.now(TZ).strftime('%Y-%m-%d %H:%M:%S')})
     save_token(tok)
     qm = QMeeting()
     me = qm.me(refresh=True)
@@ -643,6 +786,7 @@ def cmd_login(a):
     print('token 文件：%s' % TOKEN_FILE)
     if not tok.get('refresh_token'):
         print('提示：没有 refresh_token，24 小时后需要重新 login。')
+    return me
 
 
 def cmd_whoami(a):
@@ -854,7 +998,10 @@ def main(argv=None):
     p.add_argument('--json', action='store_true', help='输出原始 JSON')
     sub = p.add_subparsers(dest='cmd', required=True)
 
-    s = sub.add_parser('login', help='保存 token（粘贴 / cookie / HAR 文件）')
+    s = sub.add_parser('login', help='登录：账号 / token / cookie / HAR 文件')
+    s.add_argument('-u', '--username', help='移远账号（邮箱或工号）；不传则询问')
+    s.add_argument('-p', '--password', help='密码；不传则交互式询问（推荐，避免留在命令历史）')
+    s.add_argument('--ask', action='store_true', help='强制用账号密码登录（交互式询问）')
     s.add_argument('--token')
     s.add_argument('--refresh-token')
     s.add_argument('--cookie', help='形如 "quectel_token=bearer...; quectel_refresh_token=..."')
