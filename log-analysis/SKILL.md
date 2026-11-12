@@ -1,13 +1,30 @@
 ---
 name: log-analysis
-description: 'Use this skill when the user wants to analyze large logs (tens to hundreds of MB) to find why a test round fails, times out or occasionally misbehaves, by comparing a normal round against an abnormal round. Triggers: "分析日志", "日志对比", "为什么超时", "升级超时", "偶发失败", "压测失败原因", "对比正常和异常日志", "script_log / upper_log / real_time_log / serial log 分析", root-cause analysis of stress/pressure test logs, upgrade (OTA/IAP/FOTA) timeouts, retransmission or packet-loss analysis.'
+description: 'Use this skill to analyze log files of any size (small files up to hundreds of MB): single-log error analysis, device log + script log joint analysis, guide-based deep analysis, fault troubleshooting, and comparing a normal round against an abnormal round to find why a test fails, times out or occasionally misbehaves. Triggers: "分析日志", "日志分析", "日志对比", "故障排查", "根因分析", "运行结果统计", "为什么超时", "升级超时", "偶发失败", "压测失败原因", "设备日志和脚本日志联合分析", "对比正常和异常日志", "script_log / upper_log / real_time_log / serial log 分析", upgrade (OTA/IAP/FOTA) timeouts, retransmission or packet-loss analysis.'
 ---
 
-# 大日志对比分析 Skill
+# 日志分析 Skill
 
-用脚本流式处理大日志，先给出"每轮结果 + 耗时"，再取一轮正常、一轮异常做对比，量化差异、找到突变点、排除假设，最后区分"已证实"和"未证实"。
+用脚本流式处理日志（不依赖文件大小），先给出"每轮结果 + 耗时"，再取一轮正常、一轮异常做对比，量化差异、找到突变点、排除假设，最后区分"已证实"和"未证实"。
 
-经验来源：QDM559 T-BOX 上位机升级压测，三份日志共 670MB，见 [references/upgrade-timeout-case.md](references/upgrade-timeout-case.md)。
+经验来源：QDM559 T-BOX 上位机升级压测，三份日志共 670MB，见 [references/upgrade-timeout-case.md](references/upgrade-timeout-case.md)。已知错误码见 [references/error-codes.md](references/error-codes.md)。
+
+## 分析模式
+
+| 用户提供 | 做法 |
+|:---|:---|
+| 1 份日志，要求统计/找错误 | 步骤 1 汇总每轮结果，再用错误扫描（步骤 1b）分类统计，按 §2 的流程定位 |
+| 设备日志 + 脚本日志（+ 上位机/串口日志） | 联合分析：见"联合分析"一节 |
+| 设备日志 + 日志指南 + 脚本日志 | 先读指南，把指南里的状态、错误码、时序要求当作判定依据，再按联合分析走 |
+| 只有现象（如"偶发超时"） | 先向用户要日志路径，不要猜；拿到后按上面三种之一处理 |
+
+## 联合分析
+
+1. **分别分析**：先各自独立汇总（脚本日志看每轮结果，设备日志看错误分类），不要一开始就混在一起。
+2. **时间对齐**：用失败轮的起止时间截取设备日志窗口；不同日志时钟可能有几十毫秒偏差，匹配时留余量。
+3. **关联匹配**：脚本侧的指令下发、状态查询，对应设备侧的响应、执行结果。
+4. **链路还原**：还原从指令下发到设备执行的完整链路，找到第一个与正常轮不同的环节。
+5. **归因到层**：明确故障发生在云端 / 网络 / 设备 / 上位机 / 脚本哪一层。
 
 ## 0. 开始前必须做的检查
 
@@ -42,6 +59,15 @@ python -X utf8 run_summary.py <script_log> -o sum.txt
 ```
 - 看：总轮数、哪些轮耗时明显偏长、第一个失败轮、失败是否一直持续、失败原因是否都一样。
 - `--marker` 指定轮次标记正则，`--poll` 指定轮询行（会被折叠成计数），`--result` 指定判定关键字。
+
+### 步骤 1b：错误扫描与分类统计
+
+```powershell
+python -X utf8 window_patterns.py <log> --grep "ERROR|FAIL|Exception|Traceback|failed|timeout|超时|失败|错误" --top 40 -o errors.txt
+```
+- 数字被归一化后，相同类型的错误合并成一行，给出次数、首末时间和样例。
+- 对照 [references/error-codes.md](references/error-codes.md) 解释已知错误码。
+- 失败原因是否单一、是否随时间集中出现，决定后面是找一个突变点，还是逐类分析。
 
 ### 步骤 2：取一轮正常、一轮异常，各读一次
 
@@ -108,11 +134,17 @@ python -X utf8 raw_window.py <dev_log> --from 17:30:00 --to 17:30:05 --exclude "
 ## 4. 汇报模板
 
 ```
-文件：<三份日志及大小>
-现象：共 N 轮，第 a~b 轮正常（约 X 分钟），第 c 轮起失败（超时 Y 分钟），持续到日志结束
+文件：<各日志及大小>
+整体概况：共 N 轮，成功 a、失败 b、成功率 x%，运行时长 T
+现象：第 a~b 轮正常（约 X 分钟），第 c 轮起失败（超时 Y 分钟），持续到日志结束
+失败原因分类：| 类别 | 次数 | 轮次 | 样例 |
+逐次失败详情：<时间、具体错误、根因；失败很多时只列有代表性的，其余按类别汇总>
+成功案例汇总：<正常轮的耗时分布>
 机制：<协议流程 + 超时/重试规则>
 对比：| 指标 | 正常 | 异常 |
 突变点：<时间，是否在某一轮中间，是否恢复>
+故障所在层：云端 / 网络 / 设备 / 上位机 / 脚本
+共性根因：<已证实部分>
 已排除：<列表>
 未确认：<列表 + 验证方法>
 建议：<缓解 / 根治>

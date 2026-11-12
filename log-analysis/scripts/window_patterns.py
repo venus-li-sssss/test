@@ -5,10 +5,14 @@ Counts are only comparable after dividing by window length - pass --rate to prin
 
 Usage:
   python -X utf8 window_patterns.py LOG --from 10:52:00 --to 11:02:30 -o normal.txt --rate
+  # error scan over the whole log, most frequent first
+  python -X utf8 window_patterns.py LOG --grep "ERROR|FAIL|Exception|Traceback|failed|timeout|超时|失败|错误" --top 40
+Options: --grep REGEX keep only matching messages, --exclude REGEX drop matching messages.
 """
 import argparse
 import collections
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -22,6 +26,8 @@ def main():
     ap.add_argument('--to', dest='end')
     ap.add_argument('--rate', action='store_true')
     ap.add_argument('--top', type=int, default=0, help='only print the N most frequent patterns')
+    ap.add_argument('--grep')
+    ap.add_argument('--exclude')
     ap.add_argument('-o')
     a = ap.parse_args()
     if a.o:
@@ -29,10 +35,19 @@ def main():
     else:
         utf8_stdout()
 
+    keep = re.compile(a.grep) if a.grep else None
+    drop = re.compile(a.exclude) if a.exclude else None
     pats = collections.OrderedDict()
     first = last = None
     total = 0
+    day, prev = 0, None
     for _, t, sec, msg, _raw in iter_lines(a.log, a.start, a.end):
+        if prev is not None and sec < prev - 3600:
+            day += 1
+        prev = sec
+        sec += 86400 * day
+        if (keep and not keep.search(msg)) or (drop and drop.search(msg)):
+            continue
         total += 1
         first = sec if first is None else first
         last = sec
