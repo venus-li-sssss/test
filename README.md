@@ -13,8 +13,7 @@
 | [`qdisk-quectel/`](./qdisk-quectel) | 移远网盘（Quectel Netdisk / qdisk.quectel.com）下载工具：把网盘中的文件或整个目录下载到本地指定位置。触发词：移远网盘、qdisk、下载网盘。 |
 | [`feishu-software-download/`](./feishu-software-download) | 飞书云盘（quectel.feishu.cn）免扫码访问：**云端实时搜索**（`search`，走 `/search/v2/doc_wiki/search`）+ 递归遍历（`tree`/`sync`）+ 下载（大文件 Range 断点续传）+ 读 wiki/文档正文（`doc`）。范围=云盘→软件测试部→软件测试二科 下的「基础软件存放」「项目环境搭建」两个根目录。**内置团队共用只读机器人凭据**（base64 存放以绕过 GitHub push protection 误报），开箱即用。触发词：飞书云盘、飞书软件下载、下载QCOM、下载SSCOM、搜索飞书云盘、读飞书文档。 |
 | [`jira-data-access/`](./jira-data-access) | JIRA 数据访问与处理：通过 JQL 或搜索 URL 查询缺陷数据，过滤/排序/统计，并生成标准化 DOCX 缺陷报告。 |
-| [`log-analyzer/`](./log-analyzer) | **已被 `log-analysis/` 取代，建议使用后者。** 自动化分析各类日志文件：单日志分析、设备日志与脚本日志联合分析、结合日志指南的深度问题定位；适用于故障排查、根因分析、运行结果统计。 |
-| [`log-analysis/`](./log-analysis) | 日志分析（取代 `log-analyzer/`）：单日志错误分析、设备日志+脚本日志联合分析、带指南的深度分析、故障排查，以及正常/异常轮次对比找超时根因。用脚本流式处理，不受文件大小限制（已验证 270MB 级日志）：汇总每轮结果与耗时、错误分类统计、按时间段统计找突变点、逐个排除假设，结论区分已证实/已排除/未确认。含错误码对照表和升级超时（丢帧 + 固定 3 秒重发）案例。触发词：分析日志、日志对比、故障排查、根因分析、为什么超时、升级超时、偶发失败、压测失败原因、script_log、upper_log、real_time_log。 |
+| [`log-analysis/`](./log-analysis) | 日志分析：单日志错误分析、设备日志+脚本日志联合分析、带指南的深度分析、故障排查，以及正常/异常轮次对比找超时根因。用脚本流式处理，不受文件大小限制（已验证 270MB 级日志）：汇总每轮结果与耗时、错误分类统计、按时间段统计找突变点、逐个排除假设，结论区分已证实/已排除/未确认。含错误码对照表和升级超时（丢帧 + 固定 3 秒重发）案例。触发词：分析日志、日志对比、故障排查、根因分析、为什么超时、升级超时、偶发失败、压测失败原因、script_log、upper_log、real_time_log。 |
 | [`api-class-generator/`](./api-class-generator) | 根据 HAR 文件或接口文档 + 操作流程描述，自动生成 Python API 类（requests 库，自动维护 session/cookie，含完整方法与 main() 示例）。 |
 | [`protocol-pack-unpack/`](./protocol-pack-unpack) | 通信协议组包/解包代码生成器：支持 CAN、Serial(UART)、MQTT 二进制帧的 pack_frame()/unpack_frame() 生成，含自动化双向测试与迭代自修复（偏移/大小端/校验/缩放）。 |
 | [`pyinstaller-exe-packager/`](./pyinstaller-exe-packager) | 将 Python 脚本快速打包为 Windows 单文件 exe（PyInstaller onefile），内嵌版本信息文件（references/version_info.txt）。流程极简：装 pyinstaller 后直接打包。 |
