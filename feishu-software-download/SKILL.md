@@ -10,6 +10,10 @@ name: feishu-software-download
 **统一走应用身份 `tenant_access_token` + Python requests**：不扫码、不管用户登录态、换机器换账号都能用。
 **优先用云端实时搜索**（`search`/`get`），catalog 只是离线兜底 + 补目录名。
 
+> **分工（别用错）**：云盘**文件**（exe/zip/安装包/附件）下载 → 本 skill；
+> **读云文档正文、知识库 wiki、多维表格 base、电子表格** → 用 `feishu-docs`（同一个机器人身份）。
+> 本 skill 的 `doc` 只解析 wiki/docx，遇到 `base/` 链接会 JSONDecodeError，别硬试。
+
 ## 快速上手
 
 脚本：`scripts/feishu_dl.py`（依赖 `requests`）。所有命令在 skill 目录下执行，或用绝对路径。
