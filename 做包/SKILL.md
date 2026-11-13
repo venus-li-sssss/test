@@ -1,7 +1,7 @@
 ---
 name: 做包
 description: 'Use this skill when the user wants to build FOTA upgrade packages (做包/差分包/差分升级包/差分/全量包/整包/app整包/全系统完整包/最小系统包/miniFota/升级包制作/刷机包/回滚包). 覆盖 aboot/ASR 机型（QDM568/ML307C/ASR1605、QDM562/九号/ASR1601-1605 等）：config 必须依据版本包 ZIP 里的 partition.bin 自动生成（不写死地址）、"全量包"=app整包（config_app 单镜像）不是全镜像包、全量包不挑设备当前版本（差分/最小系统包才挑，别答反）、工具目录必须纯 ASCII、adiff/FBFMake 输出是 GBK、产物必须独立自检（体积/整张镜像是否嵌入/FBF 头记录条数）。含 make_full_fbfmake.py / make_diff_fbfmake.py / fota_builder.py / make_config.py / verify_fbf_package.py / fetch_tools.py（工具从飞书云盘「做升级包」目录下载）。Triggers: 做包, 差分包, 差分升级包, 全量包, 整包, app整包, 全系统完整包, 最小系统包, miniFota, 升级包制作, fota_builder, make_config, make_full_fbfmake, make_diff_fbfmake, verify_fbf_package, fetch_tools, 做包工具下载, 下载adiff, 下载FBFMake, 升级包工具在哪, fbfmake, FBFMake, adiff, fbf_dfota, system_patch, partition.bin, 版本依赖, 全量包能升哪些版本, nOfImages, QDM568做包, QDM562做包.'
-version: 3.2.0
+version: 3.2.1
 ---
 
 # 做包（FOTA 升级包制作）
