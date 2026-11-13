@@ -21,10 +21,18 @@ Write (same Key, same prefix, no extra authorization; nav page updates immediate
         --category 测试相关 --desc "提交与查询 BUG"
     python nav.py link add --name X --url Y --category Z \
         --skill "https://github.com/user/repo|JIRA 数据读写" --skill "https://...|另一个"
+    python nav.py link add --name 日志抓取 --url <云盘目录> --category 测试环境搭建 \
+        --skill "https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96|串口/RTT/RTK 日志抓取" \
+        --ref "飞书云盘|引用「飞书云盘」：拿下载能力 + 云盘入口"
     python nav.py link update <id> --desc "新的说明"        # only the fields you pass change
     python nav.py link update <id> --skills-file skills.json
     python nav.py link update <id> --name 新名 --sort 3
     python nav.py link delete <id>
+
+  --ref "卡片id或名字|说明"  = {"refLinkId": ..., "description": 说明}
+  引用另一张卡片（而不是复制它的 URL）：被引用卡片改了地址/skill，引用方自动跟随；
+  服务端会把引用展开成被引用卡片的各项（描述带 经「某卡片」： 前缀），属正常现象。
+  典型用法：需要"下载飞书云盘文件"能力时引用「飞书云盘」，不要手写 feishu-software-download + 云盘根目录两条。
 
 Server-side constraints (this script just prints the server's reason):
   * category must already exist -> 400, response lists current categories (run `cat list`)
@@ -155,6 +163,21 @@ def find_link(data, link_id):
     return None
 
 
+def find_link_by_name(data, name):
+    """Resolve a link by exact name, then by unique case-insensitive match."""
+    name = str(name).strip()
+    hits = [it for it in flatten(data) if (it.get("name") or "").strip() == name]
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        sys.exit("ERROR: --ref %r is ambiguous, use the link id instead:\n%s"
+                 % (name, "\n".join("  %s  %s (%s)" % (h.get("id"), h.get("name"), h.get("category"))
+                                    for h in hits)))
+    low = name.lower()
+    hits = [it for it in flatten(data) if (it.get("name") or "").strip().lower() == low]
+    return hits[0] if len(hits) == 1 else None
+
+
 def find_category(data, ref):
     """Resolve a category by id or by exact name (case-insensitive fallback)."""
     cats = data.get("categories", [])
@@ -171,7 +194,7 @@ def find_category(data, ref):
     return None
 
 
-def parse_skills(flag_skills, skills_file, skills_json):
+def parse_skills(flag_skills, skills_file, skills_json, flag_refs=None, data=None):
     """Build the skills[] array; returns list or None when the user passed nothing."""
     out = []
     if skills_json:
@@ -189,6 +212,20 @@ def parse_skills(flag_skills, skills_file, skills_json):
         if len(parts) != 2:
             sys.exit("ERROR: --skill must be 'url|description', got: %r" % s)
         out.append({"url": parts[0].strip(), "description": parts[1].strip()})
+    # --ref "卡片id或名字|说明"  ->  {"refLinkId": id, "description": 说明}
+    # 引用而不是复制 URL：被引用卡片改了地址/skill，引用方自动跟随。
+    for s in flag_refs or []:
+        sep = "|" if "|" in s else ("::" if "::" in s else ",")
+        parts = s.split(sep, 1)
+        if len(parts) != 2:
+            sys.exit("ERROR: --ref must be 'linkIdOrName|description', got: %r" % s)
+        key, desc = parts[0].strip(), parts[1].strip()
+        if data is None:
+            data = fetch()
+        target = find_link(data, key) or find_link_by_name(data, key)
+        if not target:
+            sys.exit("ERROR: --ref target %r not found (run `link list`)" % key)
+        out.append({"refLinkId": target.get("id"), "description": desc})
     return out or None
 
 
@@ -273,7 +310,8 @@ def link_add(argv):
         payload["icon"] = opts["icon"]
     if opts.get("sort"):
         payload["sortOrder"] = int(opts["sort"])
-    skills = parse_skills(_multi(argv, "skill"), opts.get("skills-file"), opts.get("skills"))
+    skills = parse_skills(_multi(argv, "skill"), opts.get("skills-file"), opts.get("skills"),
+                          _multi(argv, "ref"), data)
     if skills:
         payload["skills"] = skills
 
@@ -314,7 +352,8 @@ def link_update(argv):
             sys.exit("ERROR: category %r does not exist.\ncurrent categories: %s" % (opts["category"], ", ".join(names)))
         payload["category"] = cat.get("name", "")
 
-    skills = parse_skills(_multi(argv, "skill"), opts.get("skills-file"), opts.get("skills"))
+    skills = parse_skills(_multi(argv, "skill"), opts.get("skills-file"), opts.get("skills"),
+                          _multi(argv, "ref"), data)
     if skills is not None:
         print("WARNING: skills is REPLACED wholesale. old value:")
         print(_dump(cur.get("skills", [])))
