@@ -1,6 +1,6 @@
 ---
 name: 软测内部导航
-description: 移远/IKOTEK 软件测试部门内部工具导航中枢（读 + 写）。读：当用户（软件测试工程师）要做任何与内部测试工作相关的事情时使用，包括烧录（Aboot/FreqChip/Jlink/QFLASH/QFIL）、抓取日志（串口/CAN/Jlink RTT）、做升级包、生成测试用例、JIRA 提交/查询/修改 BUG、生成内部测试报告/路测报告、修改点系统导入导出、下载基础软件/版本（飞书云盘/移远网盘 qdisk）、查 GNSS 资料/模组文档、BPM 领用样机、样机/物资管理、IT 工单、工时与考勤、九号客户平台、会议室/工位/快递/绩效/QHR 等内部系统，或询问"某某工具在哪/怎么用/有没有现成 skill"。写：维护导航页本身 —— 新增/修改/删除链接、新增/改名/删除分类、给链接挂 skill 或附件。本 skill 通过内部导航 OpenAPI 查入口并按入口关联的 GitHub skill 执行实际功能。
+description: 移远/IKOTEK 软件测试部门内部工具导航中枢（读 + 写）。读：当用户（软件测试工程师）要做任何与内部测试工作相关的事情时使用，包括烧录（Aboot/FreqChip/Jlink/QFLASH/QFIL）、抓取日志（串口/CAN/Jlink RTT）、做升级包、生成测试用例、JIRA 提交/查询/修改 BUG、生成内部测试报告/路测报告、修改点系统导入导出、下载基础软件/版本（飞书云盘/移远网盘 qdisk）、查 GNSS 资料/模组文档、BPM 领用样机、样机/物资管理、IT 工单、工时与考勤、九号客户平台、会议室/工位/快递/绩效/QHR 等内部系统，或询问"某某工具在哪/怎么用/有没有现成 skill"。写：维护导航页本身 —— 新增/修改/删除链接、新增/改名/删除分类、给链接挂 skill 或附件；**新增功能按「skill 进 GitHub + 软件/资源进飞书云盘 + 导航建入口挂起来」三件套落地**（见正文「新增一个『功能』的标准做法」）。本 skill 通过内部导航 OpenAPI 查入口并按入口关联的 GitHub skill 执行实际功能。
 ---
 
 # Quectel 软测内部导航
@@ -82,6 +82,68 @@ python nav.py link delete <链接id>
 6. **分类下还有链接时不能删**（400）→ 先清空。
 7. **删除只在用户明确要求时执行**；被拒绝时把原因（引用方/非空）如实转述给用户，不要绕过。
 8. `skills[]` 里的 GitHub 树链接中文要 URL 编码（`%E7%89%88%E6%9C%AC...`）；服务端会把「引用型条目」展开成实际地址，`description` 可能带 `经「某链接」：` 前缀，属于正常现象。
+
+### 新增一个「功能」的标准做法（skill + 云盘资源 + 导航入口，三件套）
+
+导航页上的**一条链接 = 一个功能**。做新功能固定按这个顺序落地，缺一件都不算做完：
+
+| 步骤 | 放哪儿 | 用什么做 | 产物 |
+|---|---|---|---|
+| ① 能力 | **GitHub** `venus-li-sssss/test/<英文目录名>/` | `skill仓库同步` 的 `push`（先 `--dry-run`） | 可被 agent 加载的 `SKILL.md` + `scripts/` |
+| ② 软件 / 资源 / 文档 | **飞书云盘** `云盘→软件测试部→软件测试二科→基础软件存放/<分类>`（或「项目环境搭建」） | 人工上传，或用浏览器；`feishu-software-download` 只负责**下载回来**，不做上传 | 一个 folder / file 链接（folder token） |
+| ③ 入口 | **导航页**对应分类下的一条链接 | `nav.py link add` / `link update` | 点进去就能拿到 ①②的东西 |
+
+第三条是把前两条**缝成一个功能**的关键：`url` 给人点、`skills[]` 给 agent 用、`attachments[]` 给没装 agent 的人。
+只挂 skill 不挂云盘 → 没装 agent 的人用不了；只挂云盘不挂 skill → agent 不会自动做。
+
+**① skill 侧约定**
+
+- 目录名用**英文短横线**（`toolhub-software`、`flash-tools`），不要用中文：中文目录在导航里是 `%E5%81%9A%E5%8C%85` 这种编码，肉眼不可读、也容易配错。
+- 目录里必须有 `SKILL.md`，frontmatter 的 `description` 写触发词（用户会怎么说），正文写清用法 + 踩过的坑。
+- **凭据不进仓库**：账号密码放 `skills/.credentials.json`（已在 `.gitignore`）或环境变量，SKILL.md 里只写"怎么引用"。
+- 外部工具/软件包**不要进 GitHub**（体积 + push protection），进云盘，skill 里放"下载/拉取"逻辑。
+
+**② 云盘侧约定**
+
+- 工具类放 `基础软件存放/<工具分类>/`（串口工具、烧录工具、AI工具…），版本包/项目资料放「项目环境搭建」或对应项目目录。
+- 索引文件（目录清单）放根目录，方便"先看有哪些软件再下"。
+- 记下 **folder 链接**（`https://quectel.feishu.cn/drive/folder/<token>`），第③步要挂到导航里。
+
+**③ 导航侧字段怎么填**
+
+| 字段 | 怎么填 | 反例 |
+|---|---|---|
+| `name` | 中文功能名，**用户嘴里怎么说就怎么写**（"做升级包"、"日志抓取"、"移远软件资源中心"） | `xxx-skill` 这种只有 agent 看得懂的 |
+| `url` | 优先能点开就用的入口：系统页面 / 云盘目录 / GitHub 目录（纯 AI 能力没有页面时指向 GitHub skill 目录） | 指向一个死链接或只指向首页 |
+| `desc` | 一句"**输入什么 → 输出什么**"，末尾写"已做成 skill（目录名）" | "还在完善""后面再说"这类过期状态 |
+| `skills[]` | 每条 = `GitHub 目录 \| 这个能力解决什么问题`；可以多条（主 skill + 依赖 skill + 云盘目录），按使用频率排 | 只写名字不写用途；一条链接挂五个不相关的 skill |
+| `attachments[]` | `.skill` / `.zip` 等二进制放这里（`skills` 只放文本/链接） | 把 zip 塞进 `skills` |
+
+模板（复制改）：
+
+```powershell
+python nav.py link add `
+  --name "做升级包" `
+  --url https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf `
+  --category 测试环境搭建 `
+  --desc "输入版本包 ZIP + 包型 → 输出全量包/差分包/最小系统包。已做成 skill（做包）" `
+  --skill "https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85|一句话出 FOTA 升级包，config 自动生成 + 产物自检" `
+  --skill "https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf|做包工具（adiff / FBFMake / config 模板）与官方说明，缺工具从这里拉"
+```
+
+**做完必须自检**（四条全过才算上线）：
+
+1. `python nav.py <关键词>` 能搜到这条，`link show <id>` 里 `skills[].url` 全部可打开（GitHub 树链接 200、云盘链接能列出文件）。
+2. GitHub 目录里 `SKILL.md` 用 raw 地址能读到：`https://raw.githubusercontent.com/venus-li-sssss/test/main/<目录>/SKILL.md`。
+3. 云盘侧用 `feishu_dl.py find/tree` 实测能列出文件（别只凭"我传上去了"）。
+4. 描述里的"已实现 / 还没做"和实际一致；实现了一部分就写清哪部分。
+
+**常见错误**
+
+- 一个功能建两条链接（同分类重名会 409，或建在别的分类下变成孤儿）→ 先搜再建。
+- 更新的功能只改 skill 不改导航 `desc` → 导航上还是旧的"还没做"。
+- `skills` 整体替换的性质忘了 → 直接 `link update --skill X` 会把原有条目全冲掉，先 `link show <id>`。
+- 云盘文件夹换了/改名了，导航里的 `url` 没跟着改 → 人是点得进去 404 的。
 
 ### 接入 Agent 的标准写法
 
