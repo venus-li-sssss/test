@@ -190,6 +190,52 @@ python nav.py link add `
 3. 修改用 `link update`（只传改动字段），改 `skills`/`attachments` 前先读原值；
 4. 删除只在明确要求时做，被 409/400 拒绝时把原因转述给用户。
 
+## 卡片可执行性体检（判断「AI 看完这张卡能不能干」）
+
+**口别搞混**：卡片只是索引，能不能执行看三层，**「skill 目录存在」≠「能执行」**：
+
+| 层 | 查什么 | 谁查 |
+|---|---|---|
+| 链路 | `skills[]` 里的 GitHub 目录在仓库里**真的有 SKILL.md** | 脚本 `audit_cards.py` 自动查 |
+| 能力 | SKILL.md 里的命令真能跑（凭据、权限、设备、配套软件在不在） | 实测，或看下方快照 |
+| 边界 | `desc` 写清"输入→输出"和限制（exe 只能 C 盘、需设备、需授权…） | 人工/体检 flags |
+
+评估结论只用这四个档，别自造词：
+
+- **✅ 可执行**：链路通 + 实际跑过（有日期或数值证据）
+- **⚠️ 待一次性授权**：链路通，但飞书节点/多维表格没加机器人协作者（报 `131006` / `91403`）
+- **⚠️ 功能未完成**：卡片挂了 skill 但只覆盖一部分（如 Jlink 只有 RTT 没烧录、CAN 没有）
+- **➖ 仅指路**：纯网页系统 / 下载给人装 / 纯资料链接 —— **正常设计，别为了"让它可执行"硬塞 skill**
+
+复评命令（改完卡片就跑一次）：
+
+```powershell
+python scripts/audit_cards.py              # 全量：state / skills / flags（资源定位、引用、desc 太短、坏链）
+python scripts/audit_cards.py --cat 资源    # 只看一个分类
+python scripts/audit_cards.py --json       # 机器可读
+```
+
+脚本只查**链路**（用 raw 地址逐个校验 `SKILL.md`，不吃 GitHub API 限额）；权限/凭据/设备查不了，要实测。
+
+### 2026-11-13 快照（下次复评拿它对比）
+
+- 链路体检：**51 张 → 37 ✅ / 2 功能未完成 / 12 仅指路**
+- 端到端实测跑通 **27 张**：toolhub 下载（QWinLog 4,121,426 B 校验过）、JIRA（查出 QDM562EA-350）、qmeeting（whoami）、feishu-docs（RTK 账号表 3 行 + 两轮车/AI方案/FWA/新人培训正文）、日志抓取、烧录 4 张、做包、报告/修改点、仓库与导航自身
+- **待一次性授权 9 张**：GNSS资料、Tracker的知识库、日常工作流程、标准模板、样机管理库、团队架构、物资管理、压测脚本记录、远程服务器工具
+  → 飞书里打开该节点/表格「添加协作者」，加只读机器人 `cli_a9bc97317fb89cc8`（共享框显示名「识别图片 latex 的结果」）
+- 功能未完成 2 张：Jlink烧录（只有 RTT）、CAN日志抓取（无）
+- 仅指路 12 张：EIP/绩效/移远社区/工位/QHR/工单/移远快递/BPM/AI任务管理平台/测试用例生成 + excel插件/防锁屏（给人装）
+
+### 飞书资源分两种 skill（别用错，2026-11-13 定的分工）
+
+| 要干的事 | 用哪个 |
+|---|---|
+| 下载云盘**文件**（exe/zip/安装包/附件） | `feishu-software-download`，或 `--ref 飞书云盘` |
+| 读**云文档 / 知识库 wiki / 多维表格 base / 电子表格** | `feishu-docs`（`info` 认类型 → `read` 读正文/导 CSV → `base records/export` 查表） |
+
+两者是**同一个只读机器人身份**，但能力不同：`feishu-software-download` 的 `doc` 只解析 wiki/docx，**遇到 `/base/` 会 JSONDecodeError**。
+所以知识库、多维表格类卡片一律挂 `feishu-docs`；云盘软件类卡片挂 `feishu-software-download`。
+
 ## 加载关联 GitHub skill
 
 命中条目的 `skill:` 指向 `https://github.com/venus-li-sssss/test/tree/main/<subdir>`。加载步骤：
@@ -216,6 +262,7 @@ python nav.py link add `
 - `changelist2xlsx` —— 修改点系统数据获取/导出
 - `qdisk-quectel` —— 移远网盘下载版本/数据
 - `toolhub-software` —— 移远软件资源中心（toolhub.quectel.com）查/下软件（QWinLog、QCOM、QFlash、驱动、LOG 工具）
+- `feishu-docs` —— 读飞书云文档 / 知识库 wiki / 多维表格 base / 电子表格（查表、导 CSV）
 - `feishu-software-download` —— 飞书云盘下载软件
 - `quectel-workhours` —— 创建/修改/提交工时
 - `quectel-attendance` —— 考勤数据获取
