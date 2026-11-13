@@ -139,6 +139,15 @@ python nav.py link delete <链接id>
 - **红线**：清理数据时别把专属资源条目当噪音删掉（烧录要工具、做包要 adiff/FBFMake、抓日志要 exe，没资源跑不起来）；
   该删的只有**重复挂的飞书云盘根目录**（`NiX8f7…`，那是全部门总入口），**卡片自身目录那条要留**。
 
+**飞书资源分两种，别用错 skill**
+
+| 要干的事 | 用哪个 |
+|---|---|
+| 下载云盘**文件**（exe/zip/安装包/附件） | `feishu-software-download`，或 `--ref 飞书云盘` |
+| 读**云文档正文 / 知识库 wiki / 多维表格 base / 电子表格** | `feishu-docs`（`info` 认类型 → `read` 读正文/导CSV → `base records/export` 查表） |
+
+两者是**同一个只读机器人身份**，但能力不同：`feishu-software-download` 的 `doc` 只解析 wiki/docx，遇到 `base/` 会报错。所以知识库、多维表格类卡片一律挂 `feishu-docs`，云盘软件类卡片挂 `feishu-software-download`。
+
 模板（复制改）：
 
 ```powershell
