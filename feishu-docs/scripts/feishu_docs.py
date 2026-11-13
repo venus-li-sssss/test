@@ -147,7 +147,10 @@ def resolve(s):
     if t["kind"] == "wiki":
         data = api("/open-apis/wiki/v2/spaces/get_node", {"token": t["token"], "obj_type": "wiki"})
         node = data.get("node") or {}
-        return {"kind": node.get("obj_type") or "docx", "token": node.get("obj_token"),
+        kind = node.get("obj_type") or "docx"
+        if kind == "bitable":            # wiki 里的多维表格，obj_type 叫 bitable
+            kind = "base"
+        return {"kind": kind, "token": node.get("obj_token"),
                 "table": t.get("table", ""), "title": node.get("title"),
                 "wiki_token": t["token"], "space_id": node.get("space_id")}
     if t["kind"] == "auto":
@@ -192,7 +195,8 @@ def read_sheet(token, rng=""):
         sheets = meta.get("sheets") or []
         if not sheets:
             raise FeishuError("这个表格没有工作表")
-        rng = "%s!A1:Z200" % sheets[0].get("title")
+        sid = sheets[0].get("sheet_id") or sheets[0].get("title")
+        rng = "%s!A1:Z200" % sid
     d = api("/open-apis/sheets/v2/spreadsheets/%s/values/%s" % (token, rng))
     vr = d.get("valueRange") or {}
     return vr.get("values") or []
