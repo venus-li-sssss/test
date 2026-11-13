@@ -206,17 +206,21 @@ exe 体积大，**不进 git 仓库**，统一放**飞书云盘**，用 `feishu-
 
 - 云盘目录：**做升级包** → <https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf>
   （`folder_token = HVQwfjtCGlXh85dBLhmcIPtWnBf`，机器可读，免扫码）
-- 目录内容：
+- 目录内容（**2026-11-13 已上传，remote 大小逐字节核对一致**）：
 
-| 文件 | 大小 | 用途 |
-|---|---|---|
-| `adiff.exe` | 248,320 B（5.8.6） | 差分 / 最小系统包 |
-| `FBFMake_CF_V1.6-150.exe` | 6,467,072 B | FBF 打包（全量包 / 全系统完整包 / 全系统差分） |
-| `config` | 578 B | **多镜像** config 模板（差分 / 全系统完整包） |
-| `config_app` | 177 B | **单镜像** config 模板（全量包 = app 整包） |
-| `fbfmake.bat` / `fbfmake_fast.bat` / `fbfmake_full.bat` | — | 差分 / fast / 全系统完整包 |
-| `README.docx` | 109,239 B | FBFMake 说明 |
-| `升级包制作方法及模组FOTA升级说明.txt` | 2,236 B | 官方《升级包制作方法及模组FOTA升级说明》 |
+| 文件 | 大小 | file_token | 用途 |
+|---|---|---|---|
+| `adiff.exe` | 248,320 B（5.8.6） | `SaxobfrZ5o4MwFxPXS9cpYG6nO2` | 差分 / 最小系统包 |
+| `FBFMake_CF_V1.6-150.exe` | 6,467,072 B | `C1CYbjN95oEbOsxQKPMc0O51ndd` | FBF 打包（全量包 / 全系统完整包 / 全系统差分） |
+| `config` | 578 B | `E0TubkxVEoj2Xbx8kazcdARLnHb` | **多镜像** config 模板（差分 / 全系统完整包） |
+| `config_app` | 177 B | `AnWKbigJ8o4WgXxySWvcA4xEnde` | **单镜像** config 模板（全量包 = app 整包） |
+| `fbfmake.bat` | 156 B | `WbwcbokqYovt7txSW3Jc5ULtn7g` | 通用打包 |
+| `fbfmake_fast.bat` | 149 B | `ZPfzbbmYnoxM8hxn723cl9Hfn5f` | 差分（fast） |
+| `fbfmake_full.bat` | 129 B | `CW6DbcaccoalH7x87QHc044En1c` | 全系统完整包 |
+| `README.docx` | 109,239 B | `Y7DFbZOgLodO6CxIvE6cQn82nbz` | FBFMake 说明 |
+| `升级包制作方法及模组FOTA升级说明.txt` | 2,236 B | `Ay32bjhgxoVzjpxJ5a8cV2hlnfc` | 官方《升级包制作方法及模组FOTA升级说明》 |
+
+> file_token 只在"按名字找不到"时兜底用；文件被重新上传后 token 会变，以 `fetch_tools.py --list` 现查为准。
 
 一键落地（推荐，下载 + 大小校验 + ASCII 路径校验）：
 
@@ -229,6 +233,16 @@ python scripts/fetch_tools.py --check              # 只校验本地工具齐不
 
 手动方式：`python <feishu-software-download>/scripts/feishu_dl.py tree --folder HVQwfjtCGlXh85dBLhmcIPtWnBf`，
 再 `feishu_dl.py dl <file_token> --out <ASCII目录>\<文件名>`。
+
+**维护者：怎么往这个目录里传/换文件**（2026-11-13 踩过）
+
+- 机器人应用（`cli_a9bc97317fb89cc8`，`drive:drive`/`drive:file:upload` 都有）必须被加为**该文件夹的「可编辑」协作者**，
+  否则 `POST /drive/v1/files/upload_all` 回 `403 {"code":1061004,"msg":"forbidden."}`；
+  **读不受影响**（能列目录能下载），所以"能读"不代表"能写"，别被误导。
+- 报 `99991672 app_scope_not_applied` 才是权限点问题：开发者后台 → 权限管理 → 加 `drive:drive` / `drive:file:upload` → 创建版本发布。
+- 判断到底是哪种：`GET /drive/v1/permissions/<folder>/members` 回 `1063004 User has no share permission` 只能说明
+  **没有"管理共享"的权限**，不能拿来判断它是不是协作者。
+- 换文件后**新 file_token 会变**，把 §3.9 表格和 `scripts/fetch_tools.py` 里的 `FILE_TOKENS` 一起更新，再 `--check` 复核大小。
 
 > ⚠️ 两条硬约束：① 落点**必须纯 ASCII**（§1.1，`fetch_tools.py` 会先拦下来）；
 > ② 云盘里的 `config` / `config_app` 只是**模板参考**，正式做包一律用 `scripts/make_config.py`

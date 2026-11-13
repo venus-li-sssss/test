@@ -46,6 +46,20 @@ TOOLS = [
     ("升级包制作方法及模组FOTA升级说明.txt", None),
 ]
 
+# 云盘 file_token（2026-11-13 上传后核对过大小，逐字节一致）。
+# 名字查不到时兜底用；文件被重新上传后 token 会变，届时以 list_folder 现查为准。
+FILE_TOKENS = {
+    "adiff.exe": "SaxobfrZ5o4MwFxPXS9cpYG6nO2",
+    "FBFMake_CF_V1.6-150.exe": "C1CYbjN95oEbOsxQKPMc0O51ndd",
+    "config": "E0TubkxVEoj2Xbx8kazcdARLnHb",
+    "config_app": "AnWKbigJ8o4WgXxySWvcA4xEnde",
+    "fbfmake.bat": "WbwcbokqYovt7txSW3Jc5ULtn7g",
+    "fbfmake_fast.bat": "ZPfzbbmYnoxM8hxn723cl9Hfn5f",
+    "fbfmake_full.bat": "CW6DbcaccoalH7x87QHc044En1c",
+    "README.docx": "Y7DFbZOgLodO6CxIvE6cQn82nbz",
+    "升级包制作方法及模组FOTA升级说明.txt": "Ay32bjhgxoVzjpxJ5a8cV2hlnfc",
+}
+
 ASCII_RE = re.compile(r"^[\x20-\x7e]+$")
 
 
@@ -121,8 +135,12 @@ def main():
     for name, size in TOOLS:
         meta = remote.get(name)
         if not meta:
-            failed.append((name, "云盘里没有这个文件"))
-            continue
+            if name in FILE_TOKENS:
+                meta = {"token": FILE_TOKENS[name], "size": size}
+                print("[fallback] %s 不在目录列表，按内置 file_token 下" % name)
+            else:
+                failed.append((name, "云盘里没有这个文件"))
+                continue
         p = dest / name
         if p.exists():
             local = p.stat().st_size
