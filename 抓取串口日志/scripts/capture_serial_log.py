@@ -46,6 +46,7 @@ FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET") or _DEFAULT_SECRET
 
 FALLBACK_TOOL_DIR = r"C:\QuecAgentTools\串口日志抓取"
 TASK_NAME = "QPAW_SerialCapture"      # 计划任务名，用来让抓取进程脱离命令生命周期
+EXTRA_ARGS = []                       # 透传给 exe 的附加参数（--hex-file / --rtk-*）
 
 
 def _find_workspace():
@@ -76,8 +77,26 @@ def default_tool_dir():
 
 
 TOOL_DIR = os.environ.get("SERIAL_LOG_TOOL_DIR") or default_tool_dir()
-TOOL_EXE = os.path.join(TOOL_DIR, "串口日志抓取.exe")
-TOOL_INI = os.path.join(TOOL_DIR, "串口日志抓取.ini")
+
+# v3.9 起软件改名「日志抓取」；老名字「串口日志抓取」继续兼容（云盘里还是老文件名）
+EXE_NAMES = ("日志抓取.exe", "串口日志抓取.exe")
+INI_NAMES = ("日志抓取.ini", "串口日志抓取.ini")
+
+
+def _pick_name(dir_, names, min_bytes=MIN_EXE_BYTES):
+    """同一个目录里优先用新名字；没有就退回老名字；都没有就返回新名字（用于提示/下载）"""
+    for n in names:
+        p = os.path.join(dir_, n)
+        try:
+            if os.path.isfile(p) and os.path.getsize(p) > min_bytes:
+                return p
+        except OSError:
+            pass
+    return os.path.join(dir_, names[0])
+
+
+TOOL_EXE = _pick_name(TOOL_DIR, EXE_NAMES)
+TOOL_INI = _pick_name(TOOL_DIR, INI_NAMES, 0)
 
 
 def set_tool_dir(path):
@@ -88,23 +107,25 @@ def set_tool_dir(path):
         log("[tool] WARN: %s 不在 C 盘，软件会被安全软件删掉 -> 改用 %s" % (p, FALLBACK_TOOL_DIR))
         p = FALLBACK_TOOL_DIR
     TOOL_DIR = p
-    TOOL_EXE = os.path.join(TOOL_DIR, "串口日志抓取.exe")
-    TOOL_INI = os.path.join(TOOL_DIR, "串口日志抓取.ini")
+    TOOL_EXE = _pick_name(TOOL_DIR, EXE_NAMES)
+    TOOL_INI = _pick_name(TOOL_DIR, INI_NAMES, 0)
 
 
 def _candidates():
     """只在 C 盘找；别的位置的 exe 要么已被删，要么马上会被删。
 
-    只认「串口日志抓取.exe」（v2.x，支持 /run /targets /sec /headless 这套命令行）。
+    只认本工具（v3.9 起叫「日志抓取.exe」，v3.8 及以前叫「串口日志抓取.exe」），
+    支持 /run /targets /sec /headless /rtk 这套命令行。
     旧的 `抓取日志_tool\\dist\\抓取日志.exe` 是另一个 GUI 版，不认这些参数（实测静默退出无输出），
     绝不能当候选，否则会挑错工具、抓了半天什么都没有。
     """
-    return [
-        TOOL_EXE,
-        os.path.join(FALLBACK_TOOL_DIR, "串口日志抓取.exe"),
-        os.path.join(WORKSPACE, "串口日志抓取", "串口日志抓取.exe"),
-        os.path.join(WORKSPACE, "串口日志抓取UI", "串口日志抓取.exe"),
-    ]
+    out = [TOOL_EXE]
+    for exe in EXE_NAMES:
+        out.append(os.path.join(FALLBACK_TOOL_DIR, exe))
+        out.append(os.path.join(WORKSPACE, "串口日志抓取", exe))
+        out.append(os.path.join(WORKSPACE, "日志抓取", exe))
+        out.append(os.path.join(WORKSPACE, "串口日志抓取UI", exe))
+    return out
 
 
 # ------------------------------------------------------------------ 通用
@@ -378,6 +399,8 @@ def write_launch_bat(exe, targets, live, instance):
     line = ('start "" "{exe}" /auto /targets:"{tg}" /dir:"{live}" '
             '/status:"{live}\\status.json" /instance:{inst}').format(
                 exe=exe, tg=tg, live=live, inst=instance)
+    if EXTRA_ARGS:
+        line += " " + " ".join(EXTRA_ARGS)
     bat = os.path.join(os.path.dirname(exe), "launch_live.bat")
     with open(bat, "w", encoding="gbk", newline="") as f:
         f.write("@echo off\r\n" + line + "\r\n")
@@ -452,6 +475,40 @@ def format_status(s):
     return "\n".join(out)
 
 
+# ------------------------------------------------------------------ RTK 账号
+
+def rtk_account_pick():
+    """从飞书多维表格「GNSS的RTK账号信息」取一个可用账号，并顺手刷新技术目录下的缓存。
+
+    缓存文件 rtk_accounts.tsv 落在工具目录，GUI 打开 RTK 对话框时会直接读它，
+    所以跑过一次 AI 抓取后，人工开界面也不用再填账号。
+    """
+    try:
+        import rtk_accounts as ra
+    except Exception as e:
+        log("[rtk] 没有 rtk_accounts.py，跳过自动取账号: %s" % e)
+        return None
+    try:
+        rows = ra.fetch()
+    except Exception as e:
+        log("[rtk] 取多维表格账号失败: %s" % e)
+        return None
+    usable = [r for r in rows if "可用" in (r.get("status") or "")]
+    rows = usable or rows
+    if not rows:
+        log("[rtk] 多维表格里没有可用账号")
+        return None
+    try:
+        os.makedirs(TOOL_DIR, exist_ok=True)
+        with open(os.path.join(TOOL_DIR, "rtk_accounts.tsv"), "w", encoding="utf-8") as f:
+            f.write(ra.to_tsv(rows))
+    except Exception:
+        pass
+    r = rows[0]
+    log("[rtk] 账号来自多维表格：%s  %s:%s/%s" % (r.get("user"), r.get("host"), r.get("port"), r.get("mount")))
+    return r
+
+
 # ------------------------------------------------------------------ 抓取（一次性）
 
 def run_exe(exe, targets, sec, out_dir):
@@ -467,7 +524,7 @@ def run_exe(exe, targets, sec, out_dir):
     targets_arg = ";".join("%s|%s|%d|%s" % t for t in targets)
     cmd = [exe, "/run", "/targets:" + targets_arg, "/sec:%d" % int(sec), "/headless",
            "/instance:ai" + uuid.uuid4().hex[:6], "/dir:" + out_dir,
-           "/status:" + status, "/result:" + result, "/quiet"]
+           "/status:" + status, "/result:" + result, "/quiet"] + list(EXTRA_ARGS)
     log("[run] %s" % " ".join('"%s"' % c if " " in c else c for c in cmd[1:]))
     t0 = time.time()
     proc = subprocess.run(cmd, timeout=sec + 120)
@@ -562,7 +619,55 @@ def main():
     ap.add_argument("--live-dir", default="", help="常驻抓取的日志目录，默认 serial_logs/live")
     ap.add_argument("--instance", default="live", help="常驻实例名，默认 live")
     ap.add_argument("--list-ports", action="store_true")
+    ap.add_argument("--hex-file", default="log", choices=["log", "bin", "hex"],
+                    help="HEX 模式日志后缀（默认 log：带时间戳的 16 进制转录；"
+                         "bin=裸二进制；hex=十六进制）；文本模式固定 .log")
+    ap.add_argument("--rtk-host", default="", help="RTK caster 地址（如 106.13.146.74）")
+    ap.add_argument("--rtk-port", type=int, default=0, help="RTK caster 端口（如 8102）")
+    ap.add_argument("--rtk-mount", default="", help="RTK 挂载点（如 RTCM_CC）")
+    ap.add_argument("--rtk-user", default="", help="RTK 账号")
+    ap.add_argument("--rtk-pass", default="", help="RTK 密码")
+    ap.add_argument("--rtk-target", default="all", help="给哪个目标开 RTK：别名 / COM 号 / all")
+    ap.add_argument("--rtk-interval", type=int, default=0, help="多久发一次 GGA（秒，默认 10）")
+    ap.add_argument("--rtk-auto", action="store_true",
+                    help="账号默认从飞书多维表格取（第一个可用账号）；给了 --rtk-user 就以你给的为准")
     args = ap.parse_args()
+
+    # 透传给 exe 的附加参数（HEX 后缀 / RTK）
+    global EXTRA_ARGS
+    # RTK 默认不开：只有 --rtk-auto 或显式给了 caster/账号才开
+    # （修：rtk_target 默认值是 "all"，以前拿它判断会让每次抓取都悄悄登 NTRIP 并往串口注 RTCM）
+    want_rtk = bool(args.rtk_auto or args.rtk_host or args.rtk_mount or args.rtk_user)
+    if want_rtk and not args.rtk_user:
+        acc = rtk_account_pick()
+        if acc:
+            args.rtk_host = args.rtk_host or acc.get("host", "")
+            port = args.rtk_port or 0
+            if not port:
+                try:
+                    port = int(acc.get("port") or 0)
+                except ValueError:
+                    port = 0
+            args.rtk_port = port
+            args.rtk_mount = args.rtk_mount or acc.get("mount", "")
+            args.rtk_user = acc.get("user", "")
+            args.rtk_pass = acc.get("pass", "")
+    # 显式下发，避免工具目录里的旧 ini（hexfile=bin）把默认值带回 .bin
+    EXTRA_ARGS.append("/hexfile:" + args.hex_file)
+    if args.rtk_host:
+        EXTRA_ARGS.append("/rtkhost:" + args.rtk_host)
+    if args.rtk_port:
+        EXTRA_ARGS.append("/rtkport:%d" % args.rtk_port)
+    if args.rtk_mount:
+        EXTRA_ARGS.append("/rtkmount:" + args.rtk_mount)
+    if args.rtk_user:
+        EXTRA_ARGS.append("/rtkuser:" + args.rtk_user)
+    if args.rtk_pass:
+        EXTRA_ARGS.append("/rtkpass:" + args.rtk_pass)
+    if args.rtk_interval:
+        EXTRA_ARGS.append("/rtkinterval:%d" % args.rtk_interval)
+    if args.rtk_host or args.rtk_mount:
+        EXTRA_ARGS.append("/rtk:" + (args.rtk_target or "all"))
 
     if args.tool_dir:
         set_tool_dir(args.tool_dir)

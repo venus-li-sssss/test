@@ -16,6 +16,67 @@ name: 抓取串口日志
 
 > ⚠️ **软件只能放在 C 盘。** 放 `%TEMP%`、D 盘、桌面，Bitdefender Endpoint 会在执行那一瞬间删掉 exe（报「拒绝访问 / 系统找不到指定的文件」）。非 C 盘的 `--tool-dir` 会被强制改到 `C:\QuecAgentTools\串口日志抓取\`。
 
+## 软件名（v3.9 起）
+
+工具改名 **串口日志抓取 → 日志抓取**：`日志抓取.exe` / `日志抓取.ini`。
+脚本两个名字都认（同目录优先 `日志抓取.exe`，没有就退回 `串口日志抓取.exe`），
+云盘里还是老文件名也能照常拉取，不用手动改名。
+
+## RTK 差分（v3.9 新增）
+
+给某个串口登录 NTRIP 差分账号：设备自己的 GGA 发给 caster，caster 回的 RTCM **注回同一个串口**。
+
+```bat
+python scripts\capture_serial_log.py --ports COM100 --sec 60 ^
+    --rtk-host 106.13.146.74 --rtk-port 8102 --rtk-mount RTCM_CC ^
+    --rtk-user xyw0040 --rtk-pass ****** --rtk-target com100
+```
+
+- `--rtk-target`：给哪个目标开（别名 / COM 号 / `all`，默认 all）
+- RTCM 默认**不开**；只有带 `--rtk-host`/`--rtk-mount` 才会开
+- 成没成看 `status.json` 里每个 target 的 `rtk`：`state=connected` 是登录成功，
+  `fix=RTK Fixed` 才是真进了固定解
+
+查 caster 上有哪些挂载点（不抓日志）：
+
+```bat
+"<工具目录>\日志抓取.exe" /rtksourcetable /rtkhost:106.13.146.74 /rtkport:8102 /quiet
+```
+
+账号**默认就从多维表格取**：
+
+```bat
+rem 一个开关：自动取第一个可用账号，并顺手刷新工具目录下的 rtk_accounts.tsv
+python scripts\capture_serial_log.py --ports COM100 --sec 60 --rtk-auto
+
+rem 只想看看表里有哪些账号
+python scripts\rtk_accounts.py
+python scripts\rtk_accounts.py --json --out rtk_accounts.json
+```
+
+- `--rtk-auto`：账号从飞书位表「资源 → GNSS的RTK账号信息」取（第一个 `账号状态=可用`）
+- 显式给了 `--rtk-user` 就以你给的为准
+- 跑完会把缓存写到 `<工具目录>\rtk_accounts.tsv`，**GUI 打开 RTK 对话框会直接读它**
+
+## HEX 日志后缀（v3.9 新增，默认已改回 .log）
+
+HEX 模式**默认存 `.log`**（内容就是带时间戳的 16 进制转录，本质还是日志）；
+要裸数据流才用 `--hex-file bin`，要 `.hex` 用 `--hex-file hex`。文本模式固定 `.log`。
+
+为什么默认是 `.log`：实际用 16 进制的场景基本都是**协议交互** —— 发一条 16 进制指令、
+看 16 进制返回；这种内容本来就不是裸码流，存成 `.bin` / `.hex` 反而不好读也不好发。
+
+```bat
+rem 默认：HEX 模式存 .log
+python scripts\capture_serial_log.py --ports COM100 --mode hex --sec 30
+
+rem 只有真要裸二进制 / .hex 时才显式指定
+python scripts\capture_serial_log.py --ports COM100 --mode hex --hex-file bin --sec 30
+python scripts\capture_serial_log.py --ports COM100 --mode hex --hex-file hex --sec 30
+```
+
+GUI 里对应「HEX 存」下拉框：`.log`（默认）/ `.bin` / `.hex`，ini 里是 `hexfile=log|bin|hex`。
+
 ## 两种模式
 
 **模式 A：常驻抓取（默认用这个）** —— 工具在后台一直跑着抓，命令返回后进程还活着。
@@ -57,6 +118,10 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 | `--no-download` | 本地没工具就报错 | 关 |
 | `--ensure-tool-only` | 只准备工具，不抓 | 关 |
 | `--list-ports` | 列出本机串口 | — |
+| `--hex-file` | HEX 模式日志后缀：`log`（默认，16 进制转录）/ `bin`（裸二进制）/ `hex` | `log` |
+| `--rtk-host` `--rtk-port` `--rtk-mount` | RTK caster 地址/端口/挂载点 | — |
+| `--rtk-user` `--rtk-pass` `--rtk-target` | RTK 账号/密码/给哪个目标开（别名或 COM，默认 all） | — |
+| `--rtk-auto` | 账号从飞书多维表格自动取（第一个可用），并刷新 `rtk_accounts.tsv` | 关 |
 
 ## 常驻模式是怎么实现的（别改回去）
 
