@@ -14,7 +14,7 @@
 | QFIL烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 通过skill完成QFIL烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://quectel.feishu.cn/drive/folder/Ag16fe9JElm7fmdQ6AacxvF2nTh?from=space_personal_filelist -- 没有QFIL软件可以到飞书云盘下载 |
 | CAN日志抓取 | 🔗 | CAN日志抓取，目前没有实现，代码可以抓取，但是与ZCANPRO有区别，还在看，后面应该会做，还没实现 |
 | 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 抓取日志的skill<br>https://quectel.feishu.cn/drive/folder/THmCfySTUlwC8mdkmcYcAJ2XnZe -- 没有串口软件可以到飞书云盘下载，注意软件只能运行在C盘 |
-| 做升级包 | 🚧 | 还没做，先占位置 |
+| 做升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- 做升级包 skill：全量包(app整包)/差分包/最小系统包一键生成，config 自动生成 + 产物自检 + 工具自动下载<br>https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf -- 做包工具与文档：adiff.exe / FBFMake_CF_V1.6-150.exe / config（多镜像）/ config_app（单镜像）/ fbfmake*.bat / 官方说明，缺工具从这里下载<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：从云盘拉取做包工具的底层能力（做包 skill 的 fetch_tools.py 依赖它） |
 
 ## 测试相关（6 条）
 
