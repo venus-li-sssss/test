@@ -124,6 +124,7 @@ python nav.py link delete <链接id>
 - `对外报告` —— 由内部报告/测试用例生成对外报告
 - `changelist2xlsx` —— 修改点系统数据获取/导出
 - `qdisk-quectel` —— 移远网盘下载版本/数据
+- `toolhub-software` —— 移远软件资源中心（toolhub.quectel.com）查/下软件（QWinLog、QCOM、QFlash、驱动、LOG 工具）
 - `feishu-software-download` —— 飞书云盘下载软件
 - `quectel-workhours` —— 创建/修改/提交工时
 - `quectel-attendance` —— 考勤数据获取
