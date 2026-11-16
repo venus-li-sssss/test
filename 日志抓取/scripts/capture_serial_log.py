@@ -18,7 +18,11 @@
     python capture_serial_log.py --list-ports
     python capture_serial_log.py --list-jlink                # 看 J-Link DLL / 仿真器 / 支持芯片
 
-退出码: 0 成功; 2 工具不可用(拉不到/跑不起来); 3 抓完了但所有口都是 0 字节; 4 参数错误
+退出码: 0 成功; 2 工具不可用(拉不到/跑不起来); 3 抓完了但所有口都是 0 字节
+（注意: 0 字节常常只是那段时间设备没输出，不等于串口/工具坏了）; 4 参数错误
+
+默认行为: 不给 --sec 就是**常驻抓取**（--launch）。抓日志本来就是一直抓，
+别先短抓试探——短抓结束会释放串口，等设备重启/触发时反而漏掉开头。
 """
 import argparse
 import base64
@@ -441,6 +445,31 @@ def _task_ok(cmd):
     return r.returncode == 0, (r.stdout or "") + (r.stderr or "")
 
 
+def _task_ok_silent(cmd):
+    """create/run 这类会**生进程**的调用必须把 std 句柄指向 NUL。
+
+    否则 schtasks 起的 cmd/bat/exe 会继承我们的 stdout 管道并一直握着不关，
+    调用方（命令执行器 / PowerShell）读不到输出，只能看到一条空结果 —— 现象是
+    `--launch` 明明成功了却回不了状态表。代价是拿不到 schtasks 的错误文案，
+    失败时用 format_launch_diag() 再查一遍。
+    """
+    try:
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+        return r.returncode == 0, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def _acp():
+    """当前系统 ANSI 代码页（cmd 解析 bat 用的就是它）。"""
+    try:
+        import ctypes
+        return int(ctypes.windll.kernel32.GetACP())
+    except Exception:
+        return 936
+
+
 def write_launch_bat(exe, targets, live, instance):
     os.makedirs(live, exist_ok=True)
     tg = targets_arg(targets)
@@ -450,7 +479,10 @@ def write_launch_bat(exe, targets, live, instance):
     if EXTRA_ARGS:
         line += " " + " ".join(EXTRA_ARGS)
     bat = os.path.join(os.path.dirname(exe), "launch_live.bat")
-    with open(bat, "w", encoding="gbk", newline="") as f:
+    # cmd 按系统 ACP 解析 bat：ACP=936 要 GBK，ACP=65001(UTF-8 系统) 要 UTF-8，
+    # 写错编码中文路径会变乱码、start 直接返回 1（计划任务 Last Result=1）。
+    enc = "utf-8" if _acp() == 65001 else "gbk"
+    with open(bat, "w", encoding=enc, newline="") as f:
         f.write("@echo off\r\n" + line + "\r\n")
     return bat
 
@@ -481,12 +513,12 @@ def launch_live(exe, targets, live, instance):
         except Exception:
             pass
     bat = write_launch_bat(exe, targets, live, instance)
-    ok, out = _task_ok(["schtasks", "/create", "/tn", TASK_NAME, "/tr", bat,
-                        "/sc", "once", "/st", "23:59", "/f"])
+    ok, out = _task_ok_silent(["schtasks", "/create", "/tn", TASK_NAME, "/tr", bat,
+                              "/sc", "once", "/st", "23:59", "/f"])
     if not ok:
         log("[launch] schtasks create failed: %s" % out.strip())
         return None
-    ok, out = _task_ok(["schtasks", "/run", "/tn", TASK_NAME])
+    ok, out = _task_ok_silent(["schtasks", "/run", "/tn", TASK_NAME])
     if not ok:
         log("[launch] schtasks run failed: %s" % out.strip())
         return None
@@ -496,6 +528,32 @@ def launch_live(exe, targets, live, instance):
         if s and s.get("state") == "running":
             return s
     return read_status(live)
+
+
+def format_launch_diag(exe, live):
+    """常驻启动失败时给出可执行的排查信息（不猜原因，直接把证据摆出来）。"""
+    out = ["[launch] 排查信息"]
+    acp = _acp()
+    out.append("  系统 ACP=%s（cmd 按它解析 bat）→ bat 编码用 %s"
+               % (acp, "UTF-8" if acp == 65001 else "GBK"))
+    bat = os.path.join(os.path.dirname(exe), "launch_live.bat")
+    out.append("  bat=%s %s" % (bat, "存在" if os.path.isfile(bat) else "缺失"))
+    ok, txt = _task_ok(["schtasks", "/query", "/tn", TASK_NAME, "/v", "/fo", "LIST"])
+    if ok:
+        last = ""
+        for line in txt.splitlines():
+            if "Last Result" in line or "上次运行结果" in line:
+                last = line.split(":", 1)[-1].strip()
+        out.append("  计划任务 %s Last Result=%s" % (TASK_NAME, last or "?"))
+        if last and last not in ("0", "267011"):
+            out.append("  非 0 → bat 里 exe 路径没解析成功：中文路径 + bat 编码和系统 ACP 不一致时"
+                       " 会这样（start 返回 1，exe 根本没起）")
+    else:
+        out.append("  计划任务 %s 不存在（schtasks create 没成功，注意中文 exe 路径）" % TASK_NAME)
+    st = status_path(live)
+    out.append("  status.json=%s %s" % (st, "有" if os.path.isfile(st) else "没有（exe 没起来或没写盘）"))
+    out.append("  还想确认可手动跑一次: schtasks /run /tn %s，再看 status.json" % TASK_NAME)
+    return "\n".join(out)
 
 
 def stop_live(live):
@@ -517,9 +575,16 @@ def format_status(s):
         s.get("totals", {}).get("bytes"), s.get("totals", {}).get("connected"),
         s.get("totals", {}).get("targets"), s.get("totals", {}).get("reconnects"))]
     for t in s.get("targets", []):
-        out.append("  %-7s %-6s %-6s lines=%-6s bytes=%-8s size=%-8s %s" % (
+        note = ""
+        if t.get("bytes"):
+            pass
+        elif t.get("last_error"):
+            note = "  ← 报错: %s" % t.get("last_error")
+        elif t.get("connected"):
+            note = "  ← 暂未输出（口已打开，正常，等它出流）"
+        out.append("  %-7s %-6s %-6s lines=%-6s bytes=%-8s size=%-8s %s%s" % (
             t.get("port"), t.get("baud"), t.get("mode"), t.get("lines"), t.get("bytes"),
-            t.get("current_size"), (t.get("files") or [t.get("current_file") or ""])[0]))
+            t.get("current_size"), (t.get("files") or [t.get("current_file") or ""])[0], note))
     return "\n".join(out)
 
 
@@ -594,10 +659,15 @@ def run_exe(exe, targets, sec, out_dir):
 
 # ------------------------------------------------------------------ 汇总
 
-EMPTY_HINT = ("排查顺序: ① 波特率不对（试 921600 / 460800 / 115200 / 3000000）"
-              "② 设备侧这个口当前没有日志输出（要触发动作或打开日志开关）"
-              "③ 该口被 QCOM / SSCOM / WindTerm 占用 ④ 线序或口选错。"
-              "先用 `--sec 10 --baud <其他值>` 复测，别急着判定工具坏了。")
+EMPTY_HINT = ("**0 字节先不要当成故障。** 口能正常打开、没有 last_error，说明串口本身是好的，"
+              "只是这一段时间设备侧没有日志输出——常见于：口闲时本来就不打印、要等触发动作/重启、"
+              "设备日志开关没打开、或该口只在上层跑起来后才出流。等有动作了自然会出数据，"
+              "常驻抓取一直在盯着，不用重开。"
+              "只有当这个口**本该一直有大量输出**时才往下排："
+              "① 波特率和设备不一致（921600 / 460800 / 115200 / 3000000 轮着试，"
+              "换波特率要重开这一路，别用短抓试探）"
+              "② 被 QCOM / SSCOM / WindTerm 占着（last_error 会写访问被拒绝）"
+              "③ 线序/口选错。")
 
 RTT_EMPTY_HINT = ("RTT 是 0 字节时的排查顺序: ① 芯片名和 J-Link 支持列表不一致（`--list-jlink` 看 "
                   "chips_hint，必须一字不差，如 STM32G0B0CE）② 目标程序里没用 SEGGER_RTT_Write/printf，"
@@ -642,10 +712,11 @@ def summarize(run, out_dir):
     empty = [r for r in rows if not r["bytes"]]
     if empty:
         out.append("")
-        out.append("### 无数据的目标")
+        out.append("### 暂未输出的目标（正常现象，不是串口故障）")
         for r in empty:
             tail = ("，错误: " + r["error"]) if r["error"] else ""
-            out.append("- **%s (%s)** 0 字节%s" % (r["alias"], r["port"], tail))
+            out.append("- **%s (%s)** 0 字节%s（口已打开，等它自己出流即可）"
+                       % (r["alias"], r["port"], tail))
         out.append("")
         out.append(EMPTY_HINT)
         if any(r["iface"] == "rtt" for r in empty):
@@ -681,7 +752,9 @@ def main():
     ap.add_argument("--list-jlink", action="store_true", help="看 J-Link DLL 版本/仿真器/支持芯片")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--mode", default="text", choices=["text", "hex"])
-    ap.add_argument("--sec", type=int, default=60, help="抓取时长（秒）")
+    ap.add_argument("--sec", type=int, default=None,
+                    help="定长抓取时长（秒，≤45）。不填=直接常驻抓取（推荐，别先短抓试探）；"
+                         "要定长抓才显式给这个值")
     ap.add_argument("--out", default="", help="输出目录，默认 <workspace>/serial_logs/<时间戳>")
     ap.add_argument("--tool-dir", default="", help="工具目录；非 C 盘会被强制改到 C:\\QuecAgentTools")
     ap.add_argument("--no-download", action="store_true", help="本地无工具就报错，不去飞书拉")
@@ -802,10 +875,17 @@ def main():
             return 4
         targets = []
 
+    # 没给 --sec 就是常驻抓取：抓日志本来就要一直抓，短抓试探只会白丢时间
+    #（而且短抓结束会把口放开，等于要把设备再"热"一遍才抓得到启动日志）
+    if args.sec is None:
+        args.launch = True
+        log("[mode] 没给 --sec → 按常驻抓取启动（要定长抓取请显式 --sec N，N≤45）")
+
     if args.launch:
         s = launch_live(exe, targets, live, args.instance)
         if not s:
             log("[launch] 启动失败")
+            log(format_launch_diag(exe, live))
             return 2
         log("[launch] 已在后台常驻抓取，日志目录 %s" % live)
         log(format_status(s))
@@ -832,6 +912,8 @@ def main():
     log("[out] %s" % md)
     log("[out] %s" % js)
     if not rows or not any(r["bytes"] for r in rows):
+        log("[tip] 所有目标都是 0 字节。先别判定工具/串口坏了：口能打开就是好的，"
+            "多半是这段时间设备没输出（等触发/重启）。要换波特率复测就重开这一路。")
         return 3
     return 0
 
