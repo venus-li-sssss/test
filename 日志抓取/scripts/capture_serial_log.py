@@ -710,13 +710,21 @@ def summarize(run, out_dir):
     out.append("总计: %s 行 / %s 字节 | 用时 %.1fs | 目录 %s" % (
         totals.get("lines", 0), totals.get("bytes", 0), run.get("elapsed", 0), out_dir))
     empty = [r for r in rows if not r["bytes"]]
-    if empty:
+    idle = [r for r in empty if not r["error"]]
+    broken = [r for r in empty if r["error"]]
+    if broken:
+        out.append("")
+        out.append("### 打不开 / 有错误的目标（这些才要处理）")
+        for r in broken:
+            out.append("- **%s (%s)** 0 字节，错误: %s" % (r["alias"], r["port"], r["error"]))
+        out.append("")
+        out.append("端口不存在 → 用 `--list-ports` 对设备管理器重新确认口名；"
+                   "访问被拒绝 → 被 QCOM / SSCOM / WindTerm / 上位机占着，先关掉。")
+    if idle:
         out.append("")
         out.append("### 暂未输出的目标（正常现象，不是串口故障）")
-        for r in empty:
-            tail = ("，错误: " + r["error"]) if r["error"] else ""
-            out.append("- **%s (%s)** 0 字节%s（口已打开，等它自己出流即可）"
-                       % (r["alias"], r["port"], tail))
+        for r in idle:
+            out.append("- **%s (%s)** 0 字节（口已打开，等它自己出流即可）" % (r["alias"], r["port"]))
         out.append("")
         out.append(EMPTY_HINT)
         if any(r["iface"] == "rtt" for r in empty):
@@ -912,8 +920,11 @@ def main():
     log("[out] %s" % md)
     log("[out] %s" % js)
     if not rows or not any(r["bytes"] for r in rows):
-        log("[tip] 所有目标都是 0 字节。先别判定工具/串口坏了：口能打开就是好的，"
-            "多半是这段时间设备没输出（等触发/重启）。要换波特率复测就重开这一路。")
+        if any(r["error"] for r in rows):
+            log("[tip] 有目标报错打不开（口名/占用），先按上面「打不开 / 有错误」那节处理。")
+        else:
+            log("[tip] 所有目标都是 0 字节但口都打开了 —— 这不是串口故障，"
+                "多半是这段时间设备没输出（等触发/重启），常驻抓取继续盯着就行。")
         return 3
     return 0
 
