@@ -15,6 +15,15 @@ name: 日志抓取
 
 默认场景：**COM247 + COM98，115200，text 模式**。
 
+## 默认就是常驻抓（不许短抓试探）
+
+用户说"抓日志 / 抓一下 / 抓 157 和 149"→ **直接常驻启动**，不要先跑 `--sec 10` 之类短抓去"验证一下口通不通"。
+
+- 脚本已经**不给 `--sec` 就按常驻抓取启动**（`--launch`），命令返回后进程还在抓；要停用 `--stop`。
+- 为什么禁止短抓：① 抓日志本来就要一直抓；② 短抓一结束就把串口放开，等设备重启/触发动作时**正好漏掉最关键的开头**；③ 短抓能看出的问题，常驻抓十几秒后看 `status.json` 一样能看出来，纯浪费一轮。
+- 换波特率复测、换口复测，也是**直接常驻重开那一轮**（`--launch` 会自己停掉旧实例），不是短抓。
+- 只有用户明确说"抓 30 秒 / 抓 N 秒"才用 `--sec N`。
+
 工具来源只有两条路：
 
 1. **本地已有工具** → 直接用
@@ -113,26 +122,37 @@ GUI 里对应「HEX 存」下拉框：`.log`（默认）/ `.bin` / `.hex`，ini 
 
 ## 两种模式
 
-**模式 A：常驻抓取（默认用这个）** —— 工具在后台一直跑着抓，命令返回后进程还活着。
+**模式 A：常驻抓取（默认，也是唯一该用的做法）** —— 工具在后台一直跑着抓，命令返回后进程还活着。
 
 ```bat
-python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM247,COM98 --launch
-python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM247,COM98 --rtt STM32G0B0CE --launch
+rem 不给 --sec 就等于常驻，下面两条等价
+python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM157,COM149
+python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM157,COM149 --launch
+
+python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM247,COM98 --rtt STM32G0B0CE
 python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --status
 python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --stop
 ```
 
-用户说"你运行""跑起来抓""开始抓日志""抓一下"时，用 `--launch`。说完就把状态表回给他，并给出日志目录。
+别名要对得上用户的叫法就用 `--targets`（`debug` 口 vs `serial` 口这种）：
 
-**模式 B：定时抓取（定长）** —— 抓 N 秒后自己停，产出 `summary.md`/`summary.json`。
+```bat
+python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --targets "debug|COM157|115200|text;serial|COM149|115200|text"
+```
+
+用户说"你运行""跑起来抓""开始抓日志""抓一下"时，用 `--launch`。说完就把状态表回给他，并给出日志目录。
+**别先短抓再常驻**，那是白丢一轮时间，还会把设备重启开头的那段日志漏掉。
+
+**模式 B：定时抓取（定长，只有用户明确说"抓 N 秒"才用）** —— 抓 N 秒后自己停，产出 `summary.md`/`summary.json`。
 
 ```bat
 python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM247,COM98 --sec 40
 ```
 
-> ⚠️ `--sec` **不要超过 45**。命令执行器单次上限约 60 秒，超了父进程被掐、exe 被连带杀掉（会抓到一半数据但没有 `result.json`）。要抓更久 → 用模式 A，或者拆多次 `--sec 40`。
+> ⚠️ `--sec` **不要超过 45**。命令执行器单次上限约 60 秒，超了父进程被掐、exe 被连带杀掉（会抓到一半数据但没有 `result.json`）。要抓更久 → 用模式 A。
 
-退出码：`0` 成功 · `2` 工具不可用 / 启动失败 · `3` 全 0 字节或没有实例 · `4` 参数错误。
+退出码：`0` 成功 · `2` 工具不可用 / 启动失败 · `3` 抓完了但所有目标 0 字节 · `4` 参数错误。
+`3` **不等于串口坏了**：口能打开、没有 `last_error`，多数就是那段时间设备没输出（见"0 字节怎么处理"）。
 
 ## 参数
 
@@ -152,7 +172,7 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 | `--list-jlink` | 看 DLL 版本 / 插了几台 / 支持芯片名 | — |
 | `--baud` | 统一波特率 | `115200` |
 | `--mode` | `text` / `hex` | `text` |
-| `--sec` | 定时抓多久（秒），**≤45** | `60` |
+| `--sec` | 定长抓取时长（秒），**≤45**；**不填就是常驻抓取** | 不填 = 常驻 |
 | `--out` | 定时模式的输出目录 | `<workspace>\serial_logs\<时间戳>` |
 | `--live-dir` | 常驻模式的日志目录 | `<workspace>\serial_logs\live` |
 | `--instance` | 常驻实例名 | `live` |
@@ -169,9 +189,9 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 
 命令执行器把子进程放进 **kill-on-close 的 job**，命令一结束 exe 就被连带杀掉。所以 `--launch` 走的是：
 
-1. 生成 **GBK 编码**的 `launch_live.bat`（放在工具目录）—— cmd 按 GBK 解析 bat，**用 UTF-8 写的中文路径会变乱码，exe 静默启动失败**，现象是 schtasks 返回成功但进程根本不存在；
-2. `schtasks /create + /run` 由计划任务启动 exe —— 它不属于我们的 job，能跨命令存活；
-3. 轮询 `status.json` 等到 `state=running` 再返回。
+1. 生成 `launch_live.bat`（放在工具目录）—— **编码必须跟系统 ACP 走**（`GetACP()`：65001→UTF-8，其他→GBK）。写死 GBK 的旧做法在这类 UTF-8 系统上会：中文 exe 路径变乱码 → `start` 返回 1 → 计划任务 `Last Result=1` → `status.json` 不生成 → 脚本只报「启动失败」；
+2. `schtasks /create + /run` 由计划任务启动 exe —— 它不属于我们的 job，能跨命令存活。这两步的 std 句柄要指向 **NUL**，否则被拉起的 exe 会继承调用方 stdout 一直不关，调用方只能拿到空输出（`_task_ok_silent`）；
+3. 轮询 `status.json` 等到 `state=running` 再返回；起不来看 `format_launch_diag()` 打出的 ACP / bat / Last Result。
 
 停止走 `taskkill /PID <status.json 里的 pid>`，只杀这一路，不动用户手动开的窗口。实例名不同（`--instance`）就能并存多份。
 
@@ -182,7 +202,25 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 - target 里 `iface` 区分输入：`serial` / `rtt`。RTT 还有 `chip`（芯片）、`speed_khz`（J-Link 速率）、`rtt_ch`（通道）、`rtt_addr`（找到的控制块地址，`0x...`；空=自动搜）。
 - `summary.md` 的表里「接口」列会标 RTT 还是串口，RTT 的端口列显示 `RTT <芯片> chN`。
 - **常驻模式刚启动的那几十秒 `current_size` / 文件大小可能还是 0** —— 工具是带缓冲写的，缓冲攒够了才落盘。别据此说"没抓到"，看 `status.json` 的 `bytes` 才准。
-- 某一路 `bytes=0` 时脚本会单独列出并给排查顺序，**不要说"工具坏了"**：串口先换波特率复测；RTT 先看芯片名和 SEGGER_RTT 有没有被调用。
+- `--status` 里 0 字节的口会标 `← 暂未输出（口已打开，正常，等它出流）`，有 `last_error` 才会标报错 —— **按标注如实回话，别把 0 字节说成串口有问题**。
+
+## 0 字节怎么处理（重要：多数不是故障）
+
+一个口 `connected=true`、`last_error` 为空、`bytes=0`，**串口本身就是好的**，只是这段时间设备没往这个口打印。典型情况：
+
+- 这个口本来就是事件触发的（有动作/有报文才输出），空闲时安静是正常的；
+- 设备还没跑到出日志的阶段（等上电、等自检、等上层服务起来）；
+- 设备侧日志开关没打开；
+- 设备在等某个触发（按键、CAN 唤醒、发一条指令）。
+
+所以：**先如实告诉用户"这个口已连接、当前暂无输出"**，让常驻抓取继续盯着，不要反复换波特率耗时间。
+
+只有这个口**本该一直有大量输出**时才排查：
+1. 波特率和设备不一致（921600 / 460800 / 115200 / 3000000 轮着试 —— 换波特率是**重开这一路常驻抓取**，不是短抓）；
+2. 被 QCOM / SSCOM / WindTerm / 上位机占着（`last_error` 会写「访问被拒绝」）；
+3. 线序 / 口选错（`--list-ports` 对照设备管理器里的口名）。
+
+RTT 的 0 字节另算：先看芯片名和 `SEGGER_RTT_Write/printf` 有没有被调用。
 
 ## 踩过的坑（实测）
 
@@ -190,10 +228,13 @@ python "<此 SKILL.md 所在目录>\scripts\capture_serial_log.py" --ports COM24
 2. **exe 被删了重跑同一条命令**：本地找不到会自动从飞书重新拉。
 3. **只认本工具**（v3.9 起叫 `日志抓取.exe`，v3.8 及以前叫 `串口日志抓取.exe`），支持 `/run /targets /sec /headless /rtt /chip /speed /rttch /rttrange /jlink /sn /rtkhost…` 这套命令行。工作区里旧的 `抓取日志_tool\dist\抓取日志.exe` 是另一个 GUI 版，**不认这些参数**（实测静默退出无输出），已从候选里剔除，别捡回来。
 4. **串口被占用**（QCOM / SSCOM / WindTerm / 上位机）：工具一直重试，`last_error` 写「访问被拒绝」，`bytes=0`。先关掉占用工具。
-5. **COM247 长期 0 字节**：2026-11-10 实测 57600 / 115200 / 230400 / 460800 / 921600 / 1500000 / 3000000 **全部无输出**、口能正常打开 → 设备侧这个口当前没有日志流，不是波特率也不是工具问题。如实告诉用户，别反复换波特率耗时间。
+5. **0 字节 ≠ 串口坏了**：`connected=true` + 无 `last_error` 的口，多半只是设备当前没输出（见上一节）。2026-11-10 实测 COM247 在 57600～3000000 全档位都无输出、口能正常打开，就是设备侧这会儿没日志流。如实说明，别反复换波特率。
 6. **RTT 打不开 ≠ 工具坏了**：`J-Link 打不开` 多是被 `rtt_t2` / JLinkRTTViewer / Keil / JFlash 占着（DLL 一个进程只能连一个仿真器）；`emulators=0` 是仿真器没插或驱动没装。`--list-jlink` 一次就能看出来。
 7. **RTT 芯片名写错**会直接失败：必须和 J-Link 支持列表（`--list-jlink` 的 `chips_hint`）一字不差，大小写也别改。
 8. **用 `subprocess` 直接拉 exe**，不要 `start /wait`（`/headless` 下中文路径会报「拒绝访问」）。
+9. **bat 编码必须跟系统 ACP 走，不能写死 GBK**（2026-11-16 实测踩到）：cmd 按**系统 ANSI 代码页**解析 bat。机器开了「使用 Unicode UTF-8 提供全球语言支持」时 ACP=65001，GBK 写的中文 exe 路径会变乱码，`start` 返回 1 —— 现象是计划任务 `Last Result=1`、`status.json` 根本没生成、脚本只报「启动失败」。脚本现在用 `GetACP()` 自选编码（65001→UTF-8，其他→GBK），`--launch` 失败时会打印 ACP / bat 是否存在 / 计划任务 Last Result，先看这三样再动手。
+10. **常驻启动成功后调用方拿不到输出**（2026-11-16 修）：`schtasks /create|/run` 起的 cmd→bat→exe 会继承调用方的 stdout 句柄并一直握着，命令执行器读不到任何输出，只看到一条空结果（其实是成功了）。所以拉进程的那两步必须走 `stdout/stderr=DEVNULL`（脚本里的 `_task_ok_silent`），别再改回 `capture_output=True`。
+11. **`--launch` 会先停旧实例**：同一个口不能被两个进程打开，旧实例会被 `taskkill` 掉，日志按新时间戳重新开文件（旧文件保留，不丢数据）。
 
 ## 工具从哪来
 
