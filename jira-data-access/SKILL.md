@@ -1,6 +1,6 @@
 ---
 name: jira-data-access
-description: 提供JIRA系统数据访问和处理能力，支持通过JQL或JIRA搜索URL查询缺陷数据，进行过滤、排序、统计，并生成标准化的DOCX缺陷报告。当用户需要查询JIRA缺陷、生成缺陷报告或分析JIRA数据时使用此技能。
+description: 提供JIRA系统数据访问和处理能力，支持通过JQL或JIRA搜索URL查询缺陷数据，进行过滤、排序、统计，并生成标准化的DOCX缺陷报告；也支持建单/改单/加备注，并在附件超过 JIRA 单附件上限（500MB）时改放移远网盘、再把网盘路径写进备注。当用户需要查询JIRA缺陷、生成缺陷报告、提交/更新JIRA问题或分析JIRA数据时使用此技能。
 agent_created: true
 disable: false
 ---
@@ -148,10 +148,56 @@ print("已创建：", key)   # 如 'IKQDM551EA-700'
 - `description`：描述，映射到本实例的「BUG描述」字段（`customfield_10244`）。
 - `fields`：其它自定义字段字典；`key` 可为 `customfield_XXXXX` 或中文名称；`value` 对选项型字段可为**选项 ID**或**中文 label**，级联选择用 `[父, 子]`，多选用 list。
 - `assignee`：处理人邮箱；`priority` / `components`：label 或 id。
-- `attachments`：本地附件文件路径列表（自动上传并挂接）。
+- `attachments`：本地附件文件路径列表（自动上传并挂接）。**注意 JIRA 单附件上限 500MB**，超过的单文件不要塞进 `attachments`，按第 8 节「附件分流」走移远网盘 + 备注。
 - `links`：关联问题列表，每项 `{"type":"blocks","key":"..."}`。
 
 **缺数据怎么办（与历史 JIRA 对齐）**：当调用方只给了部分字段时，可先用 `JIRAClient.get_issue_raw_fields(某历史问题Key)` 读取同类历史问题的原始字段（含选项 ID），借鉴其默认值（如 问题归属 / BUG严重等级 / 模块 / 处理人等），再与用户确认缺失或存疑项，最后补全并创建。
+
+### 8. 附件分流：JIRA 放不下就放移远网盘（路径由调用方提供）
+
+JIRA 单文件附件有硬上限（本实例 `GET /rest/api/2/attachment/meta` 返回 `uploadLimit = 524288000`，即 **500MB**）。
+现场日志动辄十几 GB，硬传只会 400 或超时，所以要**先分流再上传**。
+
+**规则（必须遵守）**
+
+1. **先分流**：逐个文件按体积判断。`<= uploadLimit` 的照常传 JIRA；`> uploadLimit` 的一律不传 JIRA。
+2. **超限文件走移远网盘**：压缩打包后放到调用方指定的网盘目录。`qdisk_path` 是**必填参数**，
+   不同项目 / 部门 / 批次路径都不同（例：`部门文件/IKOTEK/<部门层级>/05_测试log/<项目>`），
+   **禁止在 skill 或代码里写死任何具体路径**；调用方没给路径时应当报错要求补充，而不是猜。
+3. **必须写备注**：网盘上传完成、并核对线上文件（名称 / 大小与本地一致）之后，在该问题上加备注，
+   写清**完整网盘路径 + 直链（若有）+ 文件清单 + 解压说明**，让开发自己就能找到。
+4. **上传方式**：`qdisk-quectel` skill 目前只有下载能力（auth / ls / tree / download），
+   上传走移远网盘网页端（浏览器工具）。大文件按 **2~2.5GB 分卷**，命名带 `part01/02/...`，
+   备注里说明"全部解压到同一目录即可还原"。
+
+**一步到位（推荐入口）**
+
+```python
+from scripts.jira_client import attach_or_defer
+
+res = attach_or_defer(
+    account="venus.li@ikotek.com", password="...",
+    issue_key="QDM562EA-353",
+    paths=[r"E:\logs\开关机日志_脚本与串口.zip", r"E:\logs\模组_part01.zip", r"E:\logs\模组_part02.zip"],
+    qdisk_path="部门文件/IKOTEK/<部门层级>/05_测试log/<项目>",      # 必填，按项目给，不写死
+    qdisk_link="https://qdisk.quectel.com/dept/list?folderId=xxxx",  # 可选，写进备注
+    extra_note="6 个分卷解压到同一目录即可还原完整日志目录结构。",
+)
+# 返回：{"uploaded": [...], "deferred": [...], "comment_id": "406037", "limit": 524288000}
+```
+
+**分步 API**（需要自己控制顺序时）
+
+```python
+client.get_attachment_limit()            # 实时探测上限，探测失败回退 500MB
+client.upload_attachments(key, paths)    # 只把放得下的文件传 JIRA
+client.add_comment(key, body)            # 只写备注
+build_disk_comment(qdisk_path=..., files=[...], link=..., note=...)  # 生成"数据在网盘"的备注正文
+```
+
+> 若本地环境根本没有 JIRA 上传权限（或想让全部数据都放网盘），传 `upload_to_jira=False`，全部按网盘处理。
+> 缺 `qdisk_path` 而存在超限文件时会抛 `ValueError`，提示补路径——这是刻意设计，避免把数据丢到错误目录。
+
 
 ### 6. 三份报告 + AI 分析备注（推荐入口：export_three_reports）
 - 一次调用同时产出三份 DOCX 报告：
@@ -377,8 +423,8 @@ statistics = processor.get_statistics()
 
 ### scripts/
 - `jira_client.py`：JIRA客户端核心实现，包含所有功能接口
-  - `JIRAClient`：登录与会话管理；`query_by_jql` / `query_by_url` 查询问题列表（HTML，旧）；`search_issues` 分页拉全部列表（REST，推荐）；`get_issue_detail` 访问单个问题详情；`fetch_complete_dataset` 两阶段拉取完整数据集（并发）；**`create_issue` 创建 JIRA 问题（含附件上传，支持 `draft=True` 只读草稿）**；`build_create_draft` 生成只读创建草稿（创建前必须先用它征得确认）；`update_issue` 编辑已有问题（REST PUT）；`get_create_meta` 获取创建元数据（字段 schema + 选项 ID）；`_get_create_form_tokens` 取创建表单令牌；`upload_attachment_temp` 上传附件到临时区；`get_issue_raw_fields` 读取历史问题原始字段（借鉴默认值）
-  - 模块级：`create_issue` / `create_issue_draft` / `update_issue`（快捷入口，自动登录）；`build_bug_summary` / `build_bug_description`（按历史测试 JIRA 版式生成标题/描述）
+  - `JIRAClient`：登录与会话管理；`query_by_jql` / `query_by_url` 查询问题列表（HTML，旧）；`search_issues` 分页拉全部列表（REST，推荐）；`get_issue_detail` 访问单个问题详情；`fetch_complete_dataset` 两阶段拉取完整数据集（并发）；**`create_issue` 创建 JIRA 问题（含附件上传，支持 `draft=True` 只读草稿）**；`build_create_draft` 生成只读创建草稿（创建前必须先用它征得确认）；`update_issue` 编辑已有问题（REST PUT）；`get_create_meta` 获取创建元数据（字段 schema + 选项 ID）；`_get_create_form_tokens` 取创建表单令牌；`upload_attachment_temp` 上传附件到临时区；`get_issue_raw_fields` 读取历史问题原始字段（借鉴默认值）；**`get_attachment_limit` 实时探测单附件上限（兜底 500MB）**；**`upload_attachments` 把放得下的附件传到已有问题**；**`add_comment` 加备注**；**`attach_or_defer` 附件分流（超过上限的走移远网盘并自动写备注，`qdisk_path` 必填）**
+  - 模块级：`create_issue` / `create_issue_draft` / `update_issue`（快捷入口，自动登录）；`build_bug_summary` / `build_bug_description`（按历史测试 JIRA 版式生成标题/描述）；**`add_comment` / `attach_or_defer`**（备注与附件分流的快捷入口）；**`build_disk_comment`**（生成"数据在移远网盘"的备注正文，路径由调用方传入，无默认值）
   - `JIRACompleteDataset`：完整数据集的 JSON 存取、统计分析与字段匹配（基于已拉取数据，不访问 JIRA）
   - `JIRADataProcessor`：列表数据的过滤、排序、统计
   - `DocxReportGenerator`：DOCX 报告生成（支持列表报告、单问题详情、完整数据集报告）
