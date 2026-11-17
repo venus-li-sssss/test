@@ -32,6 +32,10 @@ except ImportError:
     DOCX_SUPPORTED = False
     print("⚠️  DOCX功能未启用，请安装python-docx库：pip install python-docx")
 
+# JIRA 单附件上限兜底值（本实例 /rest/api/2/attachment/meta.uploadLimit = 524288000，即 500MB）。
+# 运行时会用 get_attachment_limit() 实时探测，探测失败才用这个兜底。
+JIRA_ATTACH_LIMIT_DEFAULT = 524288000
+
 def _has_status_clause(jql):
     """粗略检测 JQL 中是否已经包含 status 相关条件（避免重复注入）。"""
     if not jql:
@@ -905,6 +909,102 @@ class JIRAClient:
         if resp.status_code != 200:
             raise Exception(f"获取问题 {issue_key} 详情失败: {resp.status_code}")
         return resp.json().get("fields", {})
+
+    # ------------------------------------------------------------------
+    # 附件分流：JIRA 放不下 → 移远网盘（网盘路径由调用方传入，不做任何写死）
+    # ------------------------------------------------------------------
+    def get_attachment_limit(self, default=JIRA_ATTACH_LIMIT_DEFAULT):
+        """取 JIRA 单附件上限（字节）。接口不可用时回退 default（本实例默认 500MB）。"""
+        try:
+            resp = self.session.get(f"{self.base_url}/rest/api/2/attachment/meta",
+                                    headers={"Accept": "application/json", "Accept-Language": "zh-CN"},
+                                    timeout=30)
+            if resp.status_code == 200:
+                lim = resp.json().get("uploadLimit")
+                if lim:
+                    return int(lim)
+        except Exception:
+            pass
+        return int(default)
+
+    def add_comment(self, issue_key, body):
+        """给问题加一条备注（POST /rest/api/2/issue/{key}/comment），返回 comment id。"""
+        if not self.is_logged_in:
+            if not self.login():
+                raise Exception("JIRA登录失败")
+        resp = self.session.post(
+            f"{self.base_url}/rest/api/2/issue/{issue_key}/comment",
+            json={"body": body},
+            headers={"Content-Type": "application/json",
+                     "X-Atlassian-Token": "no-check",
+                     "Referer": f"{self.base_url}/browse/{issue_key}"},
+            timeout=60)
+        if resp.status_code not in (200, 201):
+            raise Exception(f"加备注失败，状态码: {resp.status_code} - {resp.text[:300]}")
+        return resp.json().get("id")
+
+    def upload_attachments(self, issue_key, paths):
+        """把本地文件作为附件直接挂到已有问题（POST /rest/api/2/issue/{key}/attachments）。"""
+        if not self.is_logged_in:
+            if not self.login():
+                raise Exception("JIRA登录失败")
+        files, handles = [], []
+        try:
+            for p in paths:
+                fh = open(p, "rb")
+                handles.append(fh)
+                files.append(("file", (os.path.basename(p), fh)))
+            resp = self.session.post(
+                f"{self.base_url}/rest/api/2/issue/{issue_key}/attachments",
+                files=files,
+                headers={"X-Atlassian-Token": "no-check",
+                         "Referer": f"{self.base_url}/browse/{issue_key}"},
+                timeout=600)
+        finally:
+            for fh in handles:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+        if resp.status_code not in (200, 201):
+            raise Exception(f"附件上传失败，状态码: {resp.status_code} - {resp.text[:300]}")
+        return resp.json()
+
+    def attach_or_defer(self, issue_key, paths, qdisk_path=None, qdisk_link=None,
+                        extra_note=None, limit=None, upload_to_jira=True):
+        """
+        附件分流核心规则：单文件 <= JIRA 单附件上限 → 直接传 JIRA；
+        超过上限（JIRA 放不下）→ 不上传 JIRA，改放移远网盘，并在问题里加备注说明位置。
+
+        :param paths: 本地文件路径列表
+        :param qdisk_path: 移远网盘目录路径。只要存在超限文件就必填，
+                           路径因项目/部门/批次而异，必须由调用方给出，禁止默认写死。
+        :param qdisk_link: 可选，网盘目录直链，写进备注便于开发直接点开。
+        :param extra_note: 可选，备注补充说明（如解压方式、目录结构）。
+        :param limit: 可选，覆盖自动探测的单附件上限（字节）。
+        :param upload_to_jira: False 时全部视为需放网盘（用于本地环境没有 JIRA 上传权限等场景）。
+        :return: dict(uploaded=[...], deferred=[...], comment_id=..., limit=int)
+        """
+        paths = [p for p in (paths or []) if os.path.isfile(p)]
+        lim = int(limit or self.get_attachment_limit())
+        if upload_to_jira:
+            small = [p for p in paths if os.path.getsize(p) <= lim]
+            big = [p for p in paths if os.path.getsize(p) > lim]
+        else:
+            small, big = [], list(paths)
+        comment_id = None
+        if small:
+            self.upload_attachments(issue_key, small)
+        if big:
+            if not qdisk_path:
+                raise ValueError(
+                    "存在超过 JIRA 单附件上限（%.1fMB）的文件，需传入 qdisk_path（移远网盘目录路径）"
+                    % (lim / 1048576))
+            body = build_disk_comment(qdisk_path=qdisk_path, files=big,
+                                      link=qdisk_link, note=extra_note)
+            comment_id = self.add_comment(issue_key, body)
+        return {"uploaded": small, "deferred": big,
+                "comment_id": comment_id, "limit": lim}
 
     # ------------------------------------------------------------------
     # 完整数据集获取（先取全部JIRA列表，再逐个取详细数据）
@@ -2108,6 +2208,33 @@ def export_complete_dataset(account, password, jql, output_dir=".", version="",
 DEFAULT_TEST_TAG = "ST[QDM_551][OTA]"
 
 
+def build_disk_comment(qdisk_path, files, link=None, note=None):
+    """
+    构造「原始数据在移远网盘」的备注正文。
+    qdisk_path 必须由调用方给出（不同项目/部门/批次路径不同），本函数不提供默认路径。
+
+    :param qdisk_path: 网盘目录路径，如 '部门文件/IKOTEK/.../05_测试log/QDM562'
+    :param files: 网盘上的压缩包本地副本路径列表（仅用于列文件名/体积）
+    :param link: 可选，网盘目录直链
+    :param note: 可选，补充说明（解压方式、目录结构等）
+    """
+    files = [f for f in (files or []) if os.path.isfile(f)]
+    total = sum(os.path.getsize(f) for f in files)
+    lines = ["原始数据体积超过 JIRA 单附件上限，已打包放到移远网盘，后续请按下面路径取：",
+             f"网盘路径：{qdisk_path}"]
+    if link:
+        lines.append(f"网盘链接：{link}")
+    if files:
+        lines.append("")
+        lines.append(f"文件（{len(files)} 个，共 {total / 1073741824:.2f}GB）：")
+        for i, f in enumerate(files, 1):
+            lines.append(f"{i}) {os.path.basename(f)}（{os.path.getsize(f) / 1048576:.1f}MB）")
+    if note:
+        lines.append("")
+        lines.append(str(note).strip())
+    return "\n".join(lines)
+
+
 def _as_lines(x):
     if x is None:
         return []
@@ -2216,6 +2343,29 @@ def update_issue(account, password, issue_key, description=None, summary=None,
     return client.update_issue(
         issue_key, description=description, summary=summary, assignee=assignee,
         fields=fields, project_key=project_key, issuetype_name=issuetype_name)
+
+
+def add_comment(account, password, issue_key, body):
+    """给问题加备注的快捷入口，返回 comment id。详见 JIRAClient.add_comment。"""
+    client = JIRAClient(account, password)
+    if not client.login():
+        raise Exception("JIRA登录失败")
+    return client.add_comment(issue_key, body)
+
+
+def attach_or_defer(account, password, issue_key, paths, qdisk_path=None,
+                    qdisk_link=None, extra_note=None, limit=None, upload_to_jira=True):
+    """
+    附件分流快捷入口：JIRA 放得下就直接传附件，放不下就转移远网盘并加备注。
+    qdisk_path（移远网盘目录路径）必须由调用方提供，因项目/部门/批次而异，禁止写死。
+    详见 JIRAClient.attach_or_defer。
+    """
+    client = JIRAClient(account, password)
+    if not client.login():
+        raise Exception("JIRA登录失败")
+    return client.attach_or_defer(
+        issue_key, paths, qdisk_path=qdisk_path, qdisk_link=qdisk_link,
+        extra_note=extra_note, limit=limit, upload_to_jira=upload_to_jira)
 
 
 # 示例使用
