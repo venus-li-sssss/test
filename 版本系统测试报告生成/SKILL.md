@@ -122,8 +122,70 @@ BLOCK 的取值：全是 `Blocked-NonSupport` → `Blocked-NonSupport`，否则 
 ## 前置条件
 
 - 历史报告必须是**同组织基线模板**的 SystemTestReport（Sheet 名与列结构一致），否则 `build_report.py` 找不到锚点
+- ⚠️ **底稿要先确认「只含本项目版本」**：组织基线模板里常混着别的项目的版本数据（QDM559 的 V01/V11/V20、
+  QDM522 的 V04、QDM565 的 V01/V04 …）。这些**不能只隐藏，要删掉**（用户 2026-11-18 明确要求），
+  否则报告里会一直躺着别的项目的数据。迭代前先跑一次 `scripts/purge_versions.py`（见下「清掉模板残留」）。
 - JIRA 取数依赖工作区里的 `jira-data-access` skill（`scripts/jira_client.py`），账号在配置里给
 - 本机要有 Excel（`excel_check.py` 用 COM 做「能否无修复提示打开」的验证）；没有就跳过该步
+
+## 清掉模板残留（`scripts/purge_versions.py`，2026-11-18 新增）
+
+历史报告从别的项目迭代过来时，会带着**不属于本项目的版本数据**。把它们物理删除（不是隐藏），
+产出一份「只含本项目版本」的干净底稿，再用它跑 `build_report.py`：
+
+```
+python "<skill目录>/scripts/purge_versions.py" --config "<configs/purge_xxx.json>"
+```
+
+```json
+{ "base_report": "…763 报告.xlsx",
+  "out_report":  "…_base_763_clean.xlsx",
+  "keep": ["763"],                                        // 要保留的版本（列组名/矩阵行名/压力组版本）
+  "foreign_tokens": ["QDM522","QDM559","QDM565","EC800M"],// 测试计划块里出现这些串就整块删
+  "plan_keep_last": 0,
+  "cell_fixes": { "常规压力": { "E10": "QDM562平台IOT升级压力_V06.py" } } }  // 手工改个别残留单元格
+```
+
+处理四个 Sheet：**常规功能**（每版本 4 列，表头「<ver>测试结果」）、**摘要**（每版本 2 行，B 列是版本名）、
+**测试计划**（含 foreign_tokens 的整块）、**常规压力**（每版本 7 列，表头「测试版本」）。
+
+⚠️ **openpyxl 的 `delete_rows`/`delete_cols` 有三个坑**（这脚本已经绕过，别再手写）：
+1. **隐藏标记不跟着走** —— 删完行后原 27~46 的 `hidden=True` 还钉在 27~46 上，搬上来的数据全被藏住；
+   列同理。所以删行一律改成「整块上移」（`grab`/`put`/`clear`），删列后要显式把 `column_dimensions` 的
+   `hidden` 清成 False。
+2. **合并区不跟着走** —— 必须先 `grab`（连合并一起抓）**再** unmerge，顺序反了合并就丢了（B47:B48、C50:G50 全没）；
+   删列同理：`delete_cols_keep()` 会先记下全部合并、删完按列映射重建（右侧整体左移、跨界的两头裁），
+   **不要**直接 `unmerge_from(ws, 1)` 图省事——那样常规功能 B 列分区合并、常规压力 `C10:C13「升级」` 会全丢，
+   表现是「测试项/功能项只写在首行，下面一片空白」。
+3. **超链接会残留成脏格子** —— 图例搬走后会在原位置留下只有 `hyperlink.location` 字符串的格子
+   （表现为 `B51="'测试指南'!A1"`），要显式清掉。
+删完脚本会做一次全表关键字扫描（QDM522/559/565…），输出「残留外来项目关键字：无」才算干净。
+另外还会 `prune_cols()` 删掉内容区之外的 `<col>` 定义，否则 Excel 的 UsedRange 一直延伸到 AC/BK。
+
+### 格式三连坑（2026-11-18 实战，改完一定做「逐格样式比对」）
+
+`build_report.py` / `purge_versions.py` 改完，**用脚本把新版本组和上一版本组逐格比
+font/color/fill/align/border**，能一眼揪出下面这些（用户看图会直接说「格式全乱了」）：
+
+| 症状 | 根因 | 修法 |
+|---|---|---|
+| 「功能点测试」绿条变白条、与表头粘连 | 标题条样式从合并区里的**空单元格**（D2/F2）抄的，绿底/粗体/底边框全丢 | 样式源必须是 **B2**；`gf_title_merge` 与 `purge_gf` 都改成从 B2 取 |
+| 压力组新行没边框、字号不对（"裸格"） | 只给本轮**有数据**的行套了样式，空行还是默认格式 | 整组 9..max_row 全部 `cp_style`；且**必须在写值和 `paint()` 之前**做，否则 FAIL 红字被刷黑 |
+| 压力某行永远是裸格 | 上一版本组里这一行本身就没跑过（如 763 的组合升级），它的样式也是空的 | `pressure_style_from: {"12": 13}` 借同组另一行的样式 |
+| 测试计划块最后一行没边框/字体不对 | 样式源写死 `start-6+i`，在"只剩一个块"的底稿上会取到块外的空行 | 改成 `plan_style_from`，默认 `start - len(plan)`（上一块首行） |
+
+## 列组落位（`gf_col_start` / `pressure_col_start`）
+
+`build_report.py` 原来把新列组写死在 `26-29`（常规功能）/`57-63`（常规压力），现在按 config：
+新列组 = `<start>..<start+3>`，样式从**前一版本组的 4 列**（`start-4`）抄。
+
+| 轮次 | 底稿状态 | gf_col_start | pressure_col_start | 测试计划 plan_start_row | 摘要新行 |
+|---|---|---|---|---|---|
+| 763（首轮，从 QDM559 底稿迭代） | 6 组版本列 | 26（Z:AC） | 57（BE:BK） | 18 | 47/48（图例 50） |
+| 765（先 purge 掉外来版本） | 只剩 763 一组 | 10（J:M） | 15（O:U） | 13 | 29/30（图例 32） |
+
+配套 hide 段（765 实例）：`常规功能 cols ["F:I"]`、`摘要 rows [27,28] + unhide_rows [29,30,32..38]`、
+`测试计划 rows [6..12] + unhide_rows [13..19]`、`常规压力 cols ["H:N"] + unhide_rows [12]`。
 
 ### Execution
 
@@ -290,6 +352,9 @@ hide          {<Sheet>: {cols:[...], rows:[...], unhide_rows:[...]}}
               本轮有数据要显示的行必须列进 unhide_rows，否则生成后仍是隐藏的。
 summary       {matrix:[7 个结果], text:"8 点测试小结全文"}
 plan          [{item, count, manpower, status, remark}]                  测试计划本版本块
+              ⚠️ **remark 规范**：只在 status=FAIL 的行写 JIRA，且**只写一个最严重的**（A-Critical > B-Major > C-Normal），
+              格式：`QDM562EA-353\nST[QDM_562][开关机]平台上下电压力测试，上电后设备未连接平台超时判定FAIL；期望上电后正常连接平台并上线；小概率`。
+              PASS 行的 remark 留空或写简短说明（如"定位精度/轨迹精度/静态挂测 Blocked，等新整车复测"）。
 jira          {account, password, jql, bug_keys, scripts_dir, project_label}
               bug_keys 优先：问题统计表是**人工维护的清单**，直接给 Bug 号列表最稳。
               不写 bug_keys 才退回 jql 搜索，但 search_issues 默认会注入 status != ST_Closed，
@@ -328,7 +393,7 @@ platform      {enabled, env, out_dir, do, jira_url, jira_timeout, overrides, def
 - **结果字色要按值重刷**：历史报告里 FAIL=红字（摘要矩阵还加粗）、PASS=蓝字加粗（仅摘要矩阵）、BLOCK=黑字加粗。样式是从旧列组抄来的，**值变了颜色不会跟着变**（会出现「FAIL 却显示蓝色」），所以写完值要按结果重设字体色。
 - **两张表之间的空行必须把框线也清掉**：搬走图例块后，原来被图例占用的行只剩「值被清空、框线还在」，那条分隔空行带着框线就会把「功能项矩阵」和「图例表」连成一张表。做法：动手前先存一份**原空白分隔行的样式**（无框线），搬完后把它刷到新的分隔空行上。
 - **测试小结（摘要!C19）是富文本**：`2. 测试结果判定` 的值和 `3. 测试风险` 下的各条是**红字 FFFF0000**，其余黑字。用 `CellRichText(*[TextBlock(InlineFont(sz=10, rFont="微软雅黑", color=Color(rgb=c)), s) for c, s in runs])` 写。⚠️ **openpyxl 读回富文本会拍平成纯文本** —— 所以任何「再 load/save 一次」的后续步骤（如补路测图片）都会把红字丢掉，必须在保存前**把富文本重新写一遍**（`road_test.py` 里就是这么补的）。
-- **引用 JIRA 必须「号 + 内容」完整**：`QDM559EA-106\nST[QDM_559][OTA]组合升级压测失败，期望升级成功，小概率`。只写一个 Bug 号（如备注列只写 `QDM559EA-106`）会被打回；常规功能原因列、测试计划备注、常规压力备注、问题统计表都要带完整描述。
+- **引用 JIRA 必须「号 + 内容」完整**：`QDM559EA-106\nST[QDM_559][OTA]组合升级压测失败，期望升级成功，小概率`。只写一个 Bug 号（如备注列只写 `QDM559EA-106`）会被打回；常规功能原因列、**测试计划备注（只写一个最严重的 JIRA）**、常规压力备注、问题统计表都要带完整描述。
 - **`摘要` 图例块位置**：新版本两行占 `legend_start-1` / `legend_start`（`legend_start` = B 列值为「Sheet名称」的那行），图例块必须整块下移到 `legend_start+2` 开始。若写成「接在原图例块后面」，会多空出一段、used range 变大。
 - **摘要图例块**：先把整块（含 `cell.hyperlink.location`）读出来、清空、再写到新行并重建合并且**把超链接配对回对应文字行**；只搬 value 会让链接错行，还会把链接的 location 字符串写进单元格值。
 - **样式保真**：新列组/新行一律 `copy.copy(src_cell._style)` 从对应旧列组/旧行抄，同时抄列宽（`ws.column_dimensions`）。不要用文字描述颜色。
@@ -354,6 +419,7 @@ platform      {enabled, env, out_dir, do, jira_url, jira_timeout, overrides, def
 - **压力数据可以来自「记录.txt」**（用户口述格式：项目名+设备号+运行时间区间+次数/PASS/FAIL/ERR/PASS RATE+
   关联 bug 号）：整理成 `pressure` 的 7 元组 [测试版本,测试设备,时长/次数,结果,统计,测试人,备注]，
   行名对不上本项目时用 `pressure_relabel` 改左侧标签；备注里的 JIRA 必须「号+完整描述」。
+  **压力 FAIL 行的备注字体标红**（`build_report.py` 自动处理：`vals[3] == "FAIL"` 时把 `pstart+6` 列字体色设成 `FFFF0000`）。
   没跑的行进 `hide.rows`，本轮有数据的行记得 `unhide_rows`（底稿继承的隐藏态只加不减）。
 - 交付前一定用**真实 Excel** 打开一次（`excel_check.py`），确认 8 个 Sheet 都在、没有「修复」提示。
 

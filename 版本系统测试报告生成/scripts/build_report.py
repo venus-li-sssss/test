@@ -263,25 +263,31 @@ def main():
         ws.cell(row=r, column=3).value = spec.get("num")
         ws.cell(row=r, column=4).value = spec.get("content")
         ws.cell(row=r, column=5).value = spec.get("priority")
+    # 新版本列组的起始列：历史 763 轮是 26（Z:AC），765 轮从其下一组 30（AD:AG）开始；
+    # 源列固定取「前一组的 4 列」（gf_start-4 .. gf_start-1）
+    gf_start = int(cfg.get("gf_col_start") or 26)
     for r in range(3, last_row + 1):
         for off in range(4):
-            cp_style(ws.cell(row=r, column=22 + off), ws.cell(row=r, column=26 + off))
-    ws.cell(row=3, column=26).value = "%s测试结果" % VER
-    ws.cell(row=3, column=27).value = "Blocked-NoRun原因"
-    ws.cell(row=3, column=28).value = "测试人员"
-    ws.cell(row=3, column=29).value = "Fail或者Block的原因"
+            cp_style(ws.cell(row=r, column=gf_start - 4 + off),
+                     ws.cell(row=r, column=gf_start + off))
+    ws.cell(row=3, column=gf_start).value = "%s测试结果" % VER
+    ws.cell(row=3, column=gf_start + 1).value = "Blocked-NoRun原因"
+    ws.cell(row=3, column=gf_start + 2).value = "测试人员"
+    ws.cell(row=3, column=gf_start + 3).value = "Fail或者Block的原因"
     for off in range(4):
-        src_col = ws.column_dimensions[get_column_letter(22 + off)].width
-        ws.column_dimensions[get_column_letter(26 + off)].width = src_col
+        src_col = ws.column_dimensions[get_column_letter(gf_start - 4 + off)].width
+        ws.column_dimensions[get_column_letter(gf_start + off)].width = src_col
 
     # 顶部标题条（「功能点测试」那一行）必须横跨整张表合并成一条，
     # 否则隐藏旧版本列之后中间断开，看起来像两张独立的表。
-    last_col = 26 + 3                       # 新列组的最后一列（AC）
+    last_col = gf_start + 3                 # 新列组的最后一列
     if cfg.get("gf_title_merge"):
         for m in [x for x in ws.merged_cells.ranges]:
-            if m.min_row == 2 and m.min_col >= 3:
+            if m.min_row == 2 and m.max_col > 2:      # 含上一轮从 B2 起头的那条整行合并
                 ws.unmerge_cells(str(m))
-        band = copy.copy(ws.cell(row=2, column=4)._style)   # 原合并带的样式
+        # ⚠️ 样式源必须是 B2（「功能点测试」那条绿底粗体），不能取合并区里的 C2/D2/F2——
+        #    那些格子是空样式，一刷绿底/粗体/底边框就全没了（表现为绿条变白条、和表头粘连）
+        band = copy.copy(ws.cell(row=2, column=2)._style)
         for c in range(3, last_col + 1):
             ws.cell(row=2, column=c)._style = copy.copy(band)
         ws.merge_cells(start_row=2, start_column=2, end_row=2, end_column=last_col)
@@ -331,12 +337,12 @@ def main():
             res, reason = aggregate(entries, spec.get("block_reason") or "")
         if spec.get("block_reason") and res and res.startswith("Blocked"):
             reason = spec["block_reason"]
-        ws.cell(row=r, column=26).value = res or None
-        ws.cell(row=r, column=27).value = reason or None
-        ws.cell(row=r, column=28).value = TESTER if res in ("PASS", "FAIL") else None
-        ws.cell(row=r, column=29).value = (force.get("fail_reason") or None) if res == "FAIL" else None
+        ws.cell(row=r, column=gf_start).value = res or None
+        ws.cell(row=r, column=gf_start + 1).value = reason or None
+        ws.cell(row=r, column=gf_start + 2).value = TESTER if res in ("PASS", "FAIL") else None
+        ws.cell(row=r, column=gf_start + 3).value = (force.get("fail_reason") or None) if res == "FAIL" else None
         if res:
-            paint(ws.cell(row=r, column=26), res)   # FAIL 红字，其余黑字
+            paint(ws.cell(row=r, column=gf_start), res)   # FAIL 红字，其余黑字
         # 分类（B 列）通常是竖向合并，值只在组首行 -> 向上找第一个非空
         cat = ""
         for rr in range(r, 2, -1):
@@ -355,8 +361,8 @@ def main():
             "subCases": spec.get("subCases") or []})
         print("  r%-3d %-22s -> %s %s" % (r, label[:22], res, reason[:24]))
     for r, spec in (cfg.get("gf_new_rows") or {}).items():
-        ws.cell(row=int(r), column=26).value = spec.get("result")
-        ws.cell(row=int(r), column=28).value = TESTER
+        ws.cell(row=int(r), column=gf_start).value = spec.get("result")
+        ws.cell(row=int(r), column=gf_start + 2).value = TESTER
         written["function"].append({
             "row": int(r), "sheetName": str(spec.get("sheet") or "常规功能"),
             "testNumber": str(spec.get("num") or ""), "testItem": str(spec.get("content") or ""),
@@ -401,13 +407,13 @@ def main():
             # 统一抄某一行的样式会把「Sheet名称」那行的黄色底纹和说明行的对齐/颜色弄丢
             legend.append((b.value, ws.cell(row=r, column=3).value,
                            b.hyperlink.location if b.hyperlink else None,
-                           [copy.copy(ws.cell(row=r, column=c)._style) for c in range(2, 9)]))
+                           [copy.copy(ws.cell(row=r, column=c)._style) for c in range(2, 10)]))
         lr_end = legend_start + len(legend) - 1
         for rng in [x for x in ws.merged_cells.ranges]:
             if rng.min_row >= legend_start and rng.min_col >= 3:
                 ws.unmerge_cells(str(rng))
         for r in range(legend_start, lr_end + 1):
-            for c in range(2, 9):
+            for c in range(2, 10):
                 ws.cell(row=r, column=c).value = None
         for r in range(m1, lr_end + 1):
             ws.cell(row=r, column=2).hyperlink = None
@@ -453,6 +459,14 @@ def main():
             if link:
                 ws.cell(row=rr, column=2).hyperlink = Hyperlink(ref="B%d" % rr, location=link)
             ws.merge_cells(start_row=rr, start_column=3, end_row=rr, end_column=7)
+        # 图例块加边框（搬过去后样式可能丢失）
+        if cfg.get("legend_border"):
+            from openpyxl.styles import Border, Side
+            thin = Side(style='thin')
+            border = Border(left=thin, right=thin, top=thin, bottom=thin)
+            for rr in range(new_start, new_start + len(legend)):
+                for c in [2, 3]:  # 只给 B 和 C 列加边框（C:G 已合并）
+                    ws.cell(row=rr, column=c).border = border
 
     # ---------------- 3. 测试计划
     plan = cfg.get("plan") or []
@@ -462,7 +476,9 @@ def main():
         start = int(cfg.get("plan_start_row") or 18)
         for i, p in enumerate(plan):
             r = start + i
-            src = start - 6 + i
+            # 样式源 = 上一版本块的第一行（默认 start - 块行数）；不能写死 start-6，
+            # 否则最后一行会取到空行，出现「FCT 那行没边框/字体不对」
+            src = int(cfg.get("plan_style_from") or (start - len(plan))) + i
             for c in range(2, 12):
                 cp_style(ws.cell(row=src, column=c), ws.cell(row=r, column=c))
             # 历史块里 版本/日期 用的是引用摘要的公式，照抄这个习惯
@@ -503,10 +519,13 @@ def main():
     new_keys = set(cfg.get("new_bugs") or [])
     NEW = [r for r in bug_rows if r[0] in new_keys]
     OLD = [r for r in bug_rows if r[0] not in new_keys]
+    # 等级分布口径：org 模板「缺陷数量统计」是统计**本版本新增**那一段（历史缺陷单列一行），
+    # 所以默认只算 NEW；要统计全部罗列缺陷就把 bug_count_scope 设成 "all"。
+    scope_rows = NEW if (cfg.get("bug_count_scope") or "new") == "new" else bug_rows
     ws.cell(row=7, column=3).value = len(NEW)
     ws.cell(row=8, column=3).value = len(OLD)
     for i, sev in enumerate(("A-Critical", "B-Major", "C-Normal", "D-Minor", "E-Enhancement")):
-        ws.cell(row=9 + i, column=3).value = sum(1 for r in bug_rows if r[2] == sev)
+        ws.cell(row=9 + i, column=3).value = sum(1 for r in scope_rows if r[2] == sev)
 
     def _bd(rows):
         return [{"key": r[0], "project": r[1], "severity": r[2], "status": r[3], "desc": r[4],
@@ -515,7 +534,7 @@ def main():
     written["bugs"] = {
         "new": _bd(NEW), "old": _bd(OLD),
         "counts": {"new": len(NEW), "old": len(OLD),
-                   "bySeverity": {sev: sum(1 for r in bug_rows if r[2] == sev)
+                   "bySeverity": {sev: sum(1 for r in scope_rows if r[2] == sev)
                                   for sev in ("A-Critical", "B-Major", "C-Normal", "D-Minor",
                                               "E-Enhancement")}},
         "jql": (cfg.get("jira") or {}).get("jql") or ""}
@@ -562,6 +581,8 @@ def main():
 
     # ---------------- 5. 常规压力
     ws = wb["常规压力"]
+    # 新版本压力组的起始列：763 轮是 57（BE:BK），765 轮从其下一组 64（BL:BR）开始
+    pstart = int(cfg.get("pressure_col_start") or 57)
     # 行左侧标签按新项目改写（序号/功能项/测试内容/脚本/优先级/网络设置 = 列2~7）
     # 注意：功能项列常见竖向合并，非锚点格写入会抛异常，逐个 try 保护
     for r, spec in (cfg.get("pressure_relabel") or {}).items():
@@ -574,12 +595,27 @@ def main():
                 except AttributeError:
                     print("  ! 压力 r%d c%d 在合并区内，跳过(%s)" % (rr, col, key))
         print("[pressure] r%d 标签: %s" % (rr, spec))
+    # 先把整个新版本组（含本轮没填数据的空行）套成上一版本组的样式，
+    # 否则空行会是没有边框/字号不对的「裸格」，一眼就看出格式乱；
+    # ⚠️ 必须在写值和 paint() 之前做，否则会把 FAIL 的红字刷回黑色
+    # pressure_style_from：上一版本组里这一行本身是空行（没跑过）时，
+    # 它的样式也是「裸格」，得借用同组另一行（例：组合升级借上位机升级行）
+    sty_from = cfg.get("pressure_style_from") or {}
+    for r in range(9, ws.max_row + 1):
+        src_row = int(sty_from.get(str(r), r))
+        for off in range(7):
+            cp_style(ws.cell(row=src_row, column=8 + off), ws.cell(row=r, column=pstart + off))
     for r, vals in (cfg.get("pressure") or {}).items():
         for off, v in enumerate(vals):
-            cp_style(ws.cell(row=int(r), column=8 + off), ws.cell(row=int(r), column=57 + off))
-            ws.cell(row=int(r), column=57 + off).value = v or None
+            ws.cell(row=int(r), column=pstart + off).value = v or None
         # 测试结果列（组内第 4 列）：FAIL 红字、其余黑字
-        paint(ws.cell(row=int(r), column=60), vals[3] if len(vals) > 3 else None)
+        paint(ws.cell(row=int(r), column=pstart + 3), vals[3] if len(vals) > 3 else None)
+        # 备注列（组内第 7 列）：FAIL 行标红
+        if len(vals) > 6 and vals[3] == "FAIL" and vals[6]:
+            remark_cell = ws.cell(row=int(r), column=pstart + 6)
+            f = copy.copy(remark_cell.font)
+            f.color = color("FFFF0000")
+            remark_cell.font = f
 
         def _lb(col):
             v = ws.cell(row=int(r), column=col).value
@@ -592,11 +628,13 @@ def main():
             "duration": vals[2] if len(vals) > 2 else "", "result": vals[3] if len(vals) > 3 else "",
             "statistics": vals[4] if len(vals) > 4 else "", "tester": vals[5] if len(vals) > 5 else "",
             "remark": vals[6] if len(vals) > 6 else ""})
+    # 整个新版本组（含本轮没填数据的行）都要套上一版本的样式，
+    # 否则空行会是没有边框/字号不对的「裸格」，一眼就看出来格式乱了
     for off in range(7):
         src = ws.cell(row=8, column=8 + off)
-        cp_style(src, ws.cell(row=8, column=57 + off))
-        ws.cell(row=8, column=57 + off).value = src.value   # 表头照抄第一个版本组
-        ws.column_dimensions[get_column_letter(57 + off)].width = \
+        cp_style(src, ws.cell(row=8, column=pstart + off))
+        ws.cell(row=8, column=pstart + off).value = src.value   # 表头照抄第一个版本组
+        ws.column_dimensions[get_column_letter(pstart + off)].width = \
             ws.column_dimensions[get_column_letter(8 + off)].width
     for r in cfg.get("pressure_hide_rows") or []:
         ws.row_dimensions[int(r)].hidden = True
