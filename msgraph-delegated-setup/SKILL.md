@@ -5,10 +5,10 @@ tags: [outlook, 邮箱, email, msgraph, microsoft-graph, quectel-email, delegate
 aliases: ["outlook技能", "邮箱技能", "outlook skill", "email skill"]
 ---
 
-<!-- LABEL: 这就是 Ekko 的 "outlook技能 / 邮箱技能"。当 Ekko 提到 outlook/邮箱 相关任务时定位本技能。
-     源目录: /Users/ekko/Downloads/msgraph-delegated-setup/
-     已安装/运行位置: ~/.hermes/profiles/main-assistant/scripts/delegated-outlook/ (Graph 委托 Token 已打通, .tokens.enc 已生成)
-     TENANT_ID=7730d043-e129-480c-b1ba-e5b6a9f476aa  CLIENT_ID=7ae83858-7de6-48ba-852e-2c4631961abc -->
+<!-- LABEL: outlook 技能 / 邮箱技能。提到 outlook/邮箱 相关任务时定位本技能。
+     安装位置: <工作区>/scripts/delegated-outlook/（通用）或 scripts/delegated-outlook-ikotek/（Ikotek 租户）
+     账号相关：本技能只含公共 App 标识（tenant_id / client_id），
+     不含任何人的邮箱账号、密码、令牌；每个使用者用自己的公司账号走设备码登录。 -->
 
 
 # AI Agent Instructions
@@ -107,7 +107,9 @@ for m in c.list_messages(top=3, folder="drafts"):
 | 部署 | TENANT_ID | CLIENT_ID | 环境变量前缀 | 工作脚本目录 |
 |---|---|---|---|---|
 | Quectel（共享 App，通用） | `7730d043-e129-480c-b1ba-e5b6a9f476aa` | `7ae83858-7de6-48ba-852e-2c4631961abc` | `MSGRAPH_TENANT_ID` / `MSGRAPH_DELEGATED_CLIENT_ID` | `scripts/delegated-outlook/` |
-| Ikotek（venus.li） | `35a5aa27-35d2-43f6-b632-6bb3e066544b` | `22a0736e-97f9-493f-b4e9-1c308dbcf746` | `MSGRAPH_IKOTEK_TENANT_ID` / `MSGRAPH_IKOTEK_CLIENT_ID` | `scripts/delegated-outlook-ikotek/` |
+| Ikotek（另一企业租户示例） | `35a5aa27-35d2-43f6-b632-6bb3e066544b` | `22a0736e-97f9-493f-b4e9-1c308dbcf746` | `MSGRAPH_IKOTEK_TENANT_ID` / `MSGRAPH_IKOTEK_CLIENT_ID` | `scripts/delegated-outlook-ikotek/` |
+
+> **表中只有 tenant_id / client_id —— 这是 Azure 应用（App Registration）的公开标识，不是账号、不是密码、不是令牌。** 换人换机器必须各自走一次设备码登录，登录后拿到的 refresh_token 只存在本机 `.tokens.enc`（机器绑定加密），不进仓库、不上传、不共享。`.tokens.enc` / `.token_key` / `.env` 三个文件永远不要提交。
 
 两套 `token_manager.py` 的环境变量前缀、`_derive_key()` 盐串都不同，**Fernet 密钥互不通用**，换租户必须重新走一次设备码登录。
 

@@ -20,10 +20,18 @@ msgraph-delegated-setup/
 ├── SKILL.md              ← Hermes Skill（AI 指令 + 用户指南）
 └── templates/
     ├── token_manager.py  ← Token 加密存储 + 自动刷新
-    ├── auth_login.py     ← Device Code 登录
+    ├── auth_login.py     ← Device Code 登录（--request / --poll 两段式）
     ├── graph_mail.py     ← Graph API 封装（/me/*）
+    ├── make_draft.py     ← 新建/回复邮件草稿（不发送，支持 HTML 与附件）
     └── monitor_inbox.py  ← Cron 邮件监控（直接点名检测）
 ```
+
+## 账号与数据边界
+
+- 技能包里**没有**任何人的邮箱账号 / 密码 / 令牌，只有共享 App 的 `tenant_id` + `client_id`（Azure 应用公开标识）。
+- 每个使用者**第一次**都要用自己的公司账号走设备码登录（平台/IT 不提供现成账号）。
+- 登录后的 `refresh_token` **只存本机** `.tokens.enc`（Fernet 加密，密钥与机器绑定），直接调云端 Graph 接口取数据，不经过任何中转。
+- `.tokens.enc` / `.token_key` / `.env` 永不提交、不上传、不共享；换机器要重新登录。
 
 ## 导入
 
