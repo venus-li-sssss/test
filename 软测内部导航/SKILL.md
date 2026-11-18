@@ -248,6 +248,7 @@ python nav.py link delete <链接id>
 - 路测：`路测全流程`、`路测场景截图`、`轨迹对比-图新地球`（后者本地）
 - 飞书：`feishu-docs`、`feishu-software-download`
 - 下载站：`toolhub-software`、`qdisk-quectel`
+- 邮箱：`msgraph-delegated-setup`（Outlook/M365 读写 + 草稿，每台机首次设备码登录）
 - 其他：`九号/ninebot-project`、`quectel-workhours`、`quectel-attendance`、`qmeeting-rooms`、`ikotek-approval`、`super-client`、`protocol-pack-unpack`、`account-login-skill`、`everything-search`、`api-class-generator`、`pyinstaller-exe-packager`
 - 仓库自身：`skill仓库同步`、`妙搭仓库同步`、`软测内部导航`
 
@@ -281,7 +282,7 @@ python scripts/audit_cards.py --json       # 机器可读
 
 ## ⑪ 历史快照（只对比趋势，别当现状）
 
-- **2026-11-18**：16 分类 / 51 链接（`nav.py` 实测）；导航 OpenAPI 可用。
+- **2026-11-18**：16 分类 / 51 链接（`nav.py` 实测）；导航 OpenAPI 可用。同日给「Outlook邮箱」卡片（`08a12788-7c64-42e2-a9e6-69c855163556`，分类 测试环境搭建）挂上 `msgraph-delegated-setup`，url 从一次性 OAuth 授权串换成 `https://outlook.office.com/mail/`，desc 改写为「输入→输出 + 已做成 skill + 90 天不活动需重登」；catalog 刷新为 52 链接。
 - **2026-11-13**：链路体检 51 张 → 37 ✅ / 2 功能未完成（Jlink 烧录、CAN 抓取）/ 12 仅指路；端到端实测跑通 27 张；待一次性授权 9 张（GNSS资料、Tracker的知识库、日常工作流程、标准模板、样机管理库、团队架构、物资管理、压测脚本记录、远程服务器工具 → 飞书节点加只读机器人 `cli_a9bc97317fb89cc8`）。
 
 ## ⑫ 注意事项

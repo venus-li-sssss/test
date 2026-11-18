@@ -3,10 +3,11 @@
 > 静态快照，仅供快速了解全貌。**实时状态以 `python scripts/nav.py <关键词>` 为准**；写入（增删改）前用 `cat list` / `link list` 取 id。
 > 图例：✅ 已有 GitHub skill 可自动化；🔗 仅链接（文档/系统，无 skill）；🚧 占位/未实现。
 
-## 测试环境搭建（8 条）
+## 测试环境搭建（9 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
+| Outlook邮箱 | ✅ | https://github.com/venus-li-sssss/test/tree/main/msgraph-delegated-setup -- 读写 Outlook 邮件：设备码登录+令牌自动续期、新建/回复草稿（不发送）、收件箱搜索、多文件夹监控、日历 |
 | Aboot烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Yad7fK4qDl71mjdGMIAcgTHTn7f?from=space_personal_filelist -- 资源·Aboot 烧录工具与版本包（与卡片地址同一目录，AI 可直接用这个 URL 定位） |
 | FreqChip烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/X1tPf4dHBlqq08d4QBwcQBVjnXf?from=space_personal_filelist -- 资源·FreqChip 烧录工具（FR801XH/FR30XX/FR508X）与固件（与卡片地址同一目录） |
 | Jlink烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary |
