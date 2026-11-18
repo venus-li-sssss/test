@@ -28,6 +28,13 @@
 | 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例 |
 | 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 由内部报告或测试用例生成对外报告 |
 
+## 项目信息（2 条）
+
+| 入口 | 状态 | 关联 skill / 说明 |
+|---|---|---|
+| QDM562 项目知识 | 🔗 | 云盒/中控 QDM562 项目知识：Aboot 烧录（去掉 customer_fs/ext_flash）、串口/DIAG CAT/debug 日志抓取、测试计划与用例。 |
+| 项目信息总表（云盒/中控） | 🔗 | 项目分类多维表格【项目分类】云盒/中控：后续新项目信息统一记录在这里，每个项目一个子页。 |
+
 ## 资源（10 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
@@ -42,6 +49,12 @@
 | 飞书云盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文 |
 | 压测脚本网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 生成/运行压力测试脚本（开关机、找网、继电器压测等）<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/I8qnfDCJilWIdhdesFYcM4gMnlf -- 资源·压测脚本存放目录（与卡片地址同一目录） |
 | excel插入图片或者对象 | 🔗 | excel的插件，安装后可以通过ctrl+Q插入图片或者对象，用于测试的时候放截图到excel |
+
+## 流程（1 条）
+
+| 入口 | 状态 | 关联 skill / 说明 |
+|---|---|---|
+| 送测邮件→修改点→建用例 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E9%80%81%E6%B5%8B%E9%82%AE%E4%BB%B6%E5%88%B0%E4%BF%AE%E6%94%B9%E7%82%B9 -- 流程编排：邮件→SMOD修改点→用例→报告一站式（sendtest_flow.py，默认 dry-run）<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点导入/建用例/导报告的执行层（smod_changelist_import.py）<br>https://github.com/venus-li-sssss/test/tree/main/msgraph-delegated-setup -- 读送测邮件、取正文与附件（MS Graph 委托登录） |
 
 ## 软测内部飞书知识库（12 条）
 
