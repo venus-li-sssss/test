@@ -1,6 +1,6 @@
 ---
 name: 软测内部导航
-description: 内部导航中枢（本导航页自己的 skill）：只要问题涉及「内部」——内部工具/系统/资料/流程/模板/网址/权限在哪、有没有、怎么用、怎么下载、找谁要——先查这里再回答，不要凭印象说"没有/不知道"。覆盖移远/IKOTEK 软测 16 分类 51 个入口：烧录（Aboot/FreqChip/JLink/QFlash/QFIL）、日志抓取与分析（串口/CAN/RTT/RTK）、做升级包、测试用例与测试报告、JIRA 提单查询、修改点导入导出、软件与版本下载（飞书云盘/toolhub/qdisk）、GNSS 与模组文档、RTK 账号、样机与物资、会议室/工位/快递/绩效/QHR、IT 工单、工时考勤、九号客户平台、skill 仓库、防锁屏。触发词：导航、入口、链接、网址、地址、在哪、在哪下载、怎么进、怎么用、怎么走、有没有、有没有现成的、找一下、找不到、是什么、内部系统、内部工具、平台、SOP、流程、模板、资料、权限、账号、帮我找、查一下。已经做成 skill 的功能（烧录/抓日志/做包/提BUG/写报告/导修改点/工时/九号/路测/压测）也先来取对应 skill + 配套资源再执行；写导航（增删改链接/分类、给链接挂 skill、新增功能三件套）同样用我。Also for internal portal / internal tool / where to download / how to use / team wiki / counterpart links.
+description: 内部导航中枢（本导航页自己的 skill）：只要问题涉及「内部」——内部工具/系统/资料/流程/模板/网址/权限在哪、有没有、怎么用、怎么下载、找谁要——先查这里再回答，不要凭印象说"没有/不知道"。覆盖移远/IKOTEK 软测 16 分类 52 个入口：烧录（Aboot/FreqChip/JLink/QFlash/QFIL）、日志抓取与分析（串口/CAN/RTT/RTK）、做升级包、测试用例与测试报告、JIRA 提单查询、修改点导入导出、软件与版本下载（飞书云盘/toolhub/qdisk）、GNSS 与模组文档、RTK 账号、样机与物资、会议室/工位/快递/绩效/QHR、IT 工单、工时考勤、九号客户平台、skill 仓库、防锁屏。触发词：导航、入口、链接、网址、地址、在哪、在哪下载、怎么进、怎么用、怎么走、有没有、有没有现成的、找一下、找不到、是什么、内部系统、内部工具、平台、SOP、流程、模板、资料、权限、账号、帮我找、查一下。已经做成 skill 的功能（烧录/抓日志/做包/提BUG/写报告/导修改点/工时/九号/路测/压测）也先来取对应 skill + 配套资源再执行；写导航（增删改链接/分类、给链接挂 skill、新增功能三件套）同样用我。Also for internal portal / internal tool / where to download / how to use / team wiki / counterpart links.
 ---
 
 # Quectel 软测内部导航
@@ -20,7 +20,7 @@ https://scnrhostplnc.feishuapp.com/app/app_17fwfnp4pvy/openapi/nav
 |---|---|---|
 | 1 | 问"在哪 / 有没有 / 怎么进 / 怎么下 / 找谁要" | "烧录工具的安装包在哪"、"公司有没有 QCOM" |
 | 2 | 出现"内部 / 部门 / 公司 / 我们这 / 我们组"等内部域词 | "内部有没有现成的测试报告模板" |
-| 3 | 要做的动作**大概率已被做成 skill** | 烧录、抓日志、做包、提 BUG、写报告、导修改点、填工时、九号 OTA |
+| 3 | 要做的动作**大概率已被做成 skill** | 烧录、抓日志、做包、提 BUG、写报告、导修改点、送测邮件到修改点的流程、填工时、九号 OTA |
 | 4 | 要访问内部系统（JIRA / BPM / QHR / qdisk / ticket / 工位 / 会议） | "帮我把这周工时提了" |
 | 5 | 问流程、SOP、模板、知识库、权限、新人怎么上手 | "写经验文档的规范是什么" |
 
@@ -277,12 +277,12 @@ python scripts/audit_cards.py --json       # 机器可读
 1. 环境变量 `NAV_PORTAL_TOKEN`（导航 Bearer，**读写共用**）、`GITHUB_TOKEN`；
 2. `scripts/config.local.json`（参考 `config.example.json`）。
 
-本机已配好 `scripts/config.local.json`（2026-11-18 验证：16 分类 / 51 链接可读）。
+本机已配好 `scripts/config.local.json`（2026-11-18 验证：16 分类 / 52 链接可读）。
 换机器时复制 `config.example.json` 填 token 即可。**token 不进仓库**（`config.local.json` 在 `.gitignore`；push 记得 `--exclude`，见 ⑥）。
 
 ## ⑪ 历史快照（只对比趋势，别当现状）
 
-- **2026-11-18**：16 分类 / 51 链接（`nav.py` 实测）；导航 OpenAPI 可用。同日给「Outlook邮箱」卡片（`08a12788-7c64-42e2-a9e6-69c855163556`，分类 测试环境搭建）挂上 `msgraph-delegated-setup`，url 从一次性 OAuth 授权串换成 `https://outlook.office.com/mail/`，desc 改写为「输入→输出 + 已做成 skill + 90 天不活动需重登」；catalog 刷新为 52 链接。
+- **2026-11-18**：16 分类 / 52 链接（`nav.py` 实测）；导航 OpenAPI 可用。同日给「Outlook邮箱」卡片（`08a12788-7c64-42e2-a9e6-69c855163556`，分类 测试环境搭建）挂上 `msgraph-delegated-setup`，url 从一次性 OAuth 授权串换成 `https://outlook.office.com/mail/`，desc 改写为「输入→输出 + 已做成 skill + 90 天不活动需重登」；catalog 刷新为 52 链接。
 - **2026-11-13**：链路体检 51 张 → 37 ✅ / 2 功能未完成（Jlink 烧录、CAN 抓取）/ 12 仅指路；端到端实测跑通 27 张；待一次性授权 9 张（GNSS资料、Tracker的知识库、日常工作流程、标准模板、样机管理库、团队架构、物资管理、压测脚本记录、远程服务器工具 → 飞书节点加只读机器人 `cli_a9bc97317fb89cc8`）。
 
 ## ⑫ 注意事项
@@ -292,3 +292,4 @@ python scripts/audit_cards.py --json       # 机器可读
 - **写入直接改线上**：改动前 `--dry-run` 或把 payload 念给用户确认，尤其涉及删除。
 - **内网链接需要登录态**：ticket.ikotek、smod.quectel、qdisk、BPM、QHR 通常浏览器已有 SSO；没有就引导用户手动登录。
 - 批量改导航后刷新快照：`python scripts/gen_catalog.py`（纯读，只重写本地 md）。
+- **2026-11-18 新增流程卡**：`流程 / 送测邮件→修改点→建用例`（`560f7b96-d8aa-4a55-a288-5c027ab6381d`），把 读送测邮件 → 导入 SMOD 修改点 → 建用例 → 导修改点报告 串成一条流程 skill（`送测邮件到修改点`，`scripts/sendtest_flow.py`；依赖 邮件 skill + changelist2xlsx）。该卡 url 指向 GitHub，需把 skill 推到 `venus-li-sssss/test` 才可点。
