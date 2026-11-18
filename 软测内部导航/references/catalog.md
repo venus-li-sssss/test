@@ -1,4 +1,4 @@
-# 导航目录快照（2026-11-13）
+# 导航目录快照（2026-11-18）
 
 > 静态快照，仅供快速了解全貌。**实时状态以 `python scripts/nav.py <关键词>` 为准**；写入（增删改）前用 `cat list` / `link list` 取 id。
 > 图例：✅ 已有 GitHub skill 可自动化；🔗 仅链接（文档/系统，无 skill）；🚧 占位/未实现。
@@ -7,38 +7,39 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| Aboot烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- aboot烧录的skill<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://quectel.feishu.cn/drive/folder/Yad7fK4qDl71mjdGMIAcgTHTn7f?from=space_personal_filelist -- 缺失Aboot软件的时候，可以到飞书云盘下载 |
-| FreqChip烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- FreqChip烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://quectel.feishu.cn/drive/folder/X1tPf4dHBlqq08d4QBwcQBVjnXf?from=space_personal_filelist -- 缺失FreqChip可以到飞书云盘下载 |
-| Jlink烧录 | 🚧 | Jlink烧录，还没做，先占位。没有Jlink软件通过云盘拉取https://quectel.feishu.cn/drive/folder/OcRYfpsKVl5AePdo0lxcU0conLf?from=space_personal_filelist |
-| QFLASH烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 通过skill完成QFLASH烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://quectel.feishu.cn/drive/folder/VDGtf5XA8l7pnCdHjmBcjR5Anbf?from=space_personal_filelist -- 没有QFLASH软件可以通过飞书云盘下载 |
-| QFIL烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 通过skill完成QFIL烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://quectel.feishu.cn/drive/folder/Ag16fe9JElm7fmdQ6AacxvF2nTh?from=space_personal_filelist -- 没有QFIL软件可以到飞书云盘下载 |
-| CAN日志抓取 | 🔗 | CAN日志抓取，目前没有实现，代码可以抓取，但是与ZCANPRO有区别，还在看，后面应该会做，还没实现 |
-| 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接<br>https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 抓取日志的skill<br>https://quectel.feishu.cn/drive/folder/THmCfySTUlwC8mdkmcYcAJ2XnZe -- 没有串口软件可以到飞书云盘下载，注意软件只能运行在C盘 |
-| 做升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- 做升级包 skill：全量包(app整包)/差分包/最小系统包一键生成，config 自动生成 + 产物自检 + 工具自动下载<br>https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf -- 做包工具与文档：adiff.exe / FBFMake_CF_V1.6-150.exe / config（多镜像）/ config_app（单镜像）/ fbfmake*.bat / 官方说明，缺工具从这里下载<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：从云盘拉取做包工具的底层能力（做包 skill 的 fetch_tools.py 依赖它） |
+| Aboot烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Yad7fK4qDl71mjdGMIAcgTHTn7f?from=space_personal_filelist -- 资源·Aboot 烧录工具与版本包（与卡片地址同一目录，AI 可直接用这个 URL 定位） |
+| FreqChip烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/X1tPf4dHBlqq08d4QBwcQBVjnXf?from=space_personal_filelist -- 资源·FreqChip 烧录工具（FR801XH/FR30XX/FR508X）与固件（与卡片地址同一目录） |
+| Jlink烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary |
+| QFLASH烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qflash -- QFlash 烧录（QCMM/firehose）+ 内置 STM32/Unisoc/Rockchip CLI<br>https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/VDGtf5XA8l7pnCdHjmBcjR5Anbf?from=space_personal_filelist -- 资源·QFlash 安装包（QFlash_V7.5/V8.1）（与卡片地址同一目录） |
+| QFIL烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/qflash -- QFlash 烧录（QCMM/firehose）+ 内置 STM32/Unisoc/Rockchip CLI<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Ag16fe9JElm7fmdQ6AacxvF2nTh?from=space_personal_filelist -- 资源·QFIL/QPST 安装包（与卡片地址同一目录） |
+| CAN日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary |
+| 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/THmCfySTUlwC8mdkmcYcAJ2XnZe -- 资源·串口抓取工具（日志抓取.exe）云盘目录；exe 只能放 C 盘运行 |
+| 做升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- FOTA 升级包制作：全量包/差分包/最小系统包，config 自动生成 + 产物自检<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf -- 资源·做包工具与官方文档：adiff.exe / FBFMake_CF_V1.6-150.exe / config 与 config_app 模板 / fbfmake*.bat / 说明 PDF，缺工具从这里下（工具只能放纯 ASCII 路径） |
 
 ## 测试相关（6 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 日志分析-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/log-analysis -- 分析日志，一般是脚本日志+设备日志。有时候只有设备日志，定位问题或者分析执行流程 |
-| 测试用例生成 | 🔗 | 输入协议，AI生成测试用例 |
-| JIRA系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- 提交、修改、获取JIRA数据均可 |
-| 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 内部报告生成<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 路测报告生成,内部报告的一部分。输入NMEA，输出截图和路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统数据获取<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JIRA数据获取 |
-| 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改、获取等操作均可通过该skill完成 |
-| 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 生成对外报告的，可以输入内部报告来生成，也可以输入测试用例去生成 |
+| 日志分析-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/log-analysis -- 设备日志/脚本日志分析：定位问题、还原执行流程 |
+| 测试用例生成 | 🔗 | 输入协议文本 → AI 生成测试用例（妙搭网页应用，需人工操作；暂无 skill） |
+| JIRA系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
+| 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 输入用例+JIRA+压力+路测数据 → 输出系统测试报告 docx/xlsx<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 输入设备/高精度 NMEA → 轨迹对比 KML + 截图 + CEP 表 + 路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
+| 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例 |
+| 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 由内部报告或测试用例生成对外报告 |
 
-## 资源（9 条）
+## 资源（10 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| GNSS的RTK账号信息 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接 |
-| GNSS资料 | 🔗 | GNSS定位资料，具体资料在它的子目录 https://quectel.feishu.cn/wiki/RGvhwoRqHiAdJkkyvRDcemzbnef https://quectel.feishu.cn/wiki/Avr6w7Y91iX8vvkMazpcNDK1nKe https://quectel.feishu.cn/wiki/H2r6whjaRior8lkEqUQcH4Ponge |
-| 通用模组文档 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接 |
-| 基础软件下载 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接 |
-| 移远网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qdisk-quectel -- 执行下载数据等操作，拉取数据<br>https://qdisk.quectel.com/company/list?lang=zh-CN -- 移远网盘链接 |
-| 远程服务器工具 | 🔗 | 远程服务器工具，从服务器拉取数据或者提交数据到服务器。可以用于window和linux的文件传输 |
-| 飞书云盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 云盘链接 |
-| 压测脚本网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：飞书云盘获取下载等skill<br>https://quectel.feishu.cn/drive/folder/NiX8f7DWllNgPMdw9Q6cKH9Jnz8 -- 经「飞书云盘」：云盘链接 |
+| GNSS的RTK账号信息 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| GNSS资料 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 移远软件资源中心 | ✅ | https://github.com/venus-li-sssss/test/tree/main/toolhub-software -- 移远软件资源中心下载 skill：移远 SSO 账号自动登录（密码 RSA 加密、凭据外置）、按关键词搜资源、查版本、下载最新或指定版本到本地、支持断点续传 |
+| 通用模组文档 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Clp9fJVVJlkPhnd9RkLcKcqbnYc -- 资源·通用模组指令手册与硬件文档（与卡片地址同一目录） |
+| 基础软件下载 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文 |
+| 移远网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qdisk-quectel -- 移远网盘(qdisk) 浏览/下载版本与数据<br>https://qdisk.quectel.com/company/list?lang=zh-CN -- 资源·移远网盘入口，版本/项目数据在 部门文件/IKOTEK/Project/ODM Project Files/SWE/external/MOB |
+| 远程服务器工具 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 飞书云盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文 |
+| 压测脚本网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 生成/运行压力测试脚本（开关机、找网、继电器压测等）<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/I8qnfDCJilWIdhdesFYcM4gMnlf -- 资源·压测脚本存放目录（与卡片地址同一目录） |
 | excel插入图片或者对象 | 🔗 | excel的插件，安装后可以通过ctrl+Q插入图片或者对象，用于测试的时候放截图到excel |
 
 ## 软测内部飞书知识库（12 条）
@@ -46,17 +47,17 @@
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
 | BPM 领用网址 | 🔗 | 领用样机、申请采购物品等 |
-| Tracker的知识库 | 🔗 | Tracker的知识库 |
-| 两轮车项目知识库 | 🔗 | 佛山项目知识,里面是飞书云文档格式的导航页面，具体的知识需要进入到对应的页面才能搜索到。各种项目上的知识，比如烧录、硬件接口、抓取日志、升级、协议等信息都可以进去里面查找 |
-| 压测脚本记录 | 🔗 | 记录需求以及压测脚本的存放地址。找脚本以及需求的主要网址 |
-| 日常工作流程 | 🔗 | 包含 如何使用JIRA系统、经验文档编写与归档、出差申请、样机测试、样机管理等SOP，可以知晓各种流程 |
-| AI方案知识库 | 🔗 | 记录AI方案 |
-| FWA行业知识库 | 🔗 | 关于FWA项目及相关资料存档 |
-| 标准模板 | 🔗 | 主要存储是各种报告或者测试用例模板 |
-| 新人培训计划 | 🔗 | 包含新人培训的大部分信息和流程以及指引 |
-| 样机管理库 | 🔗 | 样机管理库，存储各个项目的样机数据 |
-| 团队架构 | 🔗 | 简述团队的架构信息，主要是什么人负责什么工作，可以知道什么事情找什么人 |
-| 物资管理 | 🔗 | 管理物资的页面，比如继电器、串口、稳压电源等资源管理 |
+| Tracker的知识库 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 两轮车项目知识库 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 压测脚本记录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 日常工作流程 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| AI方案知识库 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| FWA行业知识库 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 标准模板 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码）<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文 |
+| 新人培训计划 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 样机管理库 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 团队架构 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
+| 物资管理 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
 
 ## 公司官网（5 条）
 
@@ -65,7 +66,7 @@
 | EIP官网 | 🔗 | 公司网页的导航页面 |
 | 绩效系统 | 🔗 | 绩效系统 |
 | 移远社区 | 🔗 | 移远社区，公司内部论坛 |
-| 移远会议 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qmeeting-rooms -- 查询、取消、预定会议室 |
+| 移远会议 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qmeeting-rooms -- 查/订/取消会议室，能出会议室与导航图片 |
 | 工位系统 | 🔗 | 查看工位位置 |
 
 ## 软件下载网址（0 条）
@@ -82,7 +83,7 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| skill仓库-github | 🔗 | github仓库，主要包含工时系统、JIRA系统、九号项目、自动烧录、自动做包的skill。token/key是***已脱敏（原值见导航页面该条目）*** |
+| skill仓库-github | ✅ | https://github.com/venus-li-sssss/test/tree/main/skill%E4%BB%93%E5%BA%93%E5%90%8C%E6%AD%A5 -- GitHub 仓库 venus-li-sssss/test 的读写：push/pull/tree/rm |
 | skill仓库-妙搭 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%A6%99%E6%90%AD%E4%BB%93%E5%BA%93%E5%90%8C%E6%AD%A5 -- 上传、下载、修改 妙搭的skill仓库 |
 | 共享导航页面-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E8%BD%AF%E6%B5%8B%E5%86%85%E9%83%A8%E5%AF%BC%E8%88%AA -- 软测内部导航skill，用于修改//添加/删除本导航页面的数据 |
 
@@ -112,7 +113,7 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project --  |
+| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project -- 九号 IoT 平台固件包管理与 FOTA 升级/回滚 + APP UI 自动化 |
 
 ## 路测（0 条）
 
@@ -122,13 +123,13 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 工时系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/quectel-attendance -- 获取考勤skill<br>https://github.com/venus-li-sssss/test/tree/main/quectel-workhours -- 工时skill，用于创建、修改提交工时 |
+| 工时系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/quectel-workhours -- 工时的创建/修改/提交/撤销（work.ikotek.com）<br>https://github.com/venus-li-sssss/test/tree/main/quectel-attendance -- 按 QHR 打卡记录算每天工时（双班次规则） |
 
 ## 防锁屏（1 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 防锁屏 | 🔗 | 防锁屏软件，每30s输入F15防锁屏，放在飞书网盘 |
+| 防锁屏 | 🔗 | 每 30s 发送 F15 的桌面防锁屏小工具，在飞书云盘。无 skill，需人工下载安装运行 |
 
 ## 写入接口速查
 
