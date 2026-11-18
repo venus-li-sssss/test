@@ -1,6 +1,6 @@
 ---
 name: msgraph-delegated-setup
-description: Outlook/Microsoft 365 邮箱接入与邮件读写（MS Graph 委托 OAuth）。配置邮箱、设备码登录、令牌过期重登；新建/回复邮件草稿（只进草稿箱不发送，HTML 正文、附件、回复引用链）；查收件箱/搜索邮件/多文件夹监控、日历读写。Triggers: outlook, 邮箱, 配置邮箱, 重新登录邮箱, 邮箱登录过期, 写邮件, 新建草稿, 存草稿, 回复邮件, 回复草稿, 发邮件草稿, 邮件带附件, HTML邮件, 查收件箱, 今天有什么邮件, 搜索邮件, 邮件监控, 微软邮箱, M365, msgraph, AADSTS700082, refresh token 过期
+description: 'Outlook/Microsoft 365 邮箱接入与邮件读写（MS Graph 委托 OAuth）。配置邮箱、设备码登录、令牌过期重登；新建/回复邮件草稿（只进草稿箱不发送，HTML 正文、附件、回复引用链）；查收件箱/搜索邮件/多文件夹监控、日历读写。Triggers: outlook, 邮箱, 配置邮箱, 重新登录邮箱, 邮箱登录过期, 写邮件, 新建草稿, 存草稿, 回复邮件, 回复草稿, 发邮件草稿, 邮件带附件, HTML邮件, 查收件箱, 今天有什么邮件, 搜索邮件, 邮件监控, 微软邮箱, M365, msgraph, AADSTS700082, refresh token 过期'
 tags: [outlook, 邮箱, email, msgraph, microsoft-graph, quectel-email, delegated-mail]
 aliases: ["outlook技能", "邮箱技能", "outlook skill", "email skill"]
 ---
