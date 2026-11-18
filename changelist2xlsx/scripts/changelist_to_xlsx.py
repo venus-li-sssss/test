@@ -92,7 +92,7 @@ def derive_category(block: str):
             for key, label in CATEGORY_MAP.items():
                 if val == key or val == key.replace(" ", ""):
                     return label
-            if "new requirements" in val:
+            if "new requirement" in val:
                 return CATEGORY_MAP["new requirements"]
             if "bug fix" in val:
                 return CATEGORY_MAP["bug fix"]

@@ -264,7 +264,10 @@ class SmodClient:
             )
 
         # 2) 走 OAuth 授权链路，随重定向拿到 code
-        next_url = (
+        #    优先用平台下发的 authorizeUrl（redirect_uri 会随域名迁移变化，
+        #    例如 2026-11 起由 smod.quectel.com 改为 smod.phicotek.com），
+        #    失败才回退到本地拼接的旧格式。
+        next_url = self._fetch_authorize_url() or (
             f"{self.oauth_url}/oauth/authorize?response_type=code"
             f"&grant_type=authorization_code&socpe=code&client_id=qt-revise"
             f"&redirect_uri={self.base_url}/auth-redirect"
@@ -285,6 +288,26 @@ class SmodClient:
 
         # 3) code 换 access_token
         return self.login_by_code(code)
+
+    def _fetch_authorize_url(self) -> Optional[str]:
+        """GET /api/login/authorizeUrl —— 平台下发的 OAuth 授权地址。
+
+        redirect_uri 会随平台域名迁移变化（2026-11 起改为 smod.phicotek.com），
+        写死会触发 authorizeToken 返回 30001 "Redirect URI mismatch"。
+        """
+        try:
+            resp = self.session.get(
+                f"{self.base_url}/api/login/authorizeUrl", timeout=self.timeout
+            )
+            if resp.status_code != 200:
+                return None
+            payload = resp.json()
+            url = payload.get("data") if isinstance(payload, dict) else None
+            if isinstance(url, str) and url.startswith("http"):
+                return url
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _extract_code_from_history(resp: requests.Response) -> Optional[str]:
@@ -475,6 +498,9 @@ class SmodClient:
     TR_IN_PROCESS = "ti"          # Test-in-Process
     TR_BLOCKED_NORUN = "bnr"      # Blocked-NoRun
     TR_NA = "na"                  # NA
+    TR_PASS = "ps"                # PASS
+    TR_FAIL = "fl"                # FAIL
+    TR_PASS_WITH_COMMENTS = "pc"  # PASS With Comments
 
     def get_new_case_code(self) -> str:
         """获取一个新的测试用例编号（如 TC-20260721140406）
@@ -584,6 +610,43 @@ class SmodClient:
             "PATCH",
             f"/api/projects/{platform}/points/{point_id}/remark",
             json={"value": value},
+        )
+
+    def set_point_executor(
+        self,
+        point_id: int,
+        user_id: int,
+        platform_code: Optional[str] = None,
+    ) -> Any:
+        """设置修改点执行人（测试人）
+
+        对应接口： PATCH /api/projects/{platform}/points/{point_id}/id_executor
+        请求体： {"value": <SMOD 用户 id>}
+        注意：走 /executor 路径会返回 200 + data:true，但实际**不落库**（id_executor 仍为 0）。
+        """
+        platform = platform_code or self.platform_code
+        return self._request(
+            "PATCH",
+            f"/api/projects/{platform}/points/{point_id}/id_executor",
+            json={"value": int(user_id)},
+        )
+
+    def set_point_category(
+        self,
+        point_id: int,
+        category_code: str,
+        platform_code: Optional[str] = None,
+    ) -> Any:
+        """修改某修改点的分类（如 "nw"=Newly-added Customer Requirements）
+
+        对应接口： PATCH /api/projects/{platform}/points/{point_id}/category
+        请求体： {"value":"nw"}
+        """
+        platform = platform_code or self.platform_code
+        return self._request(
+            "PATCH",
+            f"/api/projects/{platform}/points/{point_id}/category",
+            json={"value": category_code},
         )
 
     def list_cases_for_point(

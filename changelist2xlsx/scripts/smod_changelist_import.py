@@ -172,7 +172,7 @@ def derive_category(block: str) -> Optional[str]:
             for key, label in CATEGORY_MAP.items():
                 if val == key or val == key.replace(" ", ""):
                     return label
-            if "new requirements" in val:
+            if "new requirement" in val:
                 return CATEGORY_MAP["new requirements"]
             if "bug fix" in val:
                 return CATEGORY_MAP["bug fix"]
@@ -289,6 +289,26 @@ def infer_platform_from_history(
         if str(p.get("name", "")).strip().lower() == chosen_name.strip().lower():
             return p.get("id"), chosen_name
     raise SmodApiError(f"在 /api/simpleHardwarePlatforms 中未找到平台 {chosen_name}")
+
+
+def resolve_platform_by_name(
+    client: SmodClient,
+    hw_platform_name: str,
+) -> Tuple[int, str]:
+    """按名称精确匹配 /api/simpleHardwarePlatforms，返回 (id_plat_ver, name)。"""
+    target = hw_platform_name.strip().lower()
+    platforms = client.get_hardware_platforms()
+    exact = [p for p in platforms if str(p.get("name", "")).strip().lower() == target]
+    if exact:
+        return exact[0].get("id"), exact[0].get("name")
+    # 退一步：包含匹配（唯一命中才接受）
+    partial = [p for p in platforms if target and target in str(p.get("name", "")).strip().lower()]
+    if len(partial) == 1:
+        return partial[0].get("id"), partial[0].get("name")
+    names = ", ".join(sorted({str(p.get("name", "")) for p in platforms}))
+    raise SmodApiError(
+        f"未找到硬件平台 '{hw_platform_name}'（精确/唯一包含匹配均失败）。可用平台：{names}"
+    )
 
 
 # =====================================================================
@@ -642,6 +662,8 @@ def process_points_after_import(
     id_beta_ver: int,
     platform_code: str = "odmm",
     skip_no_req: bool = False,
+    case_result: Optional[str] = None,
+    executor_id: Optional[int] = None,
 ) -> None:
     """导入 Excel 后，逐修改点处理测试用例与测试结果。
 
@@ -651,7 +673,13 @@ def process_points_after_import(
       - 无需求（描述仅版本号）：不建用例，
                 修改点测试结果设为 Blocked-NoRun (bnr)，
                 备注设为「无需测试」
+
+    可选：
+      - case_result：用例与修改点的测试结论（如 "ps"=PASS，用于「已实测通过」场景），
+        默认 None 即 Test-in-Process。
+      - executor_id：修改点执行人（SMOD 用户 id），设置到 id_executor 字段。
     """
+    tr = case_result or client.TR_IN_PROCESS
     print(f"\n===== 步骤 7：逐修改点生成用例 & 设置测试结果 =====")
     result = client.list_points(id_beta_ver, page=1, size=500, platform_code=platform_code)
     records = result.get("records", []) if isinstance(result, dict) else []
@@ -675,14 +703,22 @@ def process_points_after_import(
         existing = client.list_cases_for_point(pid, platform_code)
         if existing:
             print(f"  [有需求] 修改点 {pid} 已有 {len(existing)} 条用例，跳过新建（幂等）")
-            client.set_point_test_result(pid, client.TR_IN_PROCESS, platform_code)
+            client.set_point_test_result(pid, tr, platform_code)
+            if executor_id:
+                client.set_point_executor(pid, executor_id, platform_code)
             n_with += 1
             continue
 
         # 有需求：AI 生成用例
         cases = ai_generate_test_cases(desc)
+        used_codes = set()
         for c in cases:
             code = client.get_new_case_code()
+            # /api/newCaseCode 按秒生成，同一秒内连续调用会拿到相同编号 -> 撞号
+            while code in used_codes:
+                time.sleep(1.05)
+                code = client.get_new_case_code()
+            used_codes.add(code)
             _create_case_with_retry(
                 client,
                 code=code,
@@ -691,15 +727,37 @@ def process_points_after_import(
                 pre_condition=c.get("pre_condition", ""),
                 test_step=c.get("test_step", ""),
                 expected_result=c.get("expected_result", ""),
-                test_result=client.TR_IN_PROCESS,
+                test_result=tr,
                 platform_code=platform_code,
             )
-        # 修改点自身测试结果 = Test-in-Process
-        client.set_point_test_result(pid, client.TR_IN_PROCESS, platform_code)
+        # 修改点自身测试结果
+        client.set_point_test_result(pid, tr, platform_code)
+        if executor_id:
+            client.set_point_executor(pid, executor_id, platform_code)
         n_with += 1
-        print(f"  [有需求] 修改点 {pid} -> 新建 {len(cases)} 条用例，测试状态 Test-in-Process")
+        print(f"  [有需求] 修改点 {pid} -> 新建 {len(cases)} 条用例，测试结论 {tr}")
 
     print(f"\n处理完成：有需求 {n_with} 个，无需求 {n_without} 个")
+
+
+def resolve_executor_id(client: SmodClient, executor: str) -> Optional[int]:
+    """把执行人解析成 SMOD 用户 id。
+
+    支持：纯数字 id / "me"（当前登录人）/ 当前登录人的姓名或邮箱。
+    目前 SMOD 没有公开的用户搜索接口，所以只对「当前登录人」做别名解析。
+    """
+    val = (executor or "").strip()
+    if not val:
+        return None
+    if val.isdigit():
+        return int(val)
+    me = client.get_user() or {}
+    low = val.lower()
+    if low == "me" or low in (str(me.get("name", "")).lower(), str(me.get("email", "")).lower()):
+        return int(me["id"])
+    raise SmodApiError(
+        f"无法把执行人 '{executor}' 解析为用户 id（只支持纯数字 id、me、或当前登录人的姓名/邮箱）"
+    )
 
 
 # =====================================================================
@@ -714,6 +772,11 @@ def run_workflow(
     platform_code: str = "odmm",
     xlsx_path: Optional[str] = None,
     auto_create: bool = True,
+    hw_platform: Optional[str] = None,
+    project_keyword: Optional[str] = None,
+    create_cases: bool = True,
+    case_result: Optional[str] = None,
+    executor: Optional[str] = None,
 ) -> None:
     """完整工作流入口。
 
@@ -726,8 +789,8 @@ def run_workflow(
     print(f"\n===== 步骤 1：生成 Excel =====")
     xlsx_path = convert_txt_to_xlsx(txt_path, xlsx_path)
 
-    # 2. 提取项目名
-    project_name = parse_project_name(version_code)
+    # 2. 提取项目名（可用 project_keyword 显式覆盖，如版本号以 LTE01... 开头的 QDM562）
+    project_name = project_keyword or parse_project_name(version_code)
     print(f"\n===== 步骤 2：解析版本号 =====")
     print(f"版本号：{version_code}")
     print(f"项目名：{project_name}")
@@ -748,10 +811,14 @@ def run_workflow(
         print(f"登录/鉴权失败：{e}")
         sys.exit(1)
 
-    # 4. 推断平台
-    print(f"\n===== 步骤 4：推断硬件平台 =====")
-    id_plat_ver, name_plat_ver = infer_platform_from_history(client, project_name, platform_code)
-    print(f"使用平台：{name_plat_ver} (id_plat_ver={id_plat_ver})")
+    # 4. 确定硬件平台（显式指定优先，否则从历史项目推断）
+    print(f"\n===== 步骤 4：确定硬件平台 =====")
+    if hw_platform:
+        id_plat_ver, name_plat_ver = resolve_platform_by_name(client, hw_platform)
+        print(f"使用指定平台：{name_plat_ver} (id_plat_ver={id_plat_ver})")
+    else:
+        id_plat_ver, name_plat_ver = infer_platform_from_history(client, project_name, platform_code)
+        print(f"使用平台：{name_plat_ver} (id_plat_ver={id_plat_ver})")
 
     # 5. 检查版本是否已存在
     print(f"\n===== 步骤 5：检查版本是否存在 =====")
@@ -783,8 +850,15 @@ def run_workflow(
     print(f"导入成功：{data}")
 
     # 7. 逐修改点生成用例 & 设置测试结果
+    if not create_cases:
+        print("\n===== 步骤 7：跳过（--import-only，只导入修改点，不建用例）=====")
+        return
+    executor_id = resolve_executor_id(client, executor) if executor else None
+    if executor_id:
+        print(f"修改点执行人：{executor} -> id_executor={executor_id}")
     process_points_after_import(
-        client, id_beta_ver=id_beta_ver, platform_code=platform_code
+        client, id_beta_ver=id_beta_ver, platform_code=platform_code,
+        case_result=case_result, executor_id=executor_id,
     )
 
 
@@ -797,6 +871,16 @@ def main():
     ap.add_argument("--password", default=None, help="SMOD/SSO 密码")
     ap.add_argument("--platform", default="odmm", help="平台代码，默认 odmm")
     ap.add_argument("--xlsx", default=None, help="生成的 xlsx 路径，默认与 txt 同名")
+    ap.add_argument("--hw-platform", default=None,
+                    help="显式指定硬件平台名称（如 ASR1602S），指定后不再自动推断")
+    ap.add_argument("--project", default=None,
+                    help="显式指定项目关键字（默认取版本号第一个下划线前的前缀，如 LTE01R07A05 这类需覆盖为 QDM562）")
+    ap.add_argument("--import-only", action="store_true",
+                    help="只导入修改点，不自动新建测试用例/不设置测试结果")
+    ap.add_argument("--case-result", default=None,
+                    help="新建用例与修改点的测试结论，如 ps=PASS / fl=FAIL / pc=PASS With Comments；默认 ti(Test-in-Process)")
+    ap.add_argument("--executor", default=None,
+                    help="修改点执行人（测试人）：SMOD 用户 id、me（当前登录人）或当前登录人姓名/邮箱")
     ap.add_argument("--no-create", action="store_true", help="若版本不存在则不新建，直接退出")
     ap.add_argument("--delete-cases", default=None,
                     help="仅删除用例模式：逗号分隔的用例 id 列表，登录后直接删除并退出（如 1851245,1821972）")
@@ -839,6 +923,11 @@ def main():
         platform_code=args.platform,
         xlsx_path=args.xlsx,
         auto_create=not args.no_create,
+        hw_platform=args.hw_platform,
+        project_keyword=args.project,
+        create_cases=not args.import_only,
+        case_result=args.case_result,
+        executor=args.executor,
     )
 
 

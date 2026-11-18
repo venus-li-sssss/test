@@ -8,6 +8,17 @@ agent_created: true
 
 把 git changelist（修改点）txt：**① 生成同名 Excel 清单 → ② 直接导入到 SMOD 平台 → ③ 导入完成后，基于修改点描述自动新增测试用例并设置测试结果。**
 
+## 本机部署（QuecAgent 工作区）
+
+- **skill 目录**：`C:\Users\venus.li\.qwenpaw\workspaces\default\skills\changelist2xlsx`
+- **运行命令**（默认 `python` 即可，依赖已装）：
+  ```cmd
+  cd C:\Users\venus.li\.qwenpaw\workspaces\default\skills\changelist2xlsx\scripts
+  python smod_changelist_import.py "<修改点.txt>" "<版本号>" --username "Venus.Li@ikotek.com" --password "<SSO密码>"
+  ```
+- **平台地址**：<https://smod.quectel.com>（登录后 项目管理在 `/project`；某修改点页面 `/qt-revise/show/p/<修改点id>`）
+- 账号：`Venus.Li@ikotek.com`（SSO 域账号，密码走 RSA 加密登录，见 `smod_client.py`）。
+
 > ⚠️ **关键约束：本技能绝不输出「修改点测试报告」之类的文档。**
 > 所有结果都**直接写入 SMOD 平台**（导入修改点、新建测试用例、设置测试结果）。
 > 唯一落地的文件是第 1 步生成的同名 `.xlsx`（作为记录），**除此之外不再生成任何报告文件**。
@@ -23,7 +34,7 @@ agent_created: true
 - **登录凭证（二选一）**：
   - **推荐**：**SMOD/SSO 用户名 + 密码**，脚本会自动调用登录接口拿到 access_token。SSO 现在要求密码用 RSA（PKCS#1 v1.5）加密，脚本已内置公钥并会自动加密（无需手动操作）。
   - **备用**：浏览器 DevTools 复制的 `access_token`（去掉 `bearer` 前缀）。
-- **依赖**：`pip install requests openpyxl pycryptodome`（优先使用受管 venv：`C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe`）。`pycryptodome` 用于密码的 RSA 加密登录。
+- **依赖**：`pip install requests openpyxl pycryptodome`（本机默认 `python` 已装：requests 2.34.2 / openpyxl 3.1.5 / pycryptodome；受管 venv `C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe` 亦已装）。`pycryptodome` 用于密码的 RSA 加密登录。
 
 ## 工作流程
 
@@ -59,11 +70,17 @@ python scripts/smod_changelist_import.py ^
 - `--platform odmm`：平台代码，默认 `odmm`
 - `--xlsx <path>`：指定生成 xlsx 的位置（默认与 txt 同名同目录）
 - `--no-create`：若版本不存在则不新建，直接退出
+- `--hw-platform ASR1602S`：**显式指定硬件平台**（按名称精确匹配 `/api/simpleHardwarePlatforms`），指定后不再从历史推断。QDM562 历史记录混杂 ASR1602/ASR1602S/ASR1606，必须显式指定。
+- `--project QDM562`：**显式指定项目关键字**（默认取版本号第一个下划线前的前缀）。像 `LTE01R07A05_BT_C_SDK_A_SDK_QDM562CNAK_..._765` 这类版本号前缀不是项目名的，必须覆盖，否则历史搜索会搜错关键字。
+- `--import-only`：只导入修改点，不自动建用例/不改测试结果。
+- `--case-result ps`：新建用例与修改点的测试结论。用例已实测通过就用 `ps`(PASS)，默认 `ti`(Test-in-Process)。
+- `--executor me`：设置修改点执行人（测试人）。支持 SMOD 用户 id / `me`（当前登录人）/ 当前登录人的姓名或邮箱。
 
 ### 脚本内部 7 步流程
 1. **生成 Excel**：解析 commit，输出「修改点」清单（10 列 + 分类推导），风格与 spliter_tool 一致。
 2. **解析版本号**：`QDM559_STM32G0B0_APP_01.001.01.001_V19` → 项目名 `QDM559`。
 3. **登录 SMOD**：调用 SSO 登录接口（`/api/uaa/oauth/token`）用【RSA 加密后的密码】换 SSO token，再写入 `quectel_token` 会话 cookie 并经 OAuth 重定向拿到 SMOD access_token；也支持直接注入浏览器 token。
+   - ⚠️ `redirect_uri` **必须用平台下发的 `/api/login/authorizeUrl`**，不能写死。2026-11 起平台把回调域从 `smod.quectel.com/auth-redirect` 改成 `smod.phicotek.com/auth-redirect`，写死会导致 `authorizeToken` 返回 `30001 oauth error: Redirect URI mismatch`。
 4. **推断平台**：搜索项目历史，统计 `name_plat_ver`。
    - 全部一致 → 自动使用该平台（id_plat_ver）；
    - 不一致 → 列出选项让用户输序号选择。
@@ -95,6 +112,10 @@ python scripts/smod_changelist_import.py ^
 - 新建用例：`POST /api/projects/{platform}/cases`
 - 改点结果：`PATCH /api/projects/{platform}/points/{id}/test_result` 体 `{"value":"ti"|"bnr"}`
 - 改点备注：`PATCH /api/projects/{platform}/points/{id}/remark` 体 `{"value":"无需测试"}`
+- 改点分类：`PATCH /api/projects/{platform}/points/{id}/category` 体 `{"value":"nw"}`
+- 改点执行人：`PATCH /api/projects/{platform}/points/{id}/id_executor` 体 `{"value":<用户id>}`
+  （⚠️ `/executor` 路径会返回 200 + data:true 但**不落库**，`id_executor` 仍为 0，别用）
+- ⚠️ `GET /api/newCaseCode` 按**秒**生成编号，同一秒内连续调用会拿到相同编号 → 撞号。脚本已内置去重（撞号则 sleep 1.05s 重取）。
 - 列某修改点用例：`GET /api/projects/{platform}/points/{id}/cases` → `[{id,code,summary,test_result,...}]`
 - **删除用例**：`DELETE /api/projects/{platform}/cases`，请求体 `{"ids":[id1,id2,...]}`（ids 在 **JSON 体**里，不在 URL；用 GET/POST 探测会返回 405/500）
 
@@ -109,6 +130,21 @@ python scripts/smod_changelist_import.py --delete-cases 1851245,1821972 --token 
 ```
 
 > 提示：先用 `GET .../points/{id}/cases`（或直接看 SMOD 网页）确认要删的用例 id，再批量删除。
+
+## 实测记录（2026-09-28，QDM559 V22）
+
+| 项 | 结果 |
+|---|---|
+| 版本号 | `QDM559_STM32G0B0_APP_01.001.01.001_V22` |
+| 平台 | **STM32G0**（id_plat_ver=730029）——关键字 `QDM559` 搜到 11 条历史，平台唯一，自动选中 |
+| 新建版本 | id_beta_ver=**1572235**（创建人 黎卓明） |
+| 导入 | 6 个修改点；有需求 2 个各建 1 条用例（`TC-20260928135557` 软件开发包 / `TC-20260928135559` 云端日志），结论 `ti`；无需求 4 个 → `bnr` + 备注「无需测试」 |
+| 账号 | `Venus.Li@ikotek.com`，密码未变，`login_by_password` 正常 |
+
+**已知边界**：分类列只认 `<Change Type>` 的 `new requirement(s)` / `bug fix` / `inner bug fix`
+（`derive_category` / `CATEGORY_MAP`，单复数均可）。像 `security enhancement` 这类新取值会**留空**，
+需要时在 `smod_changelist_import.py` 的 `CATEGORY_MAP` 里补映射。
+分类留空也可事后补：`PATCH /api/projects/{platform}/points/{id}/category` 体 `{"value":"nw"}`（已实测 200 / data=true）。
 
 ## 注意事项
 - 登录已实现全自动：`--username` + `--password` 即可，脚本内部走 SSO → OAuth → SMOD token 完整链路。
