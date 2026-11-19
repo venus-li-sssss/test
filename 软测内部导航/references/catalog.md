@@ -17,16 +17,17 @@
 | 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/THmCfySTUlwC8mdkmcYcAJ2XnZe -- 资源·串口抓取工具（日志抓取.exe）云盘目录；exe 只能放 C 盘运行 |
 | 做升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- FOTA 升级包制作：全量包/差分包/最小系统包，config 自动生成 + 产物自检<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf -- 资源·做包工具与官方文档：adiff.exe / FBFMake_CF_V1.6-150.exe / config 与 config_app 模板 / fbfmake*.bat / 说明 PDF，缺工具从这里下（工具只能放纯 ASCII 路径） |
 
-## 测试相关（6 条）
+## 测试相关（7 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
 | 日志分析-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/log-analysis -- 设备日志/脚本日志分析：定位问题、还原执行流程 |
 | 测试用例生成 | 🔗 | 输入协议文本 → AI 生成测试用例（妙搭网页应用，需人工操作；暂无 skill） |
 | JIRA系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
-| 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 输入用例+JIRA+压力+路测数据 → 输出系统测试报告 docx/xlsx<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 输入设备/高精度 NMEA → 轨迹对比 KML + 截图 + CEP 表 + 路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
+| 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 输入用例+JIRA+压力+路测数据 → 输出系统测试报告 docx/xlsx<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 输入设备/高精度 NMEA → 轨迹对比 KML + 截图 + CEP 表 + 路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭）<br>https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 经「内部报告转邮件草稿」：报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
 | 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例 |
 | 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 由内部报告或测试用例生成对外报告 |
+| 内部报告转邮件草稿 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
 
 ## 项目信息（2 条）
 
