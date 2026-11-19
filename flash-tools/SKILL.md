@@ -12,7 +12,7 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
 | 用户场景关键词 | 走哪个流程 |
 |---|---|
 | FreqChip、富芮坤、FR801XH/FR801XT/FR800X/FR508X/FR30XX/FR201X/FR303X/FR803X、`FreqChip_Download_Consle.exe`、`setting.ini` | → [references/freqchip-download.md](references/freqchip-download.md) |
-| ASR、aboot、`adownload.exe`、ML307C、EG800AK、QDM562、烧录 `.zip` 固件包、量产/升级模式 | → [references/aboot-flash.md](references/aboot-flash.md) |
+| ASR、aboot、`adownload.exe`、ML307C、EG800AK、QDM562、烧录 `.zip` 固件包、量产/升级模式、**取消勾选/只烧部分分区/保留客户数据** | → [references/aboot-flash.md](references/aboot-flash.md) + `scripts/aboot_skip.py`（列条目 / 生成跳过某些分区的包） |
 | Qualcomm/QFIL、QPST、9008/EDL、QDLoader、`QFIL.exe`、firehose、`prog_emmc_firehose_*.mbn`/`prog_firehose_*.elf`/`partition.mbn`、`rawprogram*.xml`+`patch*.xml`、`contents.xml`/meta build/flat build、`QSaharaServer.exe`、`fh_loader.exe` | → [references/qfil-cli.md](references/qfil-cli.md) |
 | QFlash、QFlash V7.5、Unisoc/展锐、EC618/EC718/EC217/EC716/EC626/616、`FlashToolCLI.exe`、STM32/`STM32_Programmer_CLI`、MTK/MT2731R/`flashimage.exe`、Rockchip/`upgrade_tool`、NB-IoT/`UEUpdaterCLI`、Beken/Altair/GNSS、`MainConfig.ini`、QFlash GUI | → [references/qflash/overview.md](references/qflash/overview.md) |
 | 其他 QDM/QDK 模块（如 QDM002 车机/CCU 测试、产品功能用例） | 不属于本 skill，见对应产品测试 skill |
@@ -36,12 +36,14 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
     上次保存的端口/固件，再用命令行覆盖。**自动化时必须显式传全 `-COM/-SEARCHPATH/-RAWPROGRAM/-PATCH/-PROGRAMMER/-DEVICETYPE`**，
     否则可能直接在错误的端口上烧错的包。详见 [references/qfil-cli.md](references/qfil-cli.md)。
 
-12. **客户信息区（`customer_fs` / `ext_flash`）默认不烧**：QDM562 / 九号等 aboot 机型，固件包的
-    `download.json` 里有 `customer_fs`（客户文件系统，256 KB）和 `ext_flash`（外挂 SPI flash 末段 3 MB）
-    两条 flash 动作，里面是客户出厂信息/标定数据。**只要设备上已经有版本（哪怕很旧），就必须跳过这两项**；
-    只有「设备上完全没有版本」（全新裸板 / 整片擦除 / 换过 flash）才全量烧。
-    做法、判定依据与实测记录见
-    [references/aboot-flash.md · 客户信息区不烧录规则](references/aboot-flash.md#客户信息区customer_fs--ext_flash不烧录规则)。
+12. **烧录项可按需取消勾选（选择性烧录，通用能力）**：aboot 固件包烧哪些分区完全由包内
+    `download.json` 决定，**每个固件的分区列表可能都不一样** —— 每次先解析 `download.json`
+    把条目列给用户看，**不要按机型背清单、不要硬编码分区名**。用户要求保留某些数据时，
+    跳过对应条目即可（GUI 取消勾选；CLI 用
+    `scripts/aboot_skip.py` 删条目重打包，镜像文件保留）。
+    **机型默认口径只有一条：QDM562 的客户信息区 `customer_fs` / `ext_flash` 在设备已有版本时默认不烧**
+    （裸板 / 整片擦除 / 换 flash 才全量）；**其他项目一律全烧**，除非用户明确说要跳过。
+    做法见 [references/aboot-flash.md · 选择性烧录](references/aboot-flash.md#选择性烧录按需跳过某些分区)。
 
 ## QuecAgent 环境适配说明
 
