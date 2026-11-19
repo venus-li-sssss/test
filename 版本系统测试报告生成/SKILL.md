@@ -162,6 +162,33 @@ python "<skill目录>/scripts/purge_versions.py" --config "<configs/purge_xxx.js
 删完脚本会做一次全表关键字扫描（QDM522/559/565…），输出「残留外来项目关键字：无」才算干净。
 另外还会 `prune_cols()` 删掉内容区之外的 `<col>` 定义，否则 Excel 的 UsedRange 一直延伸到 AC/BK。
 
+### 更稳的做法：让 Excel 自己删（`scripts/purge_via_excel.py`，2026-11-18 实战定型）
+
+openpyxl 手改版式（删行删列）**永远有漏**：合并区、行高、列宽、隐藏标记、超链接、`<col>` 定义
+都要自己补，漏一个就"格式全乱"。**换成 Excel COM 删**，这些全部由 Excel 原生处理：
+
+```bat
+python scripts/purge_via_excel.py --src "<带别人版本的历史报告.xlsx>" --out "<干净底稿.xlsx>"
+```
+
+四件事：按表头识别版本组删列（常规功能/常规压力）→ 删摘要矩阵行对 → 删测试计划外来块 → 修图例跳转链接。
+底稿版式 = 用户认可的那份历史报告，**一行样式都不用自己重建**。`purge_versions.py` 保留作无 Excel 环境的兜底。
+
+### 生成后收尾：AutoFit 长文本行（`scripts/postfix_excel.py`）
+
+openpyxl 不算行高，长备注（测试计划 K 列、问题统计表描述）会被压成 16.2pt 一行，肉眼一看就"挤"。
+报告 save 之后跑一次：
+
+```bat
+python scripts/postfix_excel.py --config "<config.json>"
+# 默认 autofit：测试计划 13:19、问题统计表 22:29；可在 config.autofit_rows 改
+```
+
+⚠️ 这一步是 Excel 打开→AutoFit→保存，会**重写文件**：
+- 富文本（摘要 C19 红字）实测能保留，但改完要回读确认；
+- 之后再跑 `build_report.py` 会被覆盖，顺序固定：**build → postfix → excel_check**。
+
+
 ### 格式三连坑（2026-11-18 实战，改完一定做「逐格样式比对」）
 
 `build_report.py` / `purge_versions.py` 改完，**用脚本把新版本组和上一版本组逐格比
@@ -341,6 +368,8 @@ gf_rows       {"<常规功能行号>": {label, sources:[{table:序号, keys:[...
 gf_insert     {at_row, count, style_from, merges:[["旧合并","新合并"]]}  在平台数据交互段插新行时用
 gf_new_rows   {"<行号>": {num, content, priority, result}}                插进去的新行
 gf_title_center true   「功能点测试」绿条(B2)文字居中（2026-10-23 用户要求，首份/迭代都该开）
+legend_border true     「Sheet名称/对应内容简述」图例表补边框。⚠️ 只给 B、C 两列加
+                      （C:G 已合并算一列），给 B~I 全加会多出一排空白带框格子
 gf_col_merges ["B4:B8","B18:B23",...]  B 列测试项按分区重建合并+居中。⚠️ 插行后底稿的分区合并
               不会跟着扩（NETWORK-05 这种插出来的行会漏在合并外），按最终几何逐段重并；
               只并**可见**行，隐藏备用行别并进去（合并居中的字会跑到隐藏区中间）。
