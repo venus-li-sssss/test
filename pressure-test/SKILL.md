@@ -1,5 +1,5 @@
 ---
-description: 'Use this skill when the user wants to create, manage, or run pressure/stress test scripts, or turn functional test cases into a pytest shell project decoupled from execution base classes with allure reporting. Triggers: "压力测试", "压测脚本", "stress test", "pressure test", "生成压力脚本", "生成yaml配置", "管理压力测试", "压力框架", "自动化测试脚本", "用例转pytest", "allure报告", "基类解耦", or any request involving generating test scripts with retry, logging, statistics, and YAML config management.'
+description: 'Use this skill when the user wants to create, manage, or run pressure/stress test scripts, or turn functional test cases into a pytest shell project decoupled from execution base classes with allure reporting. Triggers: "压力测试", "压测脚本", "stress test", "pressure test", "生成压力脚本", "生成yaml配置", "管理压力测试", "压力框架", "自动化测试脚本", "用例转pytest", "allure报告", "基类解耦", "FCT", "FCT自动化测试", "FCT产测", "产测脚本", "版本自动化测试", "结果归档", "write-restore", or any request involving generating test scripts with retry, logging, statistics, and YAML config management.'
 name: pressure-test
 ---
 
@@ -42,6 +42,18 @@ name: pressure-test
 | **pressure-test-uiautomator** | 基于 uiautomator2 库，生成 Android UI 自动化压力测试脚本，支持相对定位、自动上溯可点击祖先、组合指令(run --json)、retry重试机制 | Android APP 自动化场景，需要为台铃APP、九号APP等生成 UI 压力脚本 |
 | **pressure-test-webui** | 基于 Selenium WebDriver/Playwright 生成 Web UI 自动化压力测试脚本，支持多定位策略（CSS/XPath/text）、显式等待、截图取证、多标签页管理 | Web 界面自动化场景，需要为网页应用生成 UI 压力脚本 |
 | **pressure-test-pytest** | 功能自动化：Excel 用例 → pytest 壳工程（用例层只调用函数打印文字、不实际执行）+ 基础类（Serial/CAN/Platform API 超类）通过 uid 注册表解耦 + allure 报告（printf 三通道/附件/结果块，状态码 200/201/404/500），生成器 scripts/gen_pytest_shell.py | 用户要把测试用例先转成 pytest 骨架、实际执行基础类另行开发最后合并、或要求 allure 报告与基类/用例解耦 |
+| **pressure-test-fct** | **FCT 自动化测试流程（实机跑批 + 归档）**：单 FCT 口模型、链路体检（脏链路必须断电）、写操作三档（默认跳过 / `--write` / `--write-restore` 写→回读→还原→再回读）、结果核对清单、`scripts/archive_results.py` 一键归档到版本目录并生成 `说明.md` | 已有 FCT 产测项目要**实机跑 / 判定 / 归档**；或用户问"产测怎么跑、结果放哪、写完怎么还原" |
+
+## 分类速览（用户说法 → 子 skill）
+
+| 用户嘴里的分类 | 对应子 skill |
+|:---|:---|
+| **基类**（串口 / CAN / CMD 窗口 / 继电器 / 平台 API / Jlink / 文件） | `pressure-test-bases` |
+| **FCT 自动化测试流程** | `pressure-test-fct`（实机跑批 + 归档）；项目骨架生成看 `pressure-test-pytest` |
+| **版本自动化测试流程** | `pressure-test-pytest`（Excel 用例 → pytest 壳，按版本跑）+ 仓库根目录 `版本系统测试报告生成`（出报告）。**暂无独立的"版本流程"子 skill** |
+| **压力模板 / 压力框架 / 生成器** | `pressure-test-generator`（脚本 + yaml）+ `pressure-test-framework`（超类/流程/主循环） |
+| **UI 自动化**（Windows / Android / Web） | `pressure-test-uiautomation` / `pressure-test-uiautomator` / `pressure-test-webui` |
+| **接口自动化**（HAR → 平台基类） | `pressure-test-api-analyzer` |
 
 **使用方式**：当用户触发 pressure-test 时，先加载本入口 skill 了解架构，然后根据具体需求加载对应的子 skill。
 
