@@ -98,6 +98,46 @@ ADOWNLOAD = "D:/QDM505 tool/aboot tool/aboot-tools-2020.09.10-win-x64/aboot-tool
    ```
    （`AT+QGMR` 在该固件返回 ERROR，别用它判断。）
 
+## 客户信息区（customer_fs / ext_flash）不烧录规则
+
+> **默认口径（2026-11-19 实测确认）：除设备上完全没有版本，否则一律不烧 `customer_fs` / `ext_flash`。**
+
+| 分区 | download.json 条目 | 内容 | 跳过的影响 |
+|---|---|---|---|
+| `customer_fs` | `flash customer_fs.bin`（256 KB，@0x395000） | 客户文件系统 / 出厂数据 | 保留原数据；app 更新不受影响 |
+| `ext_flash` | `flash ext_flash.bin`（3 MB，@0x100000） | 外挂 SPI flash 末段（客户信息 / 标定） | 保留原数据；GNSS 固件在 `cc1161w_*` / `cc0058q_*`（0x30000~0xD0000），与它不重叠，照常烧 |
+
+**为什么安全（三条判定依据，每次照这个顺序核一遍）**
+
+1. **镜像是否真的变了**：同一产品线的相邻版本里，这两块常常逐字节相同
+   （766 vs 765：`customer_fs.bin` MD5 `268a217f…`、`ext_flash.bin` MD5 `313b370e…` 完全一致）
+   → 跳过等于不重写同样的内容。
+2. **分区布局是否变了**：解析两个版本的 `partition.bin` 比对名字/起始/大小。
+   布局一致（`partition.bin` 即使 MD5 不同，也可能只是头部字段）→ 不烧不会错位。
+3. **关键镜像是否独立**：`bootloader` / `ptable` / `cp` / `dsp` / `customer_app` / GNSS / `updater` / 蓝牙
+   与这两个分区互相独立，跳过不影响功能验证。
+
+**唯一例外（必须全量烧）**：全新裸板、被整片擦除/格式化过的板子、换过 flash 的板子。
+这两块为空会导致客户文件系统无初始内容、客户信息/标定缺失。
+
+**两种做法**
+
+- **GUI（人工勾选）**：只取消 `customer_fs` 与 `ext_flash` 两行，其余保持默认；
+  `nvm` / `erase_rd` / `fota_param` / `factory_a` 保持默认（默认不会清 IMEI/NV）。
+- **CLI（推荐，可复现、可自检）**：把内层 zip 的 `download.json` 里
+  `"partition": "customer_fs"` 与 `"partition": "ext_flash"` 两条 `flash` 条目删掉，
+  **镜像文件原样保留**（别删 `customer_fs.bin` / `ext_flash.bin`，避免工具做文件校验时失败），
+  重新打包后 `adownload.exe -u -a -q -s 921600 -r <新zip>`。
+  打包后自检：条目数 = 原 31 条 − 2；再断言没有任何条目还引用这两个分区。
+
+**实测记录（2026-11-19，QDM562 762 → 766）**
+
+- 进下载模式：pyserial 向 AT 口（115200）发 `AT+QDOWNLOAD=1` → 约 1 s 后枚举 `ASR Serial Download Device (COM12)`
+- 烧录：`adownload.exe -u -a -q -s 921600 -r "<766_skip_customerfs_extflash.zip>"`（在工具自身目录执行）
+- 结果：`all finished. total time: 26.069s` / `status: SUCCEEDED` / `progress 100` / 退出码 0；
+  日志里 15 条 flash + 6 条 erase，**没有 `flash customer_fs` / `flash ext_flash`**
+- 断电重上电后 `ATI` → `CustRevision: …_QDM562CNAK_01.001.01.001_766`，`AT+CGSN` IMEI 未变 ✅
+
 ## 注意事项
 
 - 烧录通常 10–40 秒（USB 下载），串口下载更慢；务必留足超时时间

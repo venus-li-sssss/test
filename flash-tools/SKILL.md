@@ -36,6 +36,13 @@ description: 'Use this skill when the user wants to flash/burn firmware to a dev
     上次保存的端口/固件，再用命令行覆盖。**自动化时必须显式传全 `-COM/-SEARCHPATH/-RAWPROGRAM/-PATCH/-PROGRAMMER/-DEVICETYPE`**，
     否则可能直接在错误的端口上烧错的包。详见 [references/qfil-cli.md](references/qfil-cli.md)。
 
+12. **客户信息区（`customer_fs` / `ext_flash`）默认不烧**：QDM562 / 九号等 aboot 机型，固件包的
+    `download.json` 里有 `customer_fs`（客户文件系统，256 KB）和 `ext_flash`（外挂 SPI flash 末段 3 MB）
+    两条 flash 动作，里面是客户出厂信息/标定数据。**只要设备上已经有版本（哪怕很旧），就必须跳过这两项**；
+    只有「设备上完全没有版本」（全新裸板 / 整片擦除 / 换过 flash）才全量烧。
+    做法、判定依据与实测记录见
+    [references/aboot-flash.md · 客户信息区不烧录规则](references/aboot-flash.md#客户信息区customer_fs--ext_flash不烧录规则)。
+
 ## QuecAgent 环境适配说明
 
 原工具文档中提到的 `AskUserQuestion` / `TaskOutput` / `TaskStop` / `run_in_background` 是其他 Agent 框架的工具名，在本环境对应：
