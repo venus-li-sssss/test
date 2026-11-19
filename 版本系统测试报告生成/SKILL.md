@@ -451,5 +451,8 @@ platform      {enabled, env, out_dir, do, jira_url, jira_timeout, overrides, def
   **压力 FAIL 行的备注字体标红**（`build_report.py` 自动处理：`vals[3] == "FAIL"` 时把 `pstart+6` 列字体色设成 `FFFF0000`）。
   没跑的行进 `hide.rows`，本轮有数据的行记得 `unhide_rows`（底稿继承的隐藏态只加不减）。
 - 交付前一定用**真实 Excel** 打开一次（`excel_check.py`），确认 8 个 Sheet 都在、没有「修复」提示。
+- **`configs/` 里 `qdm*.json` / `jira_qdm*.json` 含 JIRA 账号密码，同步到 GitHub 前必须临时移走**
+  （`skill_repo.py push` 会整体同步，`--no-prune` 也挡不住新增）。同理 `软测内部导航/scripts/config.local.json` 含导航 token。
+  推荐做法：push 前 `move` 到临时目录，推完 `move` 回来；仓库里只保留 `platform_defaults.json` 这类无凭据的配置。
 
 **Execution reminder**：触发本 skill 时直接按上面 `run_tool_batch(file_path=..., args=...)` 调用即可，不用自己逐步写 action；只有批处理失败时才走「Batch failure handling」的兜底路径。
