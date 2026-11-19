@@ -20,7 +20,7 @@ name: pressure-test-pytest
 |:---|:---|
 | 功能用例要先出 pytest 骨架，实际执行（CAN/串口/平台）另行开发、最后合并 | **本 skill** |
 | 循环压测（while True、轮次统计、device.yaml） | pressure-test-generator |
-| FCT 产测一体化项目（spec.json+sim 自检+协议层） | pressure-test-framework / auto-test |
+| FCT 产测一体化项目（实机跑批 / 写后还原 / 结果归档） | **pressure-test-fct**（跑批与归档）+ 本项目骨架生成 |
 | 只要基础类代码模板 | pressure-test-bases |
 
 ## 生成的工程结构
