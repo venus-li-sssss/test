@@ -93,6 +93,53 @@ def impl_tcs_on_4g(base, case):
 6 个场景文件：安卓 386、iOS 386、鸿蒙 386、蓝牙 363、4G 372、蓝牙+4G 423；
 `pytest -q --co -m try_run` 收集 **2316** 项（1158×2，两个场景各一次），桩跑全绿（`PASS(桩)`），单文件 386 项 0.06s 收集完成。
 
+## 真机执行层怎么接进来（超类 + 页面模式基础类 + 规则表）
+
+壳工程评审通过后再接真机，**用例层零改动**。生成器只重写 `tests/ / cases.json / base/impls.py /
+conftest.py / README.md`，下面这些是人写的、重跑生成器不会丢：
+
+| 文件 | 作用 |
+| --- | --- |
+| `base/executor_custom.py` | `CustomExecutor`，装配设备超类；**conftest 自动优先用它**，没有就退回 `BaseExecutor` |
+| `base/impls_manual.py` | 手写实现：`RULES` 规则表批量 `@register(uid)` 覆盖 `impls.py` 的桩 |
+| `base/<通道>.py` | 基础类（APP / 平台 / 上位机 / CAN / 串口…） |
+| `device.yaml` | 各通道配置，与压测脚本同一口径 |
+
+**基础类怎么切**：一个通道一个类，互不依赖（对齐 pressure-test-bases 的 Layer 1）；
+APP 类用**页面模式**（先定页面 → 再看该页需要的元素 → 再写操作），把页面和元素写成**数据表**
+（`PAGES` / `ELEMENTS`，元素带 `page / text / type / layer`），类里只负责把表翻译成现成 helper 的
+CLI（`go_to_page` / `tap --text` / `cmd --target ... --action on|off` / `get_device_info` …），
+**不要重写 uiautomator2 那一层**（那条链在 ninebot-project skill 里已经调稳）。
+超类（Layer 2）= 组合这些基础类，`open_all()/close_all()` 统一处理。
+
+**别逐条手写 1158 个函数**：用规则表
+
+```python
+RULES = [
+    ("车辆详情", ["闪灯鸣笛"], act_flash_horn, "AUTO"),
+    ("TCS",     ["TCS", "牵引力"], mk_toggle("mf.tcs", "牵引力控制系统"), "PARTIAL"),
+    ("设备信息", ["设备型号", "车架号", "固件"], act_device_info, "AUTO"),
+]
+# 命中即 register(uid)，一条规则覆盖 N 条用例；没命中继续走 impls.py 的桩
+```
+
+**判定要防「假绿」**：这批用例大量是「APP 点一下 → 再去车上拧油门/捏刹车/刷卡验证」。
+只写 APP 那半段就报 PASS 等于假绿；一律 FAIL 又淹没真问题。约定：
+
+| 状态码 | 含义 | 报告 |
+| --- | --- | --- |
+| 200 | 自动化可完全判定（APP 读到的值 / 开关状态 / 平台指令记录即验收依据） | 绿 |
+| 201 且 reason 以 `PARTIAL` 开头 | APP 侧已自动执行并核验，物理/仪表/BLE 项待人工 | `pytest.xfail`（黄，原因写明缺哪步） |
+| 404 / 500 | 连不上 / 脚本异常 | 红 |
+
+在 `CustomExecutor.run_case` 里拦 `AssertionError`，`PARTIAL` 就转 `pytest.xfail`——不上报假 PASS，
+也不把整轮跑红。另加 **mock 开关**（如 `QDM562_MOCK=1`）：不连设备时所有动作只打印，用来验证
+壳/超类/注册表/报告链路，全绿才说明接线没问题。
+
+**实测（QDM562 整车 1158 条）**：接真机动作 **513 条**（AUTO 72 / PARTIAL 441），其余 645 条仍是桩；
+mock 全量 6 个场景 2316 项 **6.67s 全绿**；文档由 `tools/gen_docs.py` 从 `PAGES/ELEMENTS/RULES`
+生成（页面模型 / 覆盖统计），改一处不写两处。
+
 ## 判定口径（与压力框架一致，合并时不用改）
 
 实现函数返回值 → `norm_res` 归一化：
