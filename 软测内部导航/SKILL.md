@@ -151,7 +151,7 @@ python nav.py link delete <链接id>
 | 步骤 | 放哪儿 | 用什么 | 产物 |
 |---|---|---|---|
 | ① 能力 | GitHub `venus-li-sssss/test/<英文目录名>/` | `skill仓库同步` 的 `push`（先 `--dry-run`） | `SKILL.md` + `scripts/` |
-| ② 软件/资源/文档 | 飞书云盘 `软件测试部→软件测试二科→基础软件存放/<分类>`（或「项目环境搭建」） | 人工上传/浏览器；`feishu-software-download` **只负责下载** | folder 链接（folder token） |
+| ② 软件/资源/文档 | 飞书云盘 `软件测试部→软件测试二科→基础软件存放/<分类>`（或「项目环境搭建」） | 用 `feishu-software-download` 的 `scripts/feishu_upload.py upload/mkdir`（bot 身份即可写；>20MB 自动分片，`--budget 40` 分批续传） | folder 链接（folder token） |
 | ③ 入口 | 导航页对应分类下一条链接 | `nav.py link add` / `link update` | 点进去就能拿到 ①② |
 
 `url` 给人点、`skills[]` 给 agent 用、`attachments[]` 给没装 agent 的人。
@@ -168,6 +168,11 @@ python nav.py link delete <链接id>
 **② 云盘侧约定**
 
 - 工具类放 `基础软件存放/<工具分类>/`（串口工具、烧录工具、AI工具…），版本包放「项目环境搭建」或对应项目目录。
+  **手机 APP 安装包**放 `基础软件存放/手机APP/`（2026-11-20 新建；`九号出行APP_v6.10.12.apk` 363MB 已入库）。
+- **云盘可自动写**（2026-11-20 实测）：机器人身份就能 `create_folder` + 分片 `upload`，命令
+  `python <skill>/scripts/feishu_upload.py mkdir|upload ...`（见 feishu-software-download skill ④）。
+  分片三条硬规矩：字段名 `seq` 且**从 0 开始**、末片短块不用补零、checksum 用 Adler-32 十进制。
+  大文件用 `--budget 40 --workers 8` 分批跑，中断重跑即续传。
 - 索引文件（目录清单）放根目录，方便"先看有哪些再下"。
 - 记下 **folder 链接**（`https://quectel.feishu.cn/drive/folder/<token>`），第③步要挂。
 - **压测脚本**放「压测脚本网盘」的 `产品线 / 项目 / <项目>_<分支>_<功能>` 三级目录，
@@ -293,6 +298,7 @@ python scripts/audit_cards.py --json       # 机器可读
 ## ⑪ 历史快照（只对比趋势，别当现状）
 
 - **2026-11-20**：18 分类 / 62 链接。新增「压力脚本编写」（`5371d62c-ddd5-4436-8405-6f52169409c0`：pressure-test 总入口 + generator/framework/uiautomator/webui + 引用压测脚本网盘）与「基类编写」（`195e8323-5e29-495c-8fa3-1d547254b2d3`：pressure-test-bases + super-client + api-class-generator + account-login-skill），均在分类 测试相关；「版本自动化测试」补挂 `pressure-test-pytest`（用例集→pytest 伪脚本，`--group-by scene` 按环境场景切分）与版本系统测试报告生成；`pressure-test-pytest` 的 SKILL.md + 生成器同日推 GitHub（078fecf / 005b0af）。
+  - 同日新增**云盘写入能力**：`feishu-software-download/scripts/feishu_upload.py`（mkdir/upload，>20MB 分片断点续传；踩坑见该 skill ④）。用它建了 `基础软件存放/手机APP/`（`OfccfrVr5lcFVBd6i58c336QnCc`），并从现网手机 adb 拉取 `九号出行APP_v6.10.12.apk`（`cn.ninebot.ninebot` v6.10.12 / versionCode 610124275，380,713,031 B）上传入库（file_token `NdnkbgElXoPvjExGp4Bc4XYQngc`），挂在「九号平台」卡片的 `skills[]` 资源条目里（下载侧 Content-Length 已校验一致）。GitHub：`97287fae` / `23d9172a`。
 - **2026-11-18**：16 分类 / 52 链接（`nav.py` 实测）；导航 OpenAPI 可用。同日给「Outlook邮箱」卡片（`08a12788-7c64-42e2-a9e6-69c855163556`，分类 测试环境搭建）挂上 `msgraph-delegated-setup`，url 从一次性 OAuth 授权串换成 `https://outlook.office.com/mail/`，desc 改写为「输入→输出 + 已做成 skill + 90 天不活动需重登」；catalog 刷新为 52 链接。
 - **2026-11-13**：链路体检 51 张 → 37 ✅ / 2 功能未完成（Jlink 烧录、CAN 抓取）/ 12 仅指路；端到端实测跑通 27 张；待一次性授权 9 张（GNSS资料、Tracker的知识库、日常工作流程、标准模板、样机管理库、团队架构、物资管理、压测脚本记录、远程服务器工具 → 飞书节点加只读机器人 `cli_a9bc97317fb89cc8`）。
 
