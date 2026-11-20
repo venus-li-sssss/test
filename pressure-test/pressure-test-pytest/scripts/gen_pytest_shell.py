@@ -4,6 +4,13 @@
 
 用法:
     python gen_pytest_shell.py --xlsx TestCase.xlsx [--out ./proj] [--product QDM522]
+                               [--group-by auto|module|scene]
+
+--group-by：tests/ 怎么切。
+    auto（默认）表里同时有「手机系统 × 连接方式」两维（编号形如 模块-安卓-4G+蓝牙-001）→ 按环境场景切；
+                 一维表（编号形如 车辆详情-4-001）→ 按功能模块（Sheet）切，即老行为。
+    scene        一个环境场景一个文件：安卓 / iOS / 鸿蒙 / 蓝牙 / 4G / 蓝牙+4G，
+                 场景内含该场景的全部测试项；组内按另一维度成块排序，把环境切换次数降到最少。
 
 设计（解耦两层）:
   用例层  tests/test_*.py          —— 由本脚本从 Excel 自动生成，一条用例 = 一个参数化用例，
@@ -31,8 +38,39 @@ HERE = Path(__file__).resolve().parent
 PRODUCT = "QDM522"                       # 产品名（main 里按参数重置）
 XLSX_NAME = "QDM522_TestCase_V21.xlsx"   # Excel 文件名（main 里重置）
 
-CID_RE = re.compile(r"^([^-]+)-([^-]+)-(\d+)$")
+# 3 段编号: 模块-通道-序号      例 车辆详情-4-001
+CID_RE3 = re.compile(r"^([^-]+)-([^-]+)-(\d+)$")
+# 4 段编号: 模块-系统-连接方式-序号 例 激活绑定-安卓-4G+蓝牙-001（系统×连接方式 二维矩阵表）
+CID_RE4 = re.compile(r"^([^-]+)-([^-]+)-([^-]+)-(\d+)$")
+CID_RE = CID_RE4                       # 兼容旧引用；实际按 4 段→3 段 顺序尝试
 HDR_TEXT = "用例编号"
+
+# ---- 场景（环境）定义：一次环境准备 = 一个场景，场景内跑该场景下的全部测试项 ----
+# 手机系统场景：含该系统下 蓝牙/4G/蓝牙+4G 全部用例；连接方式场景：含该连接方式下 安卓/iOS/鸿蒙 全部用例。
+OS_ALIAS = {"安卓": "android", "android": "android", "ios": "ios", "IOS": "ios",
+            "鸿蒙": "harmony", "harmony": "harmony"}
+OS_ORDER = ["android", "ios", "harmony"]
+OS_LABEL = {"android": "安卓", "ios": "iOS", "harmony": "鸿蒙"}
+CONN_ORDER = ["bt", "4g", "4g_bt"]
+CONN_LABEL = {"bt": "蓝牙", "4g": "4G", "4g_bt": "蓝牙+4G"}
+
+
+def conn_key(raw: str) -> str:
+    """连接方式 → bt / 4g / 4g_bt（4G+蓝牙、蓝牙+4G 都算双通道）"""
+    s = str(raw or "").upper().replace(" ", "")
+    has_ble = ("蓝牙" in s) or ("BT" in s) or ("BLE" in s)
+    has_4g = "4G" in s
+    if has_ble and has_4g:
+        return "4g_bt"
+    if has_ble:
+        return "bt"
+    if has_4g:
+        return "4g"
+    return ""
+
+
+def os_key(raw: str) -> str:
+    return OS_ALIAS.get(str(raw or "").strip(), OS_ALIAS.get(str(raw or "").strip().lower(), ""))
 
 # 列: B..I
 COL_ID, COL_MODULE, COL_TITLE, COL_PRIORITY, COL_CONTENT, COL_PRECOND, COL_STEPS, COL_EXPECT = range(2, 10)
@@ -75,6 +113,7 @@ def parse_workbook(path: Path):
 
         used = {}
         n_sec = 0
+        last_module = ""
         for r in range(hdr + 1, ws.max_row + 1):
             cid = ws.cell(r, COL_ID).value
             module = ws.cell(r, COL_MODULE).value
@@ -88,8 +127,8 @@ def parse_workbook(path: Path):
             if cid is None:
                 continue
             cid = str(cid).strip()
-            m = CID_RE.match(cid)
-            if not m:
+            m4, m3 = CID_RE4.match(cid), CID_RE3.match(cid)
+            if not (m4 or m3):
                 # 分区标题行（B 列有值、其余列基本为空）→ 跳过
                 rest = [module, title, priority, content, precond, steps, expect]
                 if any(v not in (None, "") for v in rest):
@@ -98,10 +137,32 @@ def parse_workbook(path: Path):
                     n_sec += 1
                 continue
 
-            _, chan, num = m.group(1), m.group(2), m.group(3)
-            module = str(module).strip() if module else "通用"
+            if m4:
+                _, os_raw, conn_raw, num = m4.group(1), m4.group(2), m4.group(3), m4.group(4)
+                chan = conn_raw
+            else:
+                os_raw, conn_raw = "", ""
+                _, chan, num = m3.group(1), m3.group(2), m3.group(3)
+
             pkey = precond_key(str(precond) if precond else "", chan)
-            uid = f"{sanitize(sheet)}_{sanitize(module)}_{pkey}_{num}"
+            okey = os_key(os_raw)
+            ckey = conn_key(conn_raw) or ({"4G_BT": "4g_bt", "BT": "bt", "4G": "4g"}.get(pkey, ""))
+
+            # 模块列常只在分段首行有值 → 向下沿用；仍空则用编号前缀
+            module = str(module).strip() if module else ""
+            if module:
+                last_module = module
+            else:
+                module = last_module or str(m4.group(1) if m4 else m3.group(1)).strip() or "通用"
+            # 二维表的模块列常写成「模块-系统-连接方式」→ 去掉后缀只留模块名（系统/连接另存字段）
+            if m4:
+                for suf in (f"-{os_raw}-{conn_raw}", f"-{os_raw}"):
+                    if module.endswith(suf):
+                        module = module[: -len(suf)].strip() or module
+                        break
+
+            # uid = 模块_子模块_[系统_]通道_序号（二维表把系统并进 uid，保证同一序号在不同系统下不撞车）
+            uid = f"{sanitize(sheet)}_{sanitize(module)}_{(okey + '_') if okey else ''}{pkey}_{num}"
             if uid in used:
                 k = 2
                 while f"{uid}_{k}" in used:
@@ -121,6 +182,8 @@ def parse_workbook(path: Path):
                 "precond": str(precond).strip() if precond else "",
                 "steps": str(steps).strip() if steps else "",
                 "expected": str(expect).strip() if expect else "",
+                "os": okey,
+                "conn": ckey,
             })
         print(f"[parse] {sheet:12s} cases={len(used):3d} sections={n_sec}")
     return all_cases, anomalies
@@ -387,6 +450,10 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _cache = None
 
+# 场景成块排序用的维度顺序（与生成器保持一致）
+OS_ORDER = ["android", "ios", "harmony"]
+CONN_ORDER = ["bt", "4g", "4g_bt"]
+
 
 def _cases():
     global _cache
@@ -413,6 +480,31 @@ def make_params(cases):
 
 def get_sheet_params(sheet):
     return make_params(get_cases(sheet))
+
+
+def get_scene_cases(scene):
+    """按环境场景取用例。scene = os:android | os:ios | os:harmony
+                               | conn:bt | conn:4g | conn:4g_bt
+
+    组内排序：系统场景按 连接方式 成块（蓝牙→4G→蓝牙+4G），连接场景按 手机系统 成块
+    （安卓→iOS→鸿蒙），块内仍是 模块顺序 + Excel 行号 —— 一次环境只切一次。"""
+    kind, key = scene.split(":", 1)
+    sheet_order = {}
+    for c in _cases():
+        sheet_order.setdefault(c["sheet"], len(sheet_order))
+    if kind == "os":
+        out = [c for c in _cases() if c.get("os") == key]
+        out.sort(key=lambda c: (CONN_ORDER.index(c["conn"]) if c.get("conn") in CONN_ORDER else 9,
+                                sheet_order[c["sheet"]], c["row"]))
+    else:
+        out = [c for c in _cases() if c.get("conn") == key]
+        out.sort(key=lambda c: (OS_ORDER.index(c["os"]) if c.get("os") in OS_ORDER else 9,
+                                sheet_order[c["sheet"]], c["row"]))
+    return out
+
+
+def get_scene_params(scene):
+    return make_params(get_scene_cases(scene))
 '''
 
     files["run_all.py"] = r'''# -*- coding: utf-8 -*-
@@ -536,23 +628,37 @@ from base.registry import register
     (root / "base" / "impls.py").write_text("".join(parts), encoding="utf-8")
 
 
-def gen_readme(root: Path, n_cases, n_sheets, xlsx_name):
+def gen_readme(root: Path, n_cases, n_sheets, xlsx_name, mode="module", scene_info=None):
+    if mode == "scene":
+        layer = "tests/test_scene_XX_<场景>.py\n                            用例层：一个环境场景一个文件，场景内含该场景全部测试项；\n                            组内按另一维度成块排序 → 一次环境只切一次"
+        scene_sec = "\n## 场景切分（一个场景 = 一次环境准备）\n\n" + "\n".join(
+            f"- `tests/test_scene_{i:02d}_{k}.py` — {label}：**{n} 条**"
+            for i, (k, label, n) in enumerate(scene_info or [], 1)) + "\n\n" \
+            "跑单个场景：`python -m pytest -vs tests/test_scene_01_os_android.py`；" \
+            "场景内已按另一维度（系统场景按 蓝牙→4G→蓝牙+4G / 连接场景按 安卓→iOS→鸿蒙）成块排序，" \
+            "所以同一条用例会在两个场景里各跑一次（实现函数只写一份，uid 共用）。\n"
+        head = (f"从 `{xlsx_name}` 自动生成，共 **{n_cases} 条用例 / {len(scene_info or [])} 个环境场景"
+                f" / {n_sheets} 个功能模块（Sheet）**。\n")
+    else:
+        layer = "tests/test_XX_<模块>.py    用例层：一条 Excel 用例 = 一个参数化用例，\n                              函数体只调 base.run_case(case)（自动生成，勿手改）"
+        scene_sec = ""
+        head = f"从 `{xlsx_name}` 自动生成，共 **{n_cases} 条用例 / {n_sheets} 个功能模块（Sheet）**。\n"
     md = f"""# QDM522 pytest 自动化测试（桩实现版）
 
-从 `{xlsx_name}` 自动生成，共 **{n_cases} 条用例 / {n_sheets} 个功能模块（Sheet）**。
-
+{head}
 ## 分层（解耦设计）
 
 ```
-tests/test_XX_<模块>.py    用例层：一条 Excel 用例 = 一个参数化用例，
-                              函数体只调 base.run_case(case)（自动生成，勿手改）
+{layer}
 cases.json                 数据层：Excel 提取的结构化用例（uid/cid/模块/优先级/前置/步骤/期望）
 base/executor.py           基础类 BaseExecutor：实际执行的落点（run_case/step_report/判定断言）
 base/impls.py              每条用例一个实现桩函数（按 uid 注册），未来在这里填真实执行
 base/logger.py             printf 三通道打印：控制台 + log/script_log_*.txt + allure 步骤/附件
 base/registry.py           uid -> 实现函数 的注册表（两层之间的唯一耦合点）
 ```
-
+"""
+    md += scene_sec
+    md += f"""
 合并计划：真机执行开发时，只需要在 `base/` 里新增驱动（APP UI / 车辆指令 / 平台接口），
 并把 `impls.py` 里对应 uid 的 `base.print_case(case)` 替换成真实步骤；**tests/ 零改动**。
 
@@ -602,6 +708,9 @@ def main():
     ap.add_argument("--out", default=None, help="输出工程目录，默认 ./<product>_pytest")
     ap.add_argument("--product", default=None,
                     help="产品名（README/banner/environment），默认从文件名 Xxxx_TestCase 提取")
+    ap.add_argument("--group-by", default="auto", choices=["auto", "module", "scene", "sheet"],
+                    help="tests/ 切分方式：auto(默认，表里带系统×连接方式就按场景切) / "
+                         "module(=sheet，按功能模块切) / scene(按环境场景切：安卓|iOS|鸿蒙|蓝牙|4G|蓝牙+4G)")
     a = ap.parse_args()
 
     xlsx = Path(a.xlsx).resolve()
@@ -626,7 +735,32 @@ def main():
                    ensure_ascii=False, indent=1), encoding="utf-8")
 
     # 生成 tests/ 文件
-    cls_tpl = '''# -*- coding: utf-8 -*-
+    tdir = root / "tests"
+    for f in tdir.glob("test_*.py"):
+        f.unlink()
+
+    sheet_idx = {}
+    for c in cases:
+        sheet_idx.setdefault(c["sheet"], len(sheet_idx))
+
+    mode = a.group_by
+    if mode in ("sheet",):
+        mode = "module"
+    if mode == "auto":
+        # 表里带「系统×连接方式」两维 → 默认按环境场景切；否则按模块切（老行为）
+        mode = "scene" if any((c["os"] or c["conn"]) for c in cases) else "module"
+
+    case_body = '''        allure.dynamic.story(case["module"])
+        allure.dynamic.title(f\'{{case["uid"]}}｜{{case["title"]}}\')
+        allure.dynamic.description(
+            f\'编号: {{case["cid"]}}  (Excel {{case["sheet"]}} 第{{case["row"]}}行)\\n\'
+            f\'优先级: {{case["priority"] or "-"}}  前置条件: {{case["precond"] or "-"}}\\n\'
+            f\'步骤:\\n{{case["steps"]}}  \\n期望结果:\\n{{case["expected"]}}\')
+        base.run_case(case)
+'''
+
+    if mode == "module":
+        cls_tpl = '''# -*- coding: utf-8 -*-
 """由 gen_from_excel.py 自动生成，勿手工编辑。用例增删请改 Excel 后重跑生成器。
 数据源: cases.json（{sheet}，{ncase} 条）"""
 import allure
@@ -642,24 +776,63 @@ class Test{cls}:
 
     @pytest.mark.parametrize("case", get_sheet_params("{sheet}"))
     def test_case(self, base, case):
-        allure.dynamic.story(case["module"])
-        allure.dynamic.title(f\'{{case["uid"]}}｜{{case["title"]}}\')
-        allure.dynamic.description(
-            f\'编号: {{case["cid"]}}  (Excel {{case["sheet"]}} 第{{case["row"]}}行)\\n\'
-            f\'优先级: {{case["priority"] or "-"}}  前置条件: {{case["precond"] or "-"}}\\n\'
-            f\'步骤:\\n{{case["steps"]}}  \\n期望结果:\\n{{case["expected"]}}\')
-        base.run_case(case)
-'''
-    tdir = root / "tests"
-    for f in tdir.glob("test_*.py"):
-        f.unlink()
-    for i, sheet in enumerate(by_sheet, 1):
-        cls = sanitize(sheet)
-        text = cls_tpl.format(sheet=sheet, cls=cls, ncase=by_sheet[sheet])
-        (tdir / f"test_{i:02d}_{cls}.py").write_text(text, encoding="utf-8")
+''' + case_body
+        for i, sheet in enumerate(by_sheet, 1):
+            cls = sanitize(sheet)
+            text = cls_tpl.format(sheet=sheet, cls=cls, ncase=by_sheet[sheet])
+            (tdir / f"test_{i:02d}_{cls}.py").write_text(text, encoding="utf-8")
+        n_files = len(by_sheet)
+    else:
+        # ---- 场景模式：一个环境场景一个文件，文件内含该场景的全部测试项 ----
+        scenes = []
+        for k in OS_ORDER:
+            if any(c["os"] == k for c in cases):
+                scenes.append(("os:" + k, "系统场景·" + OS_LABEL[k], "os", k))
+        for k in CONN_ORDER:
+            if any(c["conn"] == k for c in cases):
+                scenes.append(("conn:" + k, "连接场景·" + CONN_LABEL[k], "conn", k))
+
+        scene_tpl = '''# -*- coding: utf-8 -*-
+"""由 gen_from_excel.py 自动生成，勿手工编辑。
+场景: {label}（{ncase} 条用例）
+一次环境准备只跑这一个场景；场景内已按另一维度成块排序（把环境切换次数降到最少）。
+数据源: cases.json（按 {key} 筛选）"""
+import allure
+import pytest
+
+from base.case_loader import get_scene_params
+
+
+@pytest.mark.try_run
+@allure.feature("{label}")
+class TestScene{cls}:
+    """{label}（{ncase} 条用例）"""
+
+    @pytest.mark.parametrize("case", get_scene_params("{key}"))
+    def test_case(self, base, case):
+''' + case_body
+        for i, (key, label, kind, dval) in enumerate(scenes, 1):
+            mine = [c for c in cases if c[kind] == dval]
+            if kind == "os":
+                # 系统场景：组内按 连接方式 成块（蓝牙 → 4G → 蓝牙+4G）
+                mine.sort(key=lambda c: (CONN_ORDER.index(c["conn"]) if c["conn"] in CONN_ORDER else 9,
+                                         sheet_idx[c["sheet"]], c["row"]))
+            else:
+                # 连接场景：组内按 手机系统 成块（安卓 → iOS → 鸿蒙）
+                mine.sort(key=lambda c: (OS_ORDER.index(c["os"]) if c["os"] in OS_ORDER else 9,
+                                         sheet_idx[c["sheet"]], c["row"]))
+            cls = sanitize(key.replace(":", "_"))
+            text = scene_tpl.format(key=key, label=label, cls=cls, ncase=len(mine))
+            (tdir / f"test_scene_{i:02d}_{key.replace(':', '_')}.py").write_text(text, encoding="utf-8")
+            print(f"[scene] {label:16s} {len(mine):4d} 条 -> test_scene_{i:02d}_{key.replace(':', '_')}.py")
+        n_files = len(scenes)
 
     gen_impls(root, cases, xlsx.name)
-    gen_readme(root, len(cases), len(by_sheet), xlsx.name)
+    scene_info = []
+    if mode == "scene":
+        for key, label, kind, dval in scenes:
+            scene_info.append((key.replace(":", "_"), label, sum(1 for c in cases if c[kind] == dval)))
+    gen_readme(root, len(cases), len(by_sheet), xlsx.name, mode=mode, scene_info=scene_info)
 
     # 生成器自拷贝：项目内可独立再生（Excel 更新后直接在工程里重跑）
     try:
@@ -668,7 +841,7 @@ class Test{cls}:
         pass
 
     print("-" * 60)
-    print(f"生成完成: {len(cases)} 条用例, {len(by_sheet)} 个测试文件 -> {root}")
+    print(f"生成完成: {len(cases)} 条用例, {n_files} 个测试文件 (切分方式={mode}) -> {root}")
     if anomalies:
         print(f"注意 {len(anomalies)} 处异常（重复编号已自动加后缀）：")
         for a in anomalies[:10]:
