@@ -1,5 +1,5 @@
 ---
-description: 'Use this skill when the user wants functional test cases turned into a pytest project with a thin "shell" layer decoupled from the execution base classes, with allure reporting. Triggers: 自动化测试脚本, 用例转pytest, 测试用例生成pytest, pytest壳, 基类解耦, 用例和实际执行分开, allure报告, CAN/串口/平台基类组合, Excel用例转脚本. The pytest layer only calls functions that print the case text (no real execution yet); the base classes (Serial/CAN/Platform API) are developed separately and later plugged into the pytest super class via uid registry.'
+description: 'Use this skill when the user wants functional test cases turned into a pytest project with a thin "shell" layer decoupled from the execution base classes, with allure reporting. Triggers: 自动化测试脚本, 用例转pytest, 测试用例生成pytest, pytest壳, 伪脚本, 文字版本脚本, 先出骨架再填函数, 基类解耦, 用例和实际执行分开, allure报告, CAN/串口/平台基类组合, Excel用例转脚本, 版本自动化测试, 按场景切分, 分场景, 一个场景包含所有测试项, 不想频繁切环境, 安卓/iOS/鸿蒙/蓝牙/4G/蓝牙+4G 用例分组. The pytest layer only calls functions that print the case text (no real execution yet); the base classes (Serial/CAN/Platform API) are developed separately and later plugged into the pytest super class via uid registry.'
 name: pressure-test-pytest
 ---
 
@@ -68,6 +68,31 @@ def impl_tcs_on_4g(base, case):
     return {"statuscode": 200, "data": frame.text}
 ```
 
+## 按环境场景切分（表是「手机系统 × 连接方式」二维矩阵时）
+
+有的 TestCase 表编号是**四段** `模块-系统-连接方式-序号`（例 `激活绑定-安卓-4G+蓝牙-001`），
+本质是 安卓/iOS/鸿蒙 × 蓝牙/4G/蓝牙+4G 的九宫格。按模块（Sheet）出文件会让**一次运行反复换环境**
+（同一个 Sheet 里三种系统 × 三种连接交错），于是加 `--group-by scene`：
+
+- **一个场景 = 一次环境准备 = 一个文件**，文件内含该场景下的全部测试项：
+  `tests/test_scene_01_os_android.py` … `03_os_harmony.py`（系统场景，各含三种连接方式的用例）、
+  `test_scene_04_conn_bt.py` / `05_conn_4g` / `06_conn_4g_bt`（连接场景，各含三种系统的用例）
+- **组内按另一维度成块排序**：系统场景按 蓝牙→4G→蓝牙+4G，连接场景按 安卓→iOS→鸿蒙，
+  块内仍按 模块顺序 + Excel 行号 → **一个文件只切 3 次环境**，不是 N 次
+- 同一条用例会在两个场景里各出现一次（这是有意的：场景 = 可独立跑的环境），
+  但**实现函数只有一份**（uid 注册表共用），用例层零改动
+- `--group-by auto`（默认）会自己判断：编号是四段就按场景切，三段就按模块切（老行为），不会悄悄改老工程结构
+- 跑单个场景：`python -m pytest -vs tests/test_scene_01_os_android.py`（文件名全 ASCII，cmd 里好打）
+
+**uid 扩展**：二维表的模块列常写成 `模块-系统-连接方式` → 生成时剥掉后缀只留模块名，
+系统并进 uid：`车辆详情_开关机_android_4G_001` / `…_ios_4G_BT_001`，
+同一序号在不同系统下不会撞车。`cases.json` 多两个字段 `os` / `conn`，用例筛选走
+`get_scene_params("os:android")` / `"conn:bt"`。
+
+**实测（QDM562 整车 TestCase V1.0）**：20 个有内容 Sheet / 1158 条 / 3 系统 × 3 连接 →
+6 个场景文件：安卓 386、iOS 386、鸿蒙 386、蓝牙 363、4G 372、蓝牙+4G 423；
+`pytest -q --co -m try_run` 收集 **2316** 项（1158×2，两个场景各一次），桩跑全绿（`PASS(桩)`），单文件 386 项 0.06s 收集完成。
+
 ## 判定口径（与压力框架一致，合并时不用改）
 
 实现函数返回值 → `norm_res` 归一化：
@@ -101,15 +126,19 @@ def impl_tcs_on_4g(base, case):
 ## 解析假设（换表格格式要改 parse_workbook）
 
 - 每 Sheet 表头行 = B 列为 `用例编号` 的那行；B..I 列 = 编号/模块/测试项/优先级/测试内容/前置条件/执行步骤/期望结果；
-- 用例行：编号匹配 `xxx-yyy-001`（正则 `^[^-]+-[^-]+-(\d+)$`）；
+- 用例行：编号匹配 `xxx-yyy-001`（三段的 `^[^-]+-[^-]+-(\d+)$`）或 `xxx-yyy-zzz-001`（四段的
+  `^[^-]+-[^-]+-[^-]+-(\d+)$`，系统×连接方式二维表）；四段表多解析出 `os` / `conn` 两个字段；
+- 模块列只在分段首行有值 → 向下沿用该值（仍空则取编号前缀），不再一律落到 `通用`；
 - 分区标题行（仅 B 列有值、B:M 合并）跳过。
 
 ## 生成与执行
 
 ```bash
-python scripts/gen_pytest_shell.py --xlsx TestCase.xlsx --out ./proj --product QDM522
+python scripts/gen_pytest_shell.py --xlsx TestCase.xlsx --out ./proj --product QDM522   # 一维表：按模块切
+python scripts/gen_pytest_shell.py --xlsx TestCase.xlsx --out ./proj --product QDM562 --group-by scene  # 二维表：按环境场景切
 cd proj
-python -m pytest -q --co -m try_run        # 收集数 = Excel 用例数（先自检再宣称完成）
+python -m pytest -q --co -m try_run        # 收集数 = Excel 用例数（场景模式 = 用例数 × 2；先自检再宣称完成）
+python -m pytest -vs tests/test_scene_01_os_android.py   # 只跑一个环境场景
 python -m pytest -vs -m p0                 # 只跑 P0（优先级已做成 marks）
 python -m pytest -vs -k "TCS_TCS_4G_001"   # 单条（-k 用 uid，别用中文）
 python run_all.py                          # 全量 + allure/HTML 报告，自动开浏览器
