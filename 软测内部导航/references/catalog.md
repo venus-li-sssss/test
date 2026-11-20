@@ -1,4 +1,4 @@
-# 导航目录快照（2026-11-18）
+# 导航目录快照（2026-11-20）
 
 > 静态快照，仅供快速了解全貌。**实时状态以 `python scripts/nav.py <关键词>` 为准**；写入（增删改）前用 `cat list` / `link list` 取 id。
 > 图例：✅ 已有 GitHub skill 可自动化；🔗 仅链接（文档/系统，无 skill）；🚧 占位/未实现。
@@ -14,10 +14,10 @@
 | QFLASH烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qflash -- QFlash 烧录（QCMM/firehose）+ 内置 STM32/Unisoc/Rockchip CLI<br>https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/VDGtf5XA8l7pnCdHjmBcjR5Anbf?from=space_personal_filelist -- 资源·QFlash 安装包（QFlash_V7.5/V8.1）（与卡片地址同一目录） |
 | QFIL烧录 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录 CLI：Aboot/FreqChip/QFIL/QFlash 进下载模式与静默烧录<br>https://github.com/venus-li-sssss/test/tree/main/qflash -- QFlash 烧录（QCMM/firehose）+ 内置 STM32/Unisoc/Rockchip CLI<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Ag16fe9JElm7fmdQ6AacxvF2nTh?from=space_personal_filelist -- 资源·QFIL/QPST 安装包（与卡片地址同一目录） |
 | CAN日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary |
-| 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/THmCfySTUlwC8mdkmcYcAJ2XnZe -- 资源·串口抓取工具（日志抓取.exe）云盘目录；exe 只能放 C 盘运行 |
+| 日志抓取 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E6%97%A5%E5%BF%97%E6%8A%93%E5%8F%96 -- 串口 / J-Link RTT / CAN(ZLG) / RTK 差分日志抓取，输出带 ms 时间戳 .log + summary<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/Dh9WfeMqqlw99adyXMJclf9Mngg -- 资源·日志抓取 v3.10 云盘目录：日志抓取.exe / 串口日志抓取.exe(旧名同版本) / README / 源码 / zlgcan.zip(解压到 exe 同级=开 CAN)；exe 只能放 C 盘运行 |
 | 做升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- FOTA 升级包制作：全量包/差分包/最小系统包，config 自动生成 + 产物自检<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/HVQwfjtCGlXh85dBLhmcIPtWnBf -- 资源·做包工具与官方文档：adiff.exe / FBFMake_CF_V1.6-150.exe / config 与 config_app 模板 / fbfmake*.bat / 说明 PDF，缺工具从这里下（工具只能放纯 ASCII 路径） |
 
-## 测试相关（7 条）
+## 测试相关（13 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
@@ -25,18 +25,24 @@
 | 测试用例生成 | 🔗 | 输入协议文本 → AI 生成测试用例（妙搭网页应用，需人工操作；暂无 skill） |
 | JIRA系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
 | 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 输入用例+JIRA+压力+路测数据 → 输出系统测试报告 docx/xlsx<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 输入设备/高精度 NMEA → 轨迹对比 KML + 截图 + CEP 表 + 路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭）<br>https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 经「内部报告转邮件草稿」：报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
-| 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例 |
-| 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 由内部报告或测试用例生成对外报告 |
 | 内部报告转邮件草稿 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
+| 对外报告-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%AF%B9%E5%A4%96%E6%8A%A5%E5%91%8A -- 由内部报告或测试用例生成对外报告 |
+| 修改点系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例 |
+| 送测邮件→修改点→建用例 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E9%80%81%E6%B5%8B%E9%82%AE%E4%BB%B6%E5%88%B0%E4%BF%AE%E6%94%B9%E7%82%B9 -- 流程编排：邮件→SMOD修改点→用例→报告一站式（sendtest_flow.py，默认 dry-run）<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点导入/建用例/导报告的执行层（smod_changelist_import.py）<br>https://github.com/venus-li-sssss/test/tree/main/msgraph-delegated-setup -- 读送测邮件、取正文与附件（MS Graph 委托登录） |
+| FCT自动化测试 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-fct -- FCT 自动化测试流程：实机跑批、写完还原(--write-restore)、结果核对与归档（archive_results.py） |
+| 版本自动化测试 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-release -- 版本自动化测试流程：版本目录规范、六步流程、报告命名、与 FCT/报告/修改点 skill 的边界<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-pytest -- 用例集 → pytest 伪脚本工程：用例层只打印用例文字、基础类经 uid 注册表解耦，支持 --group-by scene 按环境场景切分 + allure 报告<br>https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 流程末端：用例+JIRA+压力+路测数据 → 系统测试报告 docx/xlsx（可推送妙搭报告平台） |
+| Windows桌面自动化 | ✅ | https://github.com/venus-li-sssss/test/tree/main/windows-uiautomation -- Windows桌面UIA自动化：控件dump/状态判定/点击重试/独占串口交接，附可复用脚本 |
+| 压力脚本编写 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 压测脚本总入口：基础类→超类→流程→主循环 四层架构 + 子技能路由表<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-generator -- 生成脚本骨架与 device.yaml（generate_script.py / generate_yaml.py）<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-framework -- 超类组合、流程模板、主循环、ReTry、统计与状态码口径<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-uiautomator -- Android APP UI 压测（uiautomator2 相对定位、组合指令、retry）<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-webui -- Web UI 压测（Selenium/Playwright 多定位策略、截图取证）<br>https://quectel.feishu.cn/drive/folder/I8qnfDCJilWIdhdesFYcM4gMnlf -- 经「压测脚本网盘」：资源·压测脚本云盘根目录。找脚本路径=产品线(Tracker/两轮车/CPE-MIFI/Aiot) → 项目(QDM562/QDC538/…) → 脚本类型目录(<项目>_<分支>_<功能>，如 QDM562_主分支_上位机升级压测)。每个脚本目录里固定有四样：脚本.py、device.yaml、功能脚本索引.md、测试环境搭建.md(可选)<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「压测脚本网盘」：经「飞书云盘」：按关键词搜/下文件，也可 tree --folder <token> 按目录列表定位脚本目录（免扫码）<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 经「压测脚本网盘」：没有现成脚本时，用它生成压测脚本骨架（开关机/找网/继电器等） |
+| 基类编写 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-bases -- 基础类模板：Serial / CAN(ZLG) / CMD 窗口 / AT / Jlink-RTT / Relay / File / Platform API + 超类组合示例 + 日志规范<br>https://github.com/venus-li-sssss/test/tree/main/super-client -- 组合模式超类：平台客户端 cookie/token 管理、自动续期、接口超时重试<br>https://github.com/venus-li-sssss/test/tree/main/api-class-generator -- HAR/接口文档 → Python API 类（requests + session），平台类底座<br>https://github.com/venus-li-sssss/test/tree/main/account-login-skill -- 账号登录型类的写法：凭证不进仓库、自动续期、MFA 处理<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-bases -- 资源·基础类模板目录本身：模板代码块 + 超类组合 + 注意事项（AI 常漏看卡片 url 就是目录，故再留一条） |
 
 ## 项目信息（2 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| QDM562 项目知识 | 🔗 | 云盒/中控 QDM562 项目知识：Aboot 烧录（去掉 customer_fs/ext_flash）、串口/DIAG CAT/debug 日志抓取、测试计划与用例。 |
+| QDM562 项目知识 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录执行层：aboot/adownload 命令与「客户信息区 customer_fs/ext_flash 不烧」规则（references/aboot-flash.md）<br>https://github.com/venus-li-sssss/test/tree/main/qdm562-project -- QDM562 项目知识：认串口（哪个 COM 是什么口）、上位机升级压测、查 GNSS 版本号 Build19128/27526、抓日志判活、免锁屏与踩坑清单 |
 | 项目信息总表（云盒/中控） | 🔗 | 项目分类多维表格【项目分类】云盒/中控：后续新项目信息统一记录在这里，每个项目一个子页。 |
 
-## 资源（10 条）
+## 资源（11 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
@@ -48,14 +54,13 @@
 | 移远网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/qdisk-quectel -- 移远网盘(qdisk) 浏览/下载版本与数据<br>https://qdisk.quectel.com/company/list?lang=zh-CN -- 资源·移远网盘入口，版本/项目数据在 部门文件/IKOTEK/Project/ODM Project Files/SWE/external/MOB |
 | 远程服务器工具 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
 | 飞书云盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文 |
-| 压测脚本网盘 | ✅ | https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 生成/运行压力测试脚本（开关机、找网、继电器压测等）<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜飞书云盘并下载文件（免扫码）；也能读 wiki/云文档正文<br>https://quectel.feishu.cn/drive/folder/I8qnfDCJilWIdhdesFYcM4gMnlf -- 资源·压测脚本存放目录（与卡片地址同一目录） |
+| 压测脚本网盘 | ✅ | https://quectel.feishu.cn/drive/folder/I8qnfDCJilWIdhdesFYcM4gMnlf -- 资源·压测脚本云盘根目录。找脚本路径=产品线(Tracker/两轮车/CPE-MIFI/Aiot) → 项目(QDM562/QDC538/…) → 脚本类型目录(<项目>_<分支>_<功能>，如 QDM562_主分支_上位机升级压测)。每个脚本目录里固定有四样：脚本.py、device.yaml、功能脚本索引.md、测试环境搭建.md(可选)<br>https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜/下文件，也可 tree --folder <token> 按目录列表定位脚本目录（免扫码）<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test -- 没有现成脚本时，用它生成压测脚本骨架（开关机/找网/继电器等） |
 | excel插入图片或者对象 | 🔗 | excel的插件，安装后可以通过ctrl+Q插入图片或者对象，用于测试的时候放截图到excel |
+| 升级包 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-software-download -- 经「飞书云盘」：按关键词搜/下升级包，也可 tree --folder <token> 按目录列<br>https://github.com/venus-li-sssss/test/tree/main/%E5%81%9A%E5%8C%85 -- 做升级包：全量包(app整包)/差分包(含回滚)/最小系统包，config 按 partition.bin 自动生成 + 产物自检<br>https://quectel.feishu.cn/drive/folder/TqwAf5NvelKDNvd8quMcyECbnlh -- 资源·升级包云盘根目录（与本卡地址同一目录）：项目 → 差分包/全量包 → .bin |
 
-## 流程（1 条）
+## 流程（0 条）
 
-| 入口 | 状态 | 关联 skill / 说明 |
-|---|---|---|
-| 送测邮件→修改点→建用例 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E9%80%81%E6%B5%8B%E9%82%AE%E4%BB%B6%E5%88%B0%E4%BF%AE%E6%94%B9%E7%82%B9 -- 流程编排：邮件→SMOD修改点→用例→报告一站式（sendtest_flow.py，默认 dry-run）<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点导入/建用例/导报告的执行层（smod_changelist_import.py）<br>https://github.com/venus-li-sssss/test/tree/main/msgraph-delegated-setup -- 读送测邮件、取正文与附件（MS Graph 委托登录） |
+（空分类）
 
 ## 软测内部飞书知识库（12 条）
 
@@ -128,7 +133,7 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project -- 九号 IoT 平台固件包管理与 FOTA 升级/回滚 + APP UI 自动化 |
+| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project -- 九号 IoT 平台固件包管理与 FOTA 升级/回滚 + APP UI 自动化<br>https://quectel.feishu.cn/drive/folder/FJmxfeR5PlTaZxdawlKc0ukpnuf -- 资源·九号内网代理（SOCKS5 127.0.0.1:1080）：连接九号内网_V01.bat 用 ssh -D 建隧道、掉线 5 秒自动重连，跳板机与凭据已写在 bat 里；脚本连接内网.bat 是设 HTTP(S)_PROXY 再跑脚本的示例模板。隧道没起时平台的任何接口都连不上 |
 
 ## 路测（0 条）
 
