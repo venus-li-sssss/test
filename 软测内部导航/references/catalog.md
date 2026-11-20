@@ -133,7 +133,7 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project -- 九号 IoT 平台固件包管理与 FOTA 升级/回滚 + APP UI 自动化<br>https://quectel.feishu.cn/drive/folder/FJmxfeR5PlTaZxdawlKc0ukpnuf -- 资源·九号内网代理（SOCKS5 127.0.0.1:1080）：连接九号内网_V01.bat 用 ssh -D 建隧道、掉线 5 秒自动重连，跳板机与凭据已写在 bat 里；脚本连接内网.bat 是设 HTTP(S)_PROXY 再跑脚本的示例模板。隧道没起时平台的任何接口都连不上 |
+| 九号平台 | ✅ | https://github.com/venus-li-sssss/test/tree/main/ninebot-project -- 九号 IoT 平台固件包管理与 FOTA 升级/回滚 + APP UI 自动化（uiautomator2 页面导航）<br>https://github.com/venus-li-sssss/test/tree/main/pressure-test/pressure-test-pytest -- 用例集 → pytest 伪脚本 + 真机执行层（APP 页面模式 / 平台 / 上位机三通道 + 升级流程模板）<br>https://quectel.feishu.cn/drive/folder/FJmxfeR5PlTaZxdawlKc0ukpnuf -- 资源·九号内网代理（SOCKS5 127.0.0.1:1080）：连接九号内网_V01.bat 用 ssh -D 建隧道、掉线 5 秒自动重连；隧道没起时平台的任何接口都连不上<br>https://quectel.feishu.cn/drive/folder/OfccfrVr5lcFVBd6i58c336QnCc -- 资源·九号出行 APP 安装包目录（基础软件存放/手机APP）：九号出行APP_v6.10.12.apk（363,371KB，取自现网手机 cn.ninebot.ninebot versionCode 610124275），换机/重装从这里取<br>https://quectel.feishu.cn/file/NdnkbgElXoPvjExGp4Bc4XYQngc -- 资源·九号出行APP_v6.10.12.apk 直链（380,713,031 字节，2026-11-20 从 adb 拉取并上传，Content-Length 已校验一致） |
 
 ## 路测（0 条）
 
