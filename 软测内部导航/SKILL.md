@@ -1,6 +1,6 @@
 ---
 name: 软测内部导航
-description: 内部导航中枢（本导航页自己的 skill）：只要问题涉及「内部」——内部工具/系统/资料/流程/模板/网址/权限在哪、有没有、怎么用、怎么下载、找谁要——先查这里再回答，不要凭印象说"没有/不知道"。覆盖移远/IKOTEK 软测 16 分类 52 个入口：烧录（Aboot/FreqChip/JLink/QFlash/QFIL）、日志抓取与分析（串口/CAN/RTT/RTK）、做升级包、测试用例与测试报告、JIRA 提单查询、修改点导入导出、软件与版本下载（飞书云盘/toolhub/qdisk）、GNSS 与模组文档、RTK 账号、样机与物资、会议室/工位/快递/绩效/QHR、IT 工单、工时考勤、九号客户平台、skill 仓库、防锁屏。触发词：导航、入口、链接、网址、地址、在哪、在哪下载、怎么进、怎么用、怎么走、有没有、有没有现成的、找一下、找不到、是什么、内部系统、内部工具、平台、SOP、流程、模板、资料、权限、账号、帮我找、查一下。已经做成 skill 的功能（烧录/抓日志/做包/提BUG/写报告/导修改点/工时/九号/路测/压测）也先来取对应 skill + 配套资源再执行；写导航（增删改链接/分类、给链接挂 skill、新增功能三件套）同样用我。Also for internal portal / internal tool / where to download / how to use / team wiki / counterpart links.
+description: 内部导航中枢（本导航页自己的 skill）：只要问题涉及「内部」——内部工具/系统/资料/流程/模板/网址/权限在哪、有没有、怎么用、怎么下载、找谁要——先查这里再回答，不要凭印象说"没有/不知道"。覆盖移远/IKOTEK 软测 18 分类 62 个入口：烧录（Aboot/FreqChip/JLink/QFlash/QFIL）、日志抓取与分析（串口/CAN/RTT/RTK）、做升级包、测试用例与测试报告、JIRA 提单查询、修改点导入导出、软件与版本下载（飞书云盘/toolhub/qdisk）、GNSS 与模组文档、RTK 账号、样机与物资、会议室/工位/快递/绩效/QHR、IT 工单、工时考勤、九号客户平台、skill 仓库、防锁屏。触发词：导航、入口、链接、网址、地址、在哪、在哪下载、怎么进、怎么用、怎么走、有没有、有没有现成的、找一下、找不到、是什么、内部系统、内部工具、平台、SOP、流程、模板、资料、权限、账号、帮我找、查一下。已经做成 skill 的功能（烧录/抓日志/做包/提BUG/写报告/导修改点/工时/九号/路测/压测）也先来取对应 skill + 配套资源再执行；写导航（增删改链接/分类、给链接挂 skill、新增功能三件套）同样用我。Also for internal portal / internal tool / where to download / how to use / team wiki / counterpart links.
 ---
 
 # Quectel 软测内部导航
@@ -99,6 +99,12 @@ python <skill目录>/scripts/gen_catalog.py       # 重建 references/catalog.md
 - 只回答"不知道/没有"，没跑过 `nav.py` → 至少搜一次再说没有。
 - 搜到卡片但**只回 url**，漏掉 `skills[]` 里能自动执行的能力和配套资源。
 - 把 `desc` 里的历史状态当现状（"还在完善"）→ 以 `link show` 实时结果为准。
+- **找压测脚本时去翻「压测脚本记录」多维表格** → 错。那是需求登记表（需求简介/负责人/状态/SVN 位置），
+  找**脚本文件**一律走「压测脚本网盘」云盘的**三级路径**：
+  **产品线**（Tracker / 两轮车 / CPE-MIFI / Aiot）→ **项目**（QDM562 / QDC538 / …）→
+  **脚本类型目录**（`<项目>_<分支>_<功能>`，如 `QDM562_主分支_上位机升级压测`）。
+  每个脚本目录里固定四样：`脚本.py`、`device.yaml`、`功能脚本索引.md`、`测试环境搭建.md`(可选)。
+  定位用 `feishu_dl.py tree --folder <token>` 逐层现查，别猜 token。
 
 ## ⑥ 维护导航（写入接口）
 
@@ -164,6 +170,10 @@ python nav.py link delete <链接id>
 - 工具类放 `基础软件存放/<工具分类>/`（串口工具、烧录工具、AI工具…），版本包放「项目环境搭建」或对应项目目录。
 - 索引文件（目录清单）放根目录，方便"先看有哪些再下"。
 - 记下 **folder 链接**（`https://quectel.feishu.cn/drive/folder/<token>`），第③步要挂。
+- **压测脚本**放「压测脚本网盘」的 `产品线 / 项目 / <项目>_<分支>_<功能>` 三级目录，
+  每个目录固定四样：`脚本.py`、`device.yaml`、`功能脚本索引.md`、`测试环境搭建.md`。
+- **凭据脱敏按域名判断**（2026-11-20 用户确认）：账号是 `@ikotek.com` / `@quectel.com`
+  的配置必须脱敏（密码换占位符）；客户平台账号（如 `@ninebot.com`）**不要脱敏**，原样保留。
 
 **③ 导航侧字段怎么填**
 
@@ -277,11 +287,12 @@ python scripts/audit_cards.py --json       # 机器可读
 1. 环境变量 `NAV_PORTAL_TOKEN`（导航 Bearer，**读写共用**）、`GITHUB_TOKEN`；
 2. `scripts/config.local.json`（参考 `config.example.json`）。
 
-本机已配好 `scripts/config.local.json`（2026-11-18 验证：16 分类 / 52 链接可读）。
+本机已配好 `scripts/config.local.json`（2026-11-20 验证：18 分类 / 62 链接可读）。
 换机器时复制 `config.example.json` 填 token 即可。**token 不进仓库**（`config.local.json` 在 `.gitignore`；push 记得 `--exclude`，见 ⑥）。
 
 ## ⑪ 历史快照（只对比趋势，别当现状）
 
+- **2026-11-20**：18 分类 / 62 链接。新增「压力脚本编写」（`5371d62c-ddd5-4436-8405-6f52169409c0`：pressure-test 总入口 + generator/framework/uiautomator/webui + 引用压测脚本网盘）与「基类编写」（`195e8323-5e29-495c-8fa3-1d547254b2d3`：pressure-test-bases + super-client + api-class-generator + account-login-skill），均在分类 测试相关；「版本自动化测试」补挂 `pressure-test-pytest`（用例集→pytest 伪脚本，`--group-by scene` 按环境场景切分）与版本系统测试报告生成；`pressure-test-pytest` 的 SKILL.md + 生成器同日推 GitHub（078fecf / 005b0af）。
 - **2026-11-18**：16 分类 / 52 链接（`nav.py` 实测）；导航 OpenAPI 可用。同日给「Outlook邮箱」卡片（`08a12788-7c64-42e2-a9e6-69c855163556`，分类 测试环境搭建）挂上 `msgraph-delegated-setup`，url 从一次性 OAuth 授权串换成 `https://outlook.office.com/mail/`，desc 改写为「输入→输出 + 已做成 skill + 90 天不活动需重登」；catalog 刷新为 52 链接。
 - **2026-11-13**：链路体检 51 张 → 37 ✅ / 2 功能未完成（Jlink 烧录、CAN 抓取）/ 12 仅指路；端到端实测跑通 27 张；待一次性授权 9 张（GNSS资料、Tracker的知识库、日常工作流程、标准模板、样机管理库、团队架构、物资管理、压测脚本记录、远程服务器工具 → 飞书节点加只读机器人 `cli_a9bc97317fb89cc8`）。
 
