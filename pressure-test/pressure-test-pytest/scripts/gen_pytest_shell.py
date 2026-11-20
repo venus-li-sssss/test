@@ -233,11 +233,21 @@ from base.executor import BaseExecutor
 from base.logger import flush_printf_msg
 import base.impls  # noqa: F401  (触发用例实现桩注册)
 
+try:               # 工程内自我扩展（可选）：手写实现覆盖桩
+    import base.impls_manual  # noqa: F401
+except ImportError:
+    pass
+
+try:               # 工程内自我扩展（可选）：持有设备超类的执行器
+    from base.executor_custom import CustomExecutor as _Executor
+except ImportError:
+    _Executor = BaseExecutor
+
 
 @pytest.fixture(scope="session")
 def base():
     """基础类实例（实际执行的落点）。执行层换成真机实现时只改 base/ 目录。"""
-    ex = BaseExecutor()
+    ex = _Executor()
     print(f"\\n===== QDM522 自动化测试启动 | 基础类: {type(ex).__name__} =====")
     return ex
 
@@ -696,6 +706,22 @@ python run_all.py                        # 全量 + allure/HTML 报告
 
 Excel 换了版本后：`python gen_from_excel.py --xlsx <新xlsx> --out <本工程目录>`
 （已实现用例先迁移到 `base/impls_manual.py`）。
+
+## 工程内可选扩展（生成器不覆盖这些文件）
+
+生成器只重写 `tests/`、`cases.json`、`base/impls.py`、`conftest.py`、`README.md`；下面这些是**人写、可长期演进**的：
+
+| 文件 | 作用 |
+| --- | --- |
+| `base/executor_custom.py` | 自定义执行器（`CustomExecutor`），持有设备超类。存在时 conftest 自动用它，否则退回 `BaseExecutor` |
+| `base/impls_manual.py` | 手写实现：按 `RULES`（Sheet + 关键词 → 语义动作）批量 `@register(uid)`，覆盖 `impls.py` 的桩 |
+| `base/<通道>.py` | 基础类（APP / 平台 / 串口 / CAN …），组合进超类 |
+| `device.yaml` | 各通道配置（串口/设备号/平台 SN/代理），与压测脚本同一口径 |
+| `docs/` | 页面模型、覆盖统计等生成文档 |
+
+判定四态（与框架一致）：`200 PASS` / `201 判定失败` / `404 无响应超时` / `500 脚本异常`。
+半自动用例建议在 reason 里以 `PARTIAL` 开头（APP 侧已自动执行、物理/仪表项待人工），
+自定义执行器可把这类转成 `pytest.xfail`，既不上报假 PASS 也不把整轮跑红。
 """
     (root / "README.md").write_text(_subst(md), encoding="utf-8")
 
