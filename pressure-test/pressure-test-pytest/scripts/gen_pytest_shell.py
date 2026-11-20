@@ -665,7 +665,8 @@ base/registry.py           uid -> 实现函数 的注册表（两层之间的唯
 ## uid 规则
 
 Excel 用例编号（如 `车辆详情-4-001`）在模块×连接方式分段中会重复，所以唯一键 uid =
-`模块_子模块_连接_序号`（连接：`4G` / `BT` 蓝牙 / `4G_BT` 双通道；重复时追加 `_2`）。
+`模块_子模块_[系统_]连接_序号`（连接：`4G` / `BT` 蓝牙 / `4G_BT` 双通道；二维表把系统并进 uid，
+如 `车辆详情_开关机_android_4G_001`；重复时追加 `_2`）。
 每条用例都保留 `cid` + Excel 行号可回查原始表格。
 
 ## 运行
@@ -821,7 +822,7 @@ class TestScene{cls}:
                 # 连接场景：组内按 手机系统 成块（安卓 → iOS → 鸿蒙）
                 mine.sort(key=lambda c: (OS_ORDER.index(c["os"]) if c["os"] in OS_ORDER else 9,
                                          sheet_idx[c["sheet"]], c["row"]))
-            cls = sanitize(key.replace(":", "_"))
+            cls = "".join(p.capitalize() for p in key.replace(":", "_").split("_"))
             text = scene_tpl.format(key=key, label=label, cls=cls, ncase=len(mine))
             (tdir / f"test_scene_{i:02d}_{key.replace(':', '_')}.py").write_text(text, encoding="utf-8")
             print(f"[scene] {label:16s} {len(mine):4d} 条 -> test_scene_{i:02d}_{key.replace(':', '_')}.py")
