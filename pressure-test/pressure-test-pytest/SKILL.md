@@ -140,6 +140,41 @@ RULES = [
 mock 全量 6 个场景 2316 项 **6.67s 全绿**；文档由 `tools/gen_docs.py` 从 `PAGES/ELEMENTS/RULES`
 生成（页面模型 / 覆盖统计），改一处不写两处。
 
+## 升级流程模板（套进去一个类，就有一条升级流程）
+
+QDM551 现场沉淀的模板：**只给 4 个钩子**（查版本 / 下发升级 / 查状态 / 打印），
+流程、轮询、超时、重试、失败恢复全在模板里 → 换个「通道类」就是 APP（蓝牙）/ 平台 / 上位机三种升级。
+原始实现：`D:\work\551\脚本\自动化测试\V07\io_backends\fota_backend.py` 的 `class Fota` +
+`IO_Factory.mount_process_fota(...)`（`551_OUT_TEST_V18.py` 里三处实例化：
+`upper_fota`（状态 3/4）、`app_fota`（蓝牙，200/201）、`platform_fota`（200/201））。
+
+本仓库提供项目无关版模板：`scripts/upgrade_flow.py`（可直接复制到任何工程）。
+
+```python
+flow = mount_process_fota(info=version_info,           # 版本集：a_version 现行 / b_version 目标（互升）
+                          channel=AppUpgradeChannel(app),
+                          status_check={"ex_pass_status_list":[200], "ex_fail_status_list":[201]},
+                          status_timeout=1800)
+res = flow.process_normal_fota(["T-BOX"])              # 五步：前置检查→查版本→选期望→下发→状态轮询→版本复核
+```
+
+字段对照（改名字不改语义）：`def_version/def_upgrade/def_status/def_printf_out` → `channel.version()/upgrade()/status()/printf_out()`；
+`fota_status_check_list` → `status_check`；`check_in_time` → `wait_status()/wait_version()`；
+`process_normal_fota` / `process_err_package_fota` / `process_err_operate_fota_by_{debug,status}` 同名保留；
+`def_begin_check_dict / def_operate_dict / def_recovery_dict / keyword_dict`（关键字 → 前置检查/重启/断网重启/恢复）同名保留。
+
+三条通道（同流程，只换钩子）：
+
+| 通道 | 查版本 | 下发升级 | 查状态 | 通过/失败状态码 |
+| --- | --- | --- | --- | --- |
+| APP（蓝牙） | 设备信息页各固件版本 | 检查固件更新→下一步→确认→开始 | 升级页文字（升级中/成功/失败） | 200 / 201 |
+| 平台 | 平台 parts_version | 平台 FOTA 下发（需内网隧道） | 平台升级记录 | 200 / 201 |
+| 上位机 5A A5 | 版本查询帧 | 发送升级帧（包路径） | 应答状态 | **3 / 4** |
+
+接新通道（如 CAN 升级）只做三步：加一个实现 `version/upgrade/status/printf_out` 的类 →
+在 `build_channel()` 注册 → 补 `STATUS_LISTS`；流程模板零改动。
+**默认别自动真刷**：用开关（如 `upgrade.enabled: false`）控制，用例里没开就只走到「检查更新页」判 PARTIAL。
+
 ## 判定口径（与压力框架一致，合并时不用改）
 
 实现函数返回值 → `norm_res` 归一化：
