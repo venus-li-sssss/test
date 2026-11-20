@@ -1,5 +1,5 @@
 ---
-description: '免扫码（应用身份 bot）访问飞书云盘：云端实时搜索 + 递归遍历 + 下载常用软件与文档（QCOM、SSCOM、WindTerm、QFlash、QFIL、aboot、驱动、CAN 工具、升级版本包等），并可读取飞书文档/知识库正文。范围=云盘→软件测试部→软件测试二科 下的「基础软件存放」「项目环境搭建」两个根目录。只需 requests + 内置共享机器人凭据，不扫码、不依赖 lark-cli。触发词：下载QCOM、下载SSCOM、下载WindTerm、下载QFlash、下载QFIL、下载aboot、飞书软件下载、从飞书下载软件、串口工具下载、烧录工具下载、驱动下载、有哪些软件、搜索飞书云盘、云盘里有没有、同步软件目录、读飞书文档、飞书知识库、wiki 内容、tenant_access_token 访问云盘。'
+description: '免扫码（应用身份 bot）读写飞书云盘：云端实时搜索 + 递归遍历 + 下载常用软件与文档（QCOM、SSCOM、WindTerm、QFlash、QFIL、aboot、驱动、CAN 工具、升级版本包等），**以及建目录 / 上传文件（含 >20MB 分片断点续传）**，并可读取飞书文档/知识库正文。范围=云盘→软件测试部→软件测试二科 下的「基础软件存放」「项目环境搭建」两个根目录。只需 requests + 内置共享机器人凭据，不扫码、不依赖 lark-cli。触发词：下载QCOM、下载SSCOM、下载WindTerm、下载QFlash、下载QFIL、下载aboot、飞书软件下载、从飞书下载软件、串口工具下载、烧录工具下载、驱动下载、有哪些软件、搜索飞书云盘、云盘里有没有、同步软件目录、**上传到飞书云盘、传文件到云盘、上传安装包、建云盘目录、新建云盘文件夹、apk 传到云盘**、读飞书文档、飞书知识库、wiki 内容、tenant_access_token 访问云盘。'
 name: feishu-software-download
 ---
 
@@ -68,6 +68,38 @@ python scripts\feishu_dl.py doc https://quectel.feishu.cn/wiki/RLOaw7nLQiwy06kEF
 - 下载完成必须报告：软件名、文件名、大小、**完整绝对路径**（markdown 链接形式）。
 - 用户问"有哪些软件 / 某个目录里有什么"→ 直接 `tree`（现扫，实时），不要拿 catalog 快照当唯一依据。
 - 搜索没命中不代表没有：**`find` 会自动降级现场扫目录**（含目录名匹配），别只回一句"没有"。
+
+## ④ 上传（写云盘）· `scripts/feishu_upload.py`
+
+同一个机器人身份就有写权限（建目录 / 传文件都能），不用扫码、不用切个人账号：
+
+```bash
+# 建目录（父目录给 token 或直接贴 URL）
+python scripts\feishu_upload.py mkdir 手机APP --under GiihfUC0tlDJGHdTriDcH4ljnUz
+
+# 传文件（≤20MB 走 upload_all；>20MB 自动分片）
+python scripts\feishu_upload.py upload "D:\x\九号出行APP_v6.10.12.apk" --folder OfccfrVr5lcFVBd6i58c336QnCc
+python scripts\feishu_upload.py upload x.zip --folder https://quectel.feishu.cn/drive/folder/XXXX
+
+# 分批续传（agent 单条命令有 ~60s 上限时必用；中断直接重跑同一条命令）
+python scripts\feishu_upload.py upload big.zip --folder XXXX --budget 40 --workers 8
+```
+
+**分片协议踩坑（2026-11-20 实测，改错就会卡在 `block missing`）**：
+
+1. 分片序号字段名是 **`seq`**，**从 0 开始**。写成 `seq_id` 服务端不报错、静默忽略 →
+   `upload_finish` 必报 `1062010 block missing, please upload all blocks`；写成 1 起会报
+   `1062009 actual size is inconsistent` / `1062011 block num out of bounds`。
+2. 分片大小 4MB；**末片可以是短块**，`size` 传真实字节数即可，**不用补零**
+   （补零会让 `upload_finish` 认不出那块）。
+3. `checksum` 传 Adler-32 的**十进制**字符串；传十六进制报 `checksum param Invalid`。
+4. `upload_finish` 的 `block_num` = `upload_prepare` 返回的 `block_num`（ceil(size/4MB)）。
+5. `upload_all` 对 >20MB 会 TLS 直接断（`EOF occurred in violation of protocol`），别硬试。
+6. bot 上传的新文件自动带 full_access；用 `--file-token` 覆盖老文件**不会**改权限。
+7. 实测速率：8 线程分片约 1.8~3 MB/s；363MB 的 apk 约 2~3 分钟。
+
+校验落地结果：`GET /open-apis/drive/v1/metas/batch_query` 拿 url；
+下载侧 `preview_download` 的 `Content-Length` 必须等于本地 `os.path.getsize()`。
 
 ## 鉴权与接口（已实测）
 
@@ -242,3 +274,99 @@ for i in z.infolist():
 `cfg.digest` —— 存的是 COM 口、上次选的镜像路径，本地和包里不一样是正常的，别当版本差异）
 和 **真的版本差异**。QFlash 那次实测：1088 个文件 1079 个一致，3 个是上述配置，6 个"缺失"其实是 GBK 文件名。
 结论 = 云端包和本地已装同版本，没必要重复解压。
+
+## 上传文件到云盘（2026-11-20 实测）
+
+机器人身份可以上传文件到云盘文件夹，**不需要额外开权限**（只要有 `drive:drive` scope）。
+
+### 上传接口
+
+```python
+import requests
+
+url = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_all"
+headers = {"Authorization": f"Bearer {token}"}
+
+with open(file_path, "rb") as f:
+    files = {
+        "file_name": (None, os.path.basename(file_path)),
+        "parent_type": (None, "explorer"),
+        "parent_node": (None, folder_token),
+        "size": (None, str(os.path.getsize(file_path))),
+        "file": (os.path.basename(file_path), f, "application/octet-stream"),
+    }
+    resp = requests.post(url, headers=headers, files=files)
+
+data = resp.json()
+if data.get("code") == 0:
+    file_token = data["data"]["file_token"]
+```
+
+### 创建子文件夹
+
+```python
+url = "https://open.feishu.cn/open-apis/drive/v1/files/create_folder"
+headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+body = {"name": "QDM562", "folder_token": parent_folder_token}
+resp = requests.post(url, headers=headers, json=body)
+```
+
+### 踩过的坑（2026-11-20）
+
+1. **云盘权限 ≠ 多维表格权限**：机器人能上传到云盘文件夹，但不一定能写入多维表格。
+   - 云盘上传：`drive:drive` scope，机器人默认有
+   - 多维表格写入：需要单独在多维表格里给机器人开"可编辑"权限（91403 Forbidden 就是没开）
+   - **不要混淆**："压测脚本记录"是多维表格（bitable），"压测脚本云盘"是文件夹（folder），两个东西
+
+2. **用户说"放脚本的地方"通常指云盘文件夹**：导航页面里的"压测脚本记录"是多维表格，但实际脚本文件放在云盘 `BTmtfevlhlORjVdyeWscINqEnBd` 文件夹下。上传脚本时直接传到云盘文件夹，不要往多维表格里加记录（除非用户明确要求）。
+
+3. **上传大文件会断流**：和下载一样，>100MB 的文件可能断流，需要断点续传（`Range: bytes=<have>-`）。脚本已内置重试逻辑。
+
+4. **导航是纯文本渲染，desc 里不要写 markdown `**`**：会原样显示成星号。
+
+### 凭据脱敏规则（2026-11-20 用户确认，重要）
+
+上传 `device.yaml` / 配置类文件到云盘时，判断账号类型决定脱不脱敏：
+
+| 账号域名 | 处理 |
+|---|---|
+| `@ikotek.com`、`@quectel.com`（公司邮箱） | **必须脱敏**：密码换成占位符 |
+| 其他（客户邮箱，如 `@ninebot.com` 等） | **不要脱敏**：账号密码原样保留 |
+
+理由：客户平台的账号是测试必需的凭据，脱敏了别人拿到配置也连不上；公司邮箱属于员工个人账号，需要遮。
+
+所以「一律脱敏」和「一律不脱敏」都是错的，**按域名判断**。
+
+
+### 实测案例
+
+2026-11-20 上传 QDM562 上位机升级脚本：
+- 目标文件夹：`BTmtfevlhlORjVdyeWscINqEnBd`（压测脚本云盘）
+- 创建子文件夹：`QDM562`（token: `UF4FfLsLbldKWDdFktncm6NPnye`）
+- 再创建子文件夹：`上位机升级压测`（token: `Wjymf8saclFGdqdm9Zxc7GLTnsg`）
+- 上传文件：`QDM562上位机升级_V3.1_gnss可选.py`（505 KB）、`device.yaml`
+- 结果：✅ 成功，文件夹链接 https://quectel.feishu.cn/drive/folder/Wjymf8saclFGdqdm9Zxc7GLTnsg
+
+### 上传脚本的组织结构（2026-11-20 经验）
+
+**不要把脚本文件直接散放在项目文件夹根目录**，应该按脚本类型分子文件夹：
+
+```
+QDM562/                          ← 项目文件夹
+  上位机升级压测/                  ← 按脚本类型分
+    QDM562上位机升级_V3.1_gnss可选.py
+    device.yaml
+  开关机压测/                      ← 以后加别的脚本
+    xxx.py
+  OTA压测/
+    yyy.py
+```
+
+**原因**：一个项目可能有多种压测脚本（上位机升级、开关机、OTA、FCT 等），直接散放会混乱，按类型分子文件夹便于管理和查找。
+
+**删除文件接口**：
+```python
+url = f"https://open.feishu.cn/open-apis/drive/v1/files/{file_token}?type=file"
+headers = {"Authorization": f"Bearer {token}"}
+resp = requests.delete(url, headers=headers)
+```
