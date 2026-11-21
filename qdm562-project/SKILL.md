@@ -1,6 +1,6 @@
 ---
 name: qdm562-project
-description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识中枢。用在：QDM562 怎么认串口/哪个 COM 是什么口、上位机升级压测怎么搭和怎么跑、平台开关机找网装置怎么跑（继电器+COM27 debug+COM29 日志+COM25 DUMP）、升级后怎么查 GNSS 版本号（Build19128 / Build27526）、ATI 报 764 但实际是 0765 怎么办、debug 日志抓不到/抓取工具没在跑、上位机 5A A5 发了没回帧、差分包该拿哪个、电脑不锁屏怎么设。触发词：QDM562、云盒、中控、上位机升级、查 GNSS、GNSS 版本号、认串口、COM22/COM25/COM27/COM29/COM3/COM184、debug 口、DUMP、5A A5、0765、0766、Build19128、开关机找网、压测脚本、不锁屏。
+description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识中枢。用在：QDM562 怎么认串口/哪个 COM 是什么口、**AT 口发 DUMP（`AT+QDUMPCFG=0,0` / `AT+QDUMPCFG=2,0` / `AT+LOG=19,1`）查版本**、上位机升级压测怎么搭和怎么跑、平台开关机找网装置怎么跑（继电器+COM27 debug+COM29 日志+COM25 5A A5 DUMP）、升级后怎么查 GNSS 版本号（Build19128 / Build27526）、ATI 报 764 但实际是 0765 怎么办、debug 日志抓不到/抓取工具没在跑、上位机 5A A5 发了没回帧、差分包该拿哪个、电脑不锁屏怎么设。触发词：QDM562、云盒、中控、上位机升级、查 GNSS、GNSS 版本号、认串口、COM22/COM25/COM27/COM29/COM3/COM184、debug 口、DUMP、AT+QDUMPCFG、AT+LOG、5A A5、0765、0766、Build19128、开关机找网、压测脚本、不锁屏。
 ---
 
 # QDM562 项目测试知识
@@ -11,10 +11,10 @@ description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识
 
 | 口 | 设备名 | 是什么 | 谁在用 | 平时有没有数据 |
 |---|---|---|---|---|
-| `COM3` | `USB Serial Port (COM3)` | **debug 口**（USB-232 转接，FTDI AI68321SA） | 日志抓取（人工 debug 用） | 静默；**只有重启/升级才打印**，平时 0 字节是本项目正常状态，不是故障 |
-| `COM29` | `Quectel USB MI05 COM Port` | **串口日志口**（AT/LOG 混合通道） | 人工观察用（升级脚本改抓 COM4） | 一直有 `Monitor` / `BT auth` 心跳；**没有 `FWVer` / `$PDTINFO`，查不到 GNSS 版本** |
+| `COM3` | `USB Serial Port (COM3)` | **debug 口**（USB-232 转接） | 日志抓取（人工 debug 用） | 静默；只有**重启/升级**才打印 |
+| `COM29` | `Quectel USB MI05 COM Port` | **串口日志口**（AT/LOG 混合通道） | 升级脚本独占（`gnss_com`） | 一直有：`Monitor` / `LOC` / `$NAVVEL` / `$PDTINFO` / `FWVer` |
 | `COM31` | `Quectel USB DIAG Port` | **DIAG 口** | CATStudio 抓 CAT LOG | 有，但被 CATStudio 占时别的程序打不开 |
-| `COM32` | `Quectel USB AT Port` | **AT 口** | 敲 AT 指令 | 只在你查询时回 |
+| `COM32` | `Quectel USB AT Port` | **AT 口** | 敲 AT 指令（`ATI` / `AT+QGMR` / DUMP 配置三连，见 §1.1） | 只在你查询时回 |
 | `COM184` | `USB Serial Port (COM184)` | **上位机口**（5A A5 协议） | 上位机 GUI / 压测脚本 | 未升级前设备**不回 ACK**，rx 常年 0 属正常 |
 | `COM30` | `Quectel USB Modem` | Modem 口 | 用不到 | — |
 
@@ -33,23 +33,23 @@ description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识
 | `COM31` | DIAG 口 | 一开就刷二进制 CAT 数据 |
 
 **版本号确认的最快路径（不用 GUI）**：向上位机口发 `5A A5 01 3E 09 01 02 02 B2 FF`，应答帧的第 7-8 字节 `65 07` 就是 0x0765；同时串口日志口一直刷 `ver:0765`，两条可交叉验证。
+**没有上位机口时别去找 5A A5**：走 AT 口发 DUMP 配置三连（§1.1），AT 口是模组自己枚举的、插上就有。
 抓开机日志的通道：继电器断电 2s → 上电，同时用 115200 抓 `COM27`（debug）+ `COM29`（日志，断电会掉枚举，需重连重试）。
 
-### 2026-11-20 重启后二次复核（已实测，别再猜）
+### 1.1 AT 口查 DUMP/版本（2026-11-21 实测，AT 指令口径）
 
-| 结论 | 实测证据 |
-|---|---|
-| **GNSS 版本串只在 `COM4` 打** | `[2026-11-20 19:13:46.911] FWVer R2001R3.3.3.0Build19128` + `$PDTINFO,CC0058Q-01,G1B1,V2.0,R2001R3.3.3.0Build19128,N/A,N/A*0A` |
-| `COM29` 抓不到 GNSS 版本 | 三个 `com29_*.log`（125KB / 183KB / 423KB）里全无 `FWVer` / `$PDTINFO` / `Build`，只有 `Monitor` / `BT auth` 心跳 → 历史三次 `360s` 超时的真因就是抓错口 |
-| **debug（`COM3`）平时 0 字节是本项目正常** | 用户口径：QDM562 的 debug 口只在**开机**和**升级**时打印少量日志，平时全静默，不是工具没抓到 |
-| 压测脚本抓取必须 `gnss_capture_mode: python` | `exe` 模式文本日志缓在内存、退出才落盘 → 脚本运行中读到 0 字节，一直报 `日志里只有:无` |
+`DUMP` 有两种承载：**上位机口**是 `5A A5` 帧（需要外挂 FTDI），**AT 口**是下面这三条 AT 指令（只要模组 USB 插着就可用，现场最省事）。别看到 "DUMP" 就默认去上位机口。
 
-**debug 口"看着没在打印"怎么验证（别靠猜）**：
+| 指令 | 实测回显 | 说明 |
+|---|---|---|
+| `AT+QDUMPCFG=0,0` | `OK` | DUMP 配置第一组 |
+| `AT+QDUMPCFG=2,0` | `OK` | DUMP 配置第二组 |
+| `AT+LOG=19,1` | `OK` | 打开 19 号 log 模块 |
 
-1. 跑一次升级 —— 升级后设备必然重启，重启就会打印（正常业务路径，不用人为干预，也不要去断电折腾）；
-2. 只想单独验证通道时，在 AT 口发 `AT+RESET` 人为触发一次重启；
-3. 判定标准：日志里出现 `quec_uart_open` / `$RESET` / `$PDTINFO` / `CHIP` 任一条 → 通道正常；此前全 0 字节只说明"还没到重启"。
-
+- 发完这三条，**AT 口本身静默**（不会把版本回在 AT 口）；版本照样以串口日志口的 `ver:xxxx` / `FWVer ...BuildNNNNN` 为准（`0766` → `Build27526`）。
+- 波特率 115200，8N1，无流控；每条之间留 1 s 以上。
+- 反面教材（已实测，别浪费时间）：本固件 `AT+CLAC` 返回空；`AT+QDUMP` / `AT+QDUMP?` / `AT%DUMP` / `AT+QDUMPVER` / `AT+QVERSION?` / `AT+VER?` / `AT+QVER?` 全部 `ERROR`。`AT+QGMR` 只回 `LTE01R07A05_BT_C_SDK_A`，没有 `06xx` 编号。
+- `ATI` 的 `CustRevision ..._764` 是历史遗留串；烧完 766 后本机实测变成 `..._766`，但仍要拿日志口 `ver:` 交叉验证，别单点采信。
 
 ### 三步认口法（换机器/换治具照做）
 
@@ -79,10 +79,10 @@ device.yaml                          # 端口/日志/GNSS/升级包路径
 ```yaml
 COM: COM184                  # 上位机口（脚本通过 GUI 选口）
 check_gnss: True             # 升级后校验 GNSS 版本
-gnss_com: COM4              # 版本串来源口（COM29 没有 FWVer，抓它必然超时）
-gnss_capture_port: COM4     # 抓取工具实际抓的口（原脚本写死 com48）
-gnss_capture_mode: python   # 必须 python（逐行落盘）；exe 模式运行中读 0 字节，版本永远查不到
-gnss_capture_exe: C:/QDM562/日志抓取/日志抓取.exe   # 只能放 C 盘（人工可见抓取仍用这个）
+gnss_com: COM29              # GNSS/版本日志来源
+gnss_capture_port: COM29     # 抓取工具实际抓的口（原脚本写死 com48，本机必须改）
+gnss_capture_mode: exe       # exe=日志抓取.exe；python=gnss_capture.py
+gnss_capture_exe: C:/QDM562/日志抓取/日志抓取.exe   # 只能放 C 盘
 gnss_log_dir: C:/QDM562/gnss_log                    # 纯英文路径
 des_firmware_path: D:/QDM562/脚本/上位机升级/QDM562_diff_upgrade_765_to_766.bin
 soc_firmware_path: D:/QDM562/脚本/上位机升级/QDM562_diff_rollback_766_to_765.bin
@@ -104,9 +104,8 @@ cd /d D:\QDM562\脚本\上位机升级(查GNSS版本)
 
 ## 3. 升级后怎么查 GNSS 版本号（本项目的核心校验）
 
-- 原理：升级完设备重启，**`COM4`** 会打
+- 原理：升级完设备重启，串口日志口会打
   `$PDTINFO,CC0058Q-01,G1B1,V2.0,R2001R3.3.3.0Build19128,N/A,N/A*0A` 和 `FWVer R2001R3.3.3.0Build19128`，芯片 `CC0058Q-01`。
-  （`COM29` 只有 `Monitor`/`BT auth` 心跳，**不打印**这两条，别抓错口）
 - 对照口径：**0765 → Build19128**，**0766 → Build27526**（脚本按当前 `des/soc` 版本自动取对照项）。
 - 脚本行为：升级前先 `日志抓取.exe /killall:qdm562cap` 清残留 → 自己拉起抓取抓 `COM29` → 升级 → 读抓下来的 `comNN_*.log` 找 Build 号 → 比对 → 结束后 kill。
 - 坑：V3.1 原脚本把文件名写死 `com48_*.log`（作者机器上的口）。本机是 `com29_*.log`，不改就永远读不到版本。修法：匹配改成按配置生成 `comNN_*.log` + 兜底 `com*_*.log`；时间戳正则改 `com\d+_(\d{8})_(\d{6})`。
@@ -124,7 +123,7 @@ cd /d D:\QDM562\脚本\上位机升级(查GNSS版本)
 - 实例名必须分开：脚本用 `qdm562cap`，人工抓用 `qdm562debug`（或 `ai1`）。
   `/killall:X` 只清**同名**实例，清不掉别人的。
 - 同一串口独占：脚本和 GUI 抢同一个口，必然有一方打不开（打不开的表现是"一直红字重试"）。
-  QDM562 的分工（2026-11-20 复核后）：`COM4` 给脚本抓版本；`COM29` 给人工观察（脚本不占它了）；`COM3` 给 debug 抓取；`COM184` 给上位机。
+  QDM562 的分工：`COM29` 永远给脚本；`COM3` 给 debug 抓取；`COM184` 给上位机。
 - 弹窗：`/run` 抓取不弹窗，`/auto` 才会把窗口显示出来给人看。要"看得见"就用 `/auto`。
 - `exe` 只能放 C 盘，放 D 盘/桌面会被 Bitdefender 删掉。
 
@@ -193,6 +192,13 @@ powercfg /change hibernate-timeout-ac 0; powercfg /change hibernate-timeout-dc 0
 - **跑法分工**：日志 = 上面官方 exe 双口常驻；继电器断上电 + DUMP 取版本用 `D:\QDM562\平台开关机找网\一轮_继电器与DUMP.py`（一轮：断电2s→上电→等6s→COM25 发 DUMP，实测 17:27 断电 `A0 01 01 A2` / 上电 `A0 01 00 A1`，DUMP 应答 `5A A5 02 09 3E 04 02 65 07 44 FF` → **0765**）。平台判定由 `qdm562_平台开关机脚本_V01.py` 负责（需内网代理）。
 - 自写 `开关机找网抓取.py` 仅作**无界面批量轮次**的备用手段（继电器+双口+DUMP 一体、`--cycles 0` 无限轮）；默认不要用它替代官方工具抓日志。
 - **启动三铁律**：① python 必须用绝对路径 `C:\Users\DELL\AppData\Local\Programs\Python\Python39\python.exe`（PATH 首个 `python` 是 LarkShell 沙箱运行时，cmd/bat 里会找不到或没装 pyserial，表现就是"工具没在运行"）；② **只开一个抓取实例**，COM27/COM29 独占，多开会互抢；③ 判活看 `status.json` 的 `bytes` 是否持续涨，别按秒判死。
+- **业务失败即停 / 运行异常重试不停**（2026-11-20 已改代码并实测，用户两次明确要求）：
+  - 两类失败要分开：**业务判定失败**（201 上线超时、平台明确回非 200）= 真失败，`fail_continue: 0` 时**立刻停**；**运行异常**（登录失败、token 失效、代理掉线、平台查询抛错、脚本自身抛异常）= 环境问题，**重试、继续跑，绝不停脚本**。
+  - `device.yaml` 三个旋钮：`login_retry: 3`（登录失败重试次数，间隔 `login_retry_interval: 5` 秒）；`max_consecutive_errors: 0`（**0 = 连续异常永不停**，推荐；填 N 则连续 N 轮异常才兜底停，用于无人值守防刷日志）。
+  - 实现要点：`PlatformClient.login` = 带重试包装 → `_login_once`；`run_cycle` 平台查询抛错返回 `404 + abortable: False`（不当业务失败）；`Device.run()` 里 `AuthenticationError` / `PlatformError` / 通用 `Exception` 全部 `abortable: False` + `consecutive_errors += 1`（200 时清零），只有超 `max_consecutive_errors` 才 `fatal`；**break 只剩三种**：`fatal` / `abortable 且非 200 且 fail_continue=0` / 跑满 `cycles`。
+  - **启动阶段也不许一失败就退**：`resolve_with_retry()` 把首次登录/设备解析包进重试（`max_consecutive_errors` 次，0 则兜底 20 次≈100 秒），代理瞬时掉线能自愈；`--check-platform` 只重试 `login_retry` 次（人工查询要快失败）。
+  - 证据（`log\2026_11_20_19_23_13_526194\`）：`异常不停_控制流测试.txt`（登录失效×3 轮不停 / 脚本异常×3 轮不停 / `max_consecutive_errors: 2` 时第 2 轮兜底停 / 业务 201 在 `fail_continue: 0` 下仍只跑 1 轮，4 项全 PASS）；`回归_正常1轮_200.txt`（真机 1 轮 200、成功率 100%）。回归脚本 `test_异常不停.py`（纯 stub，不碰继电器，改完代码先跑它）。
+- **失败即停（业务侧，当前配置）**：`fail_continue: 0` = 真业务失败（201 超时 / 平台明确非 200）立刻停止整个跑测；退出前继电器保持"上电"态，现场日志留在 `log\<时间戳>\`。实测：`cycles: 3` + `check_timeout: 6` → 第 1 轮 201 后结束，`运行次数=1`、失败 1、成功率 0%，没跑第 2/3 轮。要改"失败继续"写 `1`。
 - 基线（2026-11-20 实测）：DUMP=0765、`ver:0765`、debug≈12.9KB/轮、日志≈50.8KB/轮、IMEI `866462081737442`。
 
 ## 12. 连九号平台（SOCKS5 1080 隧道）——平台判 PASS 的前提（已跑通）
