@@ -53,6 +53,7 @@ device_control.py —— 基于 uiautomator2 的 Android 设备控制脚本
 
 import argparse
 import json
+import os
 import sys
 import time
 import subprocess
@@ -614,7 +615,9 @@ def do_power_off(d, opts):
 #   关键约定：去页面（navigate_to / go_to_page）与 在页面操作（extract_*）严格分离。
 #            以后新增目标页，只需在 PAGE_TREE 加边，不用改任何业务逻辑。
 # --------------------------------------------------------------------------- #
-NINEBOT_PKG = "com.ninebot.segway"
+NINEBOT_PKGS = [p.strip() for p in (os.environ.get("NINEBOT_PKG")
+                                    or "cn.ninebot.ninebot,com.ninebot.segway").split(",") if p.strip()]
+NINEBOT_PKG = NINEBOT_PKGS[0]      # 默认用现网包名；老的 com.ninebot.segway 作为兼容项保留
 
 PAGE_TREE = {
     # 不在九号APP内（桌面/其他APP/锁屏）。统一入口：启动APP → home
@@ -833,7 +836,7 @@ def detect_current_page(d):
         return "outside"
     pkg = cur.get("package") or ""
     act = cur.get("activity") or ""
-    if NINEBOT_PKG not in pkg:
+    if not any(np in pkg for np in NINEBOT_PKGS):
         return "outside"
     # 1) activity 精确判定（最稳）
     if "DynamicDeviceInfoActivity" in act:
@@ -858,7 +861,7 @@ def detect_current_page(d):
     if "DynamicList2Activity" in act:
         # 同时承载 转把设置/实验室，须按文字区分
         return _detect_list2(d)
-    if "MainOversea" in act:
+    if "MainOversea" in act or "mainshell" in act:
         return "home"
     # 2) 兜底：部分机型/版本 activity 命名不同，用页面文字判定
     texts = _collect_texts_list(d)
