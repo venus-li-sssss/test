@@ -1,7 +1,7 @@
 ---
 name: 九号项目
-description: 操作九号(Ninebot) 的一体化 skill，覆盖三条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询与管理、固件包新增（真实二进制上传+提交+查重+预演）、固件包替换/编辑（换二进制、改关联车型/part_code、照抄配对包）、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成；(3) 测试用例 Excel 执行化回填。触发词：九号、Ninebot、iot-test、固件、固件包、固件包管理、查询固件包、新增固件、添加固件、上传固件、替换固件、替换固件包、固件包替换、编辑固件、更新固件包、换固件、改固件、改关联车型、关联车型、part_code、edit-firmware、firmware-info、固件列表、固件统计、版本区间、OTA、升级包、差分升级包、回滚包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮。
-version: 2.2.0
+description: 操作九号(Ninebot) 的一体化 skill，覆盖三条线：(1) IoT OTA 固件平台（iot-test.ninebot.com）的固件包查询与管理、固件包新增（真实二进制上传+提交+查重+预演）、固件包替换/编辑（换二进制、改关联车型/part_code、照抄配对包）、设备查询、FOTA 升级/回滚/状态；(2) 已连接 Android 手机上九号出行 APP 的 UI 控制（点击闪灯鸣笛/鸣笛/闪灯、查 APP 状态、截图验证），基于 uiautomator2 相对定位，一条指令即可完成；(3) 测试用例 Excel 执行化回填。触发词：九号、Ninebot、iot-test、固件、固件包、固件包管理、查询固件包、新增固件、添加固件、上传固件、替换固件、替换固件包、固件包替换、编辑固件、更新固件包、换固件、改固件、改关联车型、关联车型、part_code、edit-firmware、firmware-info、固件列表、固件统计、版本区间、OTA、升级包、差分升级包、回滚包、FOTA、升级、回滚、查看平台下发指令、平台下发、设备指令、链路核验、指令记录、设备控制、设备APP、控制APP、手机APP、闪灯鸣笛、鸣笛、闪灯、点击、UI自动化、uiautomator2、设备端、假超时、APP超时、重试、retry、组合指令、指令组合、超时重试、自动重试、滑动屏幕、swipe、上滑、下滑、设备信息、查看设备信息、查询版本、设备版本、固件版本、页面导航、去页面、导航到、页面树、回到首页、返回上一页、开机、关机、滑动开机、点击关机、通电、车辆电源、电源按钮、ninebot_features、功能封装、驻车感应、自动驻车、电子刹车、精准续航、氮气模式、彩蛋功能、倒车断电、安防设置、音效设置、灯光设置、自动锁车、运输模式、报警灵敏度、报警音音量、提示音音量、提示音音效、速度安全锁、能量回收强度、公英制切换、延迟关闭大灯、NFC实体卡、公共充电桩适配、充电功率限制。
+version: 2.3.0
 agent_created: true
 ---
 
@@ -20,6 +20,7 @@ agent_created: true
 配套文件：
 - `scripts/ninebot_ota.py` —— 平台 helper（固件包查询/统计/新增（真实上传+查重+预演）/**替换·编辑（`replace --id`：换二进制、改关联车型/part_code、`--like` 照抄配对包）**、设备解析、FOTA 升级/回滚/状态、指令核验、一站式 `fota`）。**固件包管理见 §5.1（v2.2：新增 add + 替换/编辑 replace）。**
 - `scripts/device_control.py` —— 设备端 APP UI 控制 helper（uiautomator2，相对定位）：`status`/`launch`/`tap`/`tap_xy`/`swipe`/`screenshot`/`dump`/`texts`/`wait`/`retry`/`get_device_info`/`get_battery_info`/`ble_upgrade_app`/`go_to_page`/`setting`/`toggle_setting`/`run`。**控制手机上九号 APP（如点击闪灯鸣笛、滑动屏幕、查设备版本信息、查电池数据、APP侧蓝牙升级）直接用它，不要走 dump+解析+input tap 的老流程。**
+- `scripts/ninebot_features.py` —— **APP 功能高级封装**（v2.3 新增）：把 `device_control.py` 的底层能力封装成语义化的 Python 函数，每个功能都有 `set/status` 两种操作。覆盖安防设置/音效设置/更多功能根页开关/子页面功能/公共充电桩适配/设备信息查询等 30+ 功能。**自动检测灰色（不可用）功能，返回明确错误信息。见 §8.14。**
 - `scripts/execute_testcases.py` —— 测试用例 Excel 执行化回填（读/写/贴图/统计）。
 - `scripts/selftest_firmware.py` —— **固件包管理离线自测**（**52 项断言**，含新增 add 与替换 edit 两条链路；用真实 HAR 做基准 mock 全部网络请求，**不联网、不写平台**）。改完 `ninebot_ota.py` 的固件相关代码后先跑它：
   `python scripts/selftest_firmware.py --har <HAR路径> --file <任意 bin>`（无 HAR 时用内置期望值）。
@@ -190,6 +191,21 @@ python $SK add --imei N1DQH2546J0169 --file QDM562_diff_rollback.bin --version 0
 `file=SteelDustApp_ota.bin(260344B, md5 43555762ba762d1b7fb49dde6061067e)` →
 上传名 `V0.2.4.3.bin` → `file_id=121501` → 平台记录 `id=38799 / ECU / 测试 / Z0DK / 0243`。
 
+**QDM562 记录**（2026-11-02，设备 IMEI 864107081450429 / PK `Up2aItEp` / VMC `K25901` / part_code `Z0BQ`）：
+平台上 `0764` 等版本已被占，改用 **`07F4`/`07F5` 作为平台标签**。**标签方向的读法是"升到哪个版本"**：
+`0765->0764` 的差分包（回滚 bin）写 **07F4**、`0764->0765` 的差分包（升级 bin）写 **07F5**，
+与 `device.yaml` 的 `path_a=07F4 / version_a=0764`、`path_b=07F5 / version_b=0765` 一一对应。
+**平台包内容用 FBFMake 差分 bin，不是版本包 zip**（2026-11-02 用户明确纠正过一次：先看兄弟包 md5 相同
+就断定"平台装的是内层装载 zip"是错的推断，那条只能说明有人传过全量包，不代表压力测试要的是它）。
+- `add --version 07F4 --open-diff 1 --upload-name ECU_EG800AK_IMG_V0.7.F.4.zip` → `id=39782`；
+  随后 `replace --id 39782 --file QDM562_diff_rollback_765_to_764.bin --upload-name ECU_EG800AK_IMG_V0.7.F.4.bin`
+  → `file_id=128962 / md5 7c61d65046039c0e57d16d9becab977c / 106,496 B`
+- 同理 `id=39783` → `QDM562_diff_upgrade_764_to_765.bin` → `file_id=128963 / md5 e3f9b208e69a87253d8dfaf4728d96b8 / 110,592 B`
+- 换内容类型（zip→bin）时用 `replace --upload-name` 把扩展名一起改掉，**V 段必须仍等于版本号**
+  （`V0.7.F.4` → `07F4`），否则平台提版本与 `firmware_version` 不符 → `4025`。
+- **平台标签(07F4) ≠ 设备上报版本(0764)**：压力脚本 `device.yaml` 用 `path_a/path_b` 提平台标签、
+  `version_a/version_b` 校验设备真实上报版本，`otaCurrentVersion` 必须填后者。
+
 执行顺序（与 HAR 逐字对齐）：
 `require-attribute`(自动选 part_code) → `otaRateSupport` / `contains/mower`(探测，仅打印) →
 **真实上传** `upload/init → upload/part(GET 预检 + POST 分片) → upload/complete` →
@@ -203,8 +219,12 @@ name V.x.x.x.bin              例: 0RV /VIrom V0.1.0.3.zip
 name Vx.x.x.ext               例: 0RV_IVIrom_V0.1.0.3.bin
 name_Vx.x.x_name.ext          例: Aura DIS V1.5.9 encrypted.bin / Aura DIS V159 encrypted.bin
 ```
-- 平台**按上传文件名提取版本号**，所以 `add` 会**强制把上传名改成** `V<x1>.<x2>.<x3>.<x4>.bin`
+- 平台**按上传文件名提取版本号**，`add` 默认把上传名改成 `V<x1>.<x2>.<x3>.<x4>.bin`
   （`display_name`），源文件叫什么无所谓。
+- **要沿用项目惯例的名字（如 `ECU_EG800AK_IMG_V0.7.F.4.zip`、内容是 zip）就加 `--upload-name`**
+  （2026-11-02 加的标志，默认行为不变）。名字里必须能被平台提出版本号，否则 `4025`。
+  例：`add --version 07F4 --upload-name ECU_EG800AK_IMG_V0.7.F.4.zip` → 平台列表显示 `.zip`，
+  与同车型兄弟包 `ECU_EG800AK_IMG_V7.6.4.zip` 一致。
 - **裸名不允许**：`032e.bin` → 平台提取 `null` → `4025 固件版本(X)与文件版本(null)不一致`。
 - 不足 4 段按平台规则**前面补 0**：`V4.4.4 → 0444`（实测 `ECU_IMG_V4.4.4.bin` 在平台上就是 `0444`），
   `V159 → 0159`；helper 生成的包名为 `V0.4.4.4.bin` / `V0.1.5.9.bin`。
@@ -238,9 +258,14 @@ name_Vx.x.x_name.ext          例: Aura DIS V1.5.9 encrypted.bin / Aura DIS V159
   缺 `--desc`、命中重复时都会在预览里给出显式警告。
 - 提交成功后自动**回查**该 `file_id` 是否已出现在固件列表，给出证据。
 
-⚠️ `>5MB` 的多分片上传已按同一规则实现，但手上固件都 <5MB、**未在平台实测**：
+✅ `>5MB` 的多分片上传**已于 2026-11-02 平台实测通过**（QDM562 ECU 07F5，8,503,216 B，2 分片）：
 `totalBlock = ceil(size/5MB)`，每片的 `size` 字段固定传 `5242880`（与浏览器一致），
-每片 `md5` 传该片自身的 md5（单片时等于整文件 md5，与 HAR 一致）。首次用请核对结果。
+每片 `md5` 传该片自身的 md5（单片时等于整文件 md5，与 HAR 一致）。
+**自证完整性的办法**：把本地按同样切法算出的分片 md5 与服务端返回的 `etag` 逐片比对——
+实测两片 etag `5812f892fc3e03b945296a28676b512d` / `f4177e3872d649ec6279f3c66e41c1dc` 与本地算出的一致，
+说明落地字节无失真。
+（同日 07F4 走的是**秒传**：内容与平台已有 0764 包 md5 相同 `92cdb4b514e0d2cceae8887a64d19fbb`，
+init 直接 `pass=true` 复用对象、`s3-upload-by-path` 另发一个新 `file_id`，两条记录互不影响。）
 
 #### 5.1.3 cmd 里中文显示成乱码怎么办
 本机 `PYTHONUTF8=1` → 脚本输出的是 UTF-8 字节，而 cmd 默认码页 936 会显示成 `鎴愬姛`。
@@ -283,6 +308,7 @@ python $SK replace --id 38896 --file xxx.bin --dry-run
 | `--add-model pk,vmc` | **追加型**：保留原有关联再追加（多组用 `;` 分隔） |
 | `--like <id>` | 从另一条记录照抄 车型列表 + part_code |
 | `--desc` / `--desc-en` / `--open-diff` / `--status` | 不传则沿用原记录 |
+| `--upload-name` | 覆盖上传文件名（默认**沿用原 `file_name`**）。只在「换了内容类型」时用（比如把 zip 内容换成差分 bin，顺手把 `.zip` 改成 `.bin`）；**名字里的 V 段必须仍等于版本号**，否则平台提出来的版本与 `firmware_version` 不符 → `4025` |
 
 **为什么用替换而不是「删了重建」**：固件 `id`/`firmware_id` 保持不变，已存在的升级任务与设备端索引不会失效；重建会留下重复记录（本环境已出现过 0227、022F 各两条）。
 
@@ -910,6 +936,14 @@ $PY $SK run --json '[["tap",{"text":"更多功能"}],["wait",{"text":"自动锁�
 - 判定一律以元素属性（`checked` 等）为准，截图仅供调试。
 
 ### 8.8 APP 页面导航树（已实探 v1.7.4，仅设备相关页）
+
+> ⚠️ **2026-11-20 现网口径（v6.10.12，机型 26D17 九号电摩）**：
+> - 包名 = **`cn.ninebot.ninebot`**；老的 `com.ninebot.segway` 已不存在（`device_control.py` 已改成多包名兼容，
+>   可用环境变量 `NINEBOT_PKG` 覆盖，详见 `NINEBOT_PKGS`）。
+> - 首页 activity = **`.mainshell.MainActivity`**（不再是 `MainOversea`）；`detect_current_page` 已兼容。
+> - 首页电源词：**开机态显示「车辆关机」（点它关机）**，关机态显示「滑动开机」——判开关机看这两个词翻转。
+> - 实测：`get_device_info` 可正常取到 型号/激活日期/车架号/序列号/总里程/仪表 v8.0.2 / 中控 v7.6.5 / 电机 v10.15.14 / 铅酸计量板 v4.2.0。
+
 本 skill 只纳入「设备相关」页面（控车 / 查看数据）。**已显式排除**「发现 / 服务器 / 我的」等无关页。各页均经真机遍历确认，`go_to_page --page <id>` 或业务命令内部 `navigate_to` 即可到达。
 
 **页面树（PAGE_TREE）与真实 activity 对照：**
@@ -1202,6 +1236,111 @@ def do_xxx(d, opts):
     return extract_xxx(d)                    # 2) 到了页面再做具体操作（假设已在页上）
 ```
 > 实测覆盖的入口场景：已在设备信息页 / 在更多功能页 / 在首页 / APP 未前台（自动 `launch`）。全部走同一条 `navigate_to`，判定以 activity 为准（之前用"可见文字"判定会因长列表"设备信息"被折叠而误判为 unknown，已改为 activity 优先）。
+
+---
+
+### 8.14 高级功能封装 `ninebot_features.py`（v2.3 新增）⭐ APP 功能一键操作
+
+`scripts/ninebot_features.py` 把 `device_control.py` 的底层能力封装成**语义化的 Python 函数**，
+每个功能都有 `set/status` 两种操作，调用者无需关心 UI 定位细节。
+
+**设计原则**：
+1. 每个功能一个函数，参数语义化（action="on"/"off"）
+2. 自动检测灰色（不可用）功能，返回明确错误信息（如"可能需要蓝牙连接"）
+3. 自动滚动查找功能入口
+4. 返回值统一为 dict，含 ok / state / message
+
+**用法（CLI）**：
+```bash
+PY=C:/Users/venus.li/.workbuddy/binaries/python/envs/default/Scripts/python.exe
+SK=C:/Users/venus.li/.qwenpaw/workspaces/default/skills/ninebot-project/scripts/ninebot_features.py
+
+# 列出所有已封装功能
+$PY $SK list
+
+# 安防设置
+$PY $SK lock_alarm_set on                    # 锁车后移动报警：开启
+$PY $SK lock_alarm_status                    # 查询状态
+$PY $SK lock_alarm_sensitivity_set 标准       # 报警灵敏度
+$PY $SK lock_alarm_volume_set 80             # 报警音音量（0-100）
+$PY $SK transport_mode_set on 3小时           # 运输模式：开启+设时间
+$PY $SK transport_mode_status                # 查询运输模式状态
+
+# 音效设置
+$PY $SK sound_volume_set 80                  # 提示音音量（0-100）
+$PY $SK sound_effect_set 音效2               # 提示音音效
+
+# 更多功能根页开关
+$PY $SK parking_sensor_set on               # 驻车感应
+$PY $SK auto_park_set on                    # 自动驻车
+$PY $SK electronic_brake_set on             # 电子刹车
+$PY $SK tcs_set off                         # 牵引力控制系统
+$PY $SK nitro_mode_set on                   # 氮气模式
+$PY $SK easter_egg_set on                   # 彩蛋功能
+$PY $SK reverse_power_set off               # 倒车断电
+
+# 更多功能根页选择类
+$PY $SK speed_lock_set 20km/h               # 速度安全锁
+$PY $SK energy_recovery_set 弱               # 能量回收强度
+$PY $SK unit_switch_set 公制                 # 公英制切换
+
+# 子页面功能
+$PY $SK delayed_light_off_set 10秒           # 灯光设置-延迟关闭大灯
+$PY $SK auto_lock_switch_set on             # 自动锁车设置-离车自动上锁
+$PY $SK auto_lock_time_set 5秒              # 自动锁车设置-自动上锁时间
+$PY $SK nfc_physical_card_set off           # NFC实体卡开关
+
+# 公共充电桩适配（特殊交互：开关是 ImageView，不是标准 switch_view）
+$PY $SK public_charger_power_limit_set on    # 开启充电功率限制
+$PY $SK public_charger_power_limit_status    # 查询状态
+$PY $SK public_charger_power_limit_value_set 1200W  # 设置功率上限
+
+# 设备信息（只读）
+$PY $SK get_device_info                      # 获取车型/车架号/序列号/里程等
+```
+
+**用法（Python 导入）**：
+```python
+from ninebot_features import NinebotFeatures
+nf = NinebotFeatures()
+
+nf.parking_sensor_status()         # → {"ok": True, "state": "on", ...}
+nf.parking_sensor_set("off")       # → {"ok": True, "message": "「驻车感应」关闭成功"}
+nf.delayed_light_off_set("10秒")   # → {"ok": True, "target": "10秒", ...}
+nf.get_device_info()               # → {"ok": True, "info": {"model": ..., "vin": ..., ...}}
+```
+
+**已封装功能清单**：
+
+| 分类 | 功能 | 类型 | 方法 |
+|---|---|---|---|
+| 安防设置 | 锁车后移动报警 | 开关 | `lock_alarm_set/status` |
+| 安防设置 | 报警灵敏度 | 选择 | `lock_alarm_sensitivity_set/status` |
+| 安防设置 | 报警音音量 | 滑块 | `lock_alarm_volume_set/status` |
+| 安防设置 | 运输模式 | 开关+选择 | `transport_mode_set/status` |
+| 音效设置 | 提示音音量 | 滑块 | `sound_volume_set/status` |
+| 音效设置 | 提示音音效 | 选择 | `sound_effect_set/status` |
+| 根页开关 | 驻车感应/低电量延长续航/电子刹车/自动驻车/精准续航/TCS/氮气模式/彩蛋功能/倒车断电 | 开关 | `xxx_set/status` |
+| 根页选择 | 速度安全锁/能量回收强度/公英制切换 | 选择 | `xxx_set/status` |
+| 灯光设置 | 延迟关闭大灯 | 选择(5秒/10秒/15秒/关闭) | `delayed_light_off_set/status` |
+| 自动锁车 | 离车自动上锁/自动上锁时间 | 开关+选择 | `auto_lock_switch_set/status`, `auto_lock_time_set/status` |
+| NFC设置 | NFC实体卡 | 开关 | `nfc_physical_card_set/status` |
+| 电池信息 | 公共充电桩适配 | 特殊开关+选择 | `public_charger_power_limit_set/status/value_set` |
+| 设备信息 | 车型/车架号/序列号/里程 | 只读 | `get_device_info` |
+
+**灰色功能检测**：当功能不可用（灰色，通常需要蓝牙连接）时，返回：
+```json
+{"ok": false, "error": "「某功能」功能不可用（灰色），可能需要蓝牙连接或车辆状态不支持", "available": false}
+```
+
+**代码架构**：
+- `_ToggleFeature` — more_functions 根页行内开关基类
+- `_SubPageSwitchFeature` — 子页面开关基类（含错误弹窗检测）
+- `_SliderFeature` — 滑块类基类（按住→拖→看值→调→到位才松手）
+- `_SelectorFeature` — 选择类基类
+- `_RootPageSelectorFeature` — 根页选择类基类
+- `_SubPageFeature` — 子页面通用基类（open/list）
+- `PublicChargerAdapter` — 公共充电桩适配（特殊交互：ImageView 开关 + 功率选择）
 
 ---
 
