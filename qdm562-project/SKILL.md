@@ -187,6 +187,7 @@ powercfg /change hibernate-timeout-ac 0; powercfg /change hibernate-timeout-dc 0
 
 - **四个口的分工**：`COM22` 继电器（9600，`A0|通道|状态|校验`，NC 下 1=断电）；`COM25` 上位机（115200，5A A5）；`COM27` debug（115200，静默/开机才打）；`COM29` 日志（一直刷 `ver:0765`）。
 - **DUMP 帧**：发 `5A A5 01 3E 09 01 02 02 B2 FF`，应答 `5A A5 02 09 3E 04 02 65 07 44 FF`，版本 = data 两字节**反序**（`65 07` → **0765**）。心跳 `5A A5 00 09 01 7B 00 7A FF` 不是应答。
+  **没有上位机口别发这帧**（发了必定无应答，别误判成设备故障），改发 AT 口三连：`AT+QDUMPCFG=0,0` / `AT+QDUMPCFG=2,0` / `AT+LOG=19,1`，口径见 §1.1。
 - **必须两个日志都抓**：debug 口只有断上电/升级才打印（判活看 `CHIP_ID`/`$RESET`/`PlatInfo`，不看字节数）；日志口一直刷但**断电瞬间会掉枚举**，`read()` 会抛 `ClearCommError PermissionError(13)`，必须 catch 后按 hwid `2C7C` 找回（排除 AT/DIAG/Modem），否则线程静默死掉、日志只有半截。
 - **DUMP 时机**：上电后等 6s，再每 1.5s 重发，窗口 14s；太早发（3s 内）一定没应答。
 - **跑法分工**：日志 = 上面官方 exe 双口常驻；继电器断上电 + DUMP 取版本用 `D:\QDM562\平台开关机找网\一轮_继电器与DUMP.py`（一轮：断电2s→上电→等6s→COM25 发 DUMP，实测 17:27 断电 `A0 01 01 A2` / 上电 `A0 01 00 A1`，DUMP 应答 `5A A5 02 09 3E 04 02 65 07 44 FF` → **0765**）。平台判定由 `qdm562_平台开关机脚本_V01.py` 负责（需内网代理）。
