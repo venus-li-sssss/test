@@ -1,4 +1,4 @@
-# 导航目录快照（2026-11-23）
+# 导航目录快照（2026-11-25）
 
 > 静态快照，仅供快速了解全貌。**实时状态以 `python scripts/nav.py <关键词>` 为准**；写入（增删改）前用 `cat list` / `link list` 取 id。
 > 图例：✅ 已有 GitHub skill 可自动化；🔗 仅链接（文档/系统，无 skill）；🚧 占位/未实现。
@@ -22,7 +22,7 @@
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
 | 日志分析-skill | ✅ | https://github.com/venus-li-sssss/test/tree/main/log-analysis -- 设备日志/脚本日志分析：定位问题、还原执行流程 |
-| 测试用例生成 | 🔗 | 输入协议文本 → AI 生成测试用例（妙搭网页应用，需人工操作；暂无 skill） |
+| 测试用例生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/test-generation-api -- 输入需求文档 → 分模块建任务、轮询取用例、导出 Excel/CSV（testcase_gen.py，需配 token） |
 | JIRA系统 | ✅ | https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭） |
 | 内部报告生成 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E7%89%88%E6%9C%AC%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E7%94%9F%E6%88%90 -- 输入用例+JIRA+压力+路测数据 → 输出系统测试报告 docx/xlsx<br>https://github.com/venus-li-sssss/test/tree/main/%E8%B7%AF%E6%B5%8B%E5%85%A8%E6%B5%81%E7%A8%8B -- 输入设备/高精度 NMEA → 轨迹对比 KML + 截图 + CEP 表 + 路测报告<br>https://github.com/venus-li-sssss/test/tree/main/changelist2xlsx -- 修改点系统导入/导出、自动新增测试用例<br>https://github.com/venus-li-sssss/test/tree/main/jira-data-access -- JQL 查询、建单、改单、传附件（默认只看 ST-BUG 且未关闭）<br>https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 经「内部报告转邮件草稿」：报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
 | 内部报告转邮件草稿 | ✅ | https://github.com/venus-li-sssss/test/tree/main/%E5%86%85%E9%83%A8%E6%8A%A5%E5%91%8A%E8%BD%AC%E9%82%AE%E4%BB%B6%E8%8D%89%E7%A8%BF -- 报告→邮件草稿：拿上一版邮件 HTML 改造、建 reply-all、传附件、回读校验 |
