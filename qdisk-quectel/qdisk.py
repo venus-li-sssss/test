@@ -150,7 +150,7 @@ def password_login(username, password):
 
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
 # 运行期状态一律放用户目录（skill 目录会被同步/打包/上传，不能放令牌或凭据）
-DATA_DIR = os.path.join(os.path.expanduser("~"), ".qdisk-quectel")
+DATA_DIR = os.environ.get("QDISK_HOME") or os.path.join(os.path.expanduser("~"), ".qdisk-quectel")
 TOKEN_FILE = os.path.join(DATA_DIR, ".token_cache.json")
 CRED_FILE = os.path.join(DATA_DIR, ".cred.dpapi.json")
 CRED_ENTROPY = b"qdisk-quectel-cred-v1"
@@ -225,8 +225,10 @@ def load_cred():
         obj = json.loads(raw.decode("utf-8"))
         if obj.get("username") and obj.get("password"):
             return obj
-    except Exception as e:
-        sys.stderr.write("读取本地凭据失败（需重新 auth --set-cred）: %s\n" % e)
+    except Exception:
+        sys.stderr.write(
+            "凭据无法解密：DPAPI 绑定「这台机器 + 当前 Windows 用户」，"
+            "该文件应来自别的电脑/账号，请在本机重新执行 auth --set-cred。\n")
     return None
 
 
