@@ -18,7 +18,7 @@ type: tool
 ## 文件位置
 - 主程序：`~/.workbuddy/skills/qdisk-quectel/qdisk.py`（纯标准库，无需 pip 安装，也不再依赖 openssl）
 - 运行期状态：`~/.qdisk-quectel/.token_cache.json`、`~/.qdisk-quectel/.cred.dpapi.json`
-  （**放用户目录，不放 skill 目录**：skill 目录会被同步/打包/上传，不能带凭据。旧版放在 skill 目录的文件会在首次运行时自动迁移）
+  （**放用户目录，不放 skill 目录**：skill 目录会被同步/打包/上传，不能带凭据。旧版放在 skill 目录的文件会在首次运行时自动迁移；可用环境变量 `QDISK_HOME` 指定其他目录）
 
 ## 认证（首次使用一次即可）
 
@@ -30,6 +30,7 @@ type: tool
 python qdisk.py auth --set-cred
 ```
 脚本会把账号密码用 **Windows DPAPI** 加密后存到 `~/.qdisk-quectel/.cred.dpapi.json`（只有本机、当前 Windows 用户能解密，非明文；不要拷到别的机器）。
+**换电脑或换 Windows 用户后，各自再执行一次 `auth --set-cred` 即可**：旧机器的凭据带不过来（DPAPI 绑机器+用户），这是安全特性；没凭据时脚本只给指引、不会崩。
 之后 access_token 过期、或 refresh_token 失效时，脚本会**自动用该凭据重新登录**，无需任何人工操作。
 相关命令：
 ```
