@@ -20,17 +20,35 @@ type: tool
 - 令牌缓存：`~/.workbuddy/skills/qdisk-quectel/.token_cache.json`（含凭据，勿外传）
 
 ## 认证（首次使用一次即可）
+
+> 说明：飞书里点开移远网盘不用登录，是飞书 SSO 只在那次网页会话里生效，**不会把 token 交给命令行脚本**。所以脚本必须自己持有一份凭据，二者不能互相替代。
+
+### 方式 A：账号密码一次性登录（推荐，长期免登录）
+在**你自己的终端**里执行一次（密码用 getpass 交互输入，不进命令行历史）：
+```
+python qdisk.py auth --set-cred
+```
+脚本会把账号密码用 **Windows DPAPI** 加密后存到 `.cred.dpapi.json`（只有本机、当前 Windows 用户能解密，非明文；不要拷到别的机器）。
+之后 access_token 过期、或 refresh_token 失效时，脚本会**自动用该凭据重新登录**，无需任何人工操作。
+相关命令：
+```
+python qdisk.py auth --status        # 查看本地凭据与令牌状态
+python qdisk.py auth --login         # 用已保存的凭据立即登录一次
+python qdisk.py auth --clear-cred    # 清除本地保存的账号密码
+```
+
+### 方式 B：手动贴令牌（不保存密码）
 登录网盘网页版后，打开浏览器 DevTools → Application → Cookies，找到：
-- `quectel_refresh_token` —— 刷新令牌（**推荐**，最耐用，会自动续期）
+- `quectel_refresh_token` —— 刷新令牌（会自动续期，但本身也会过期）
 - `quectel_token` —— 形如 `bearerxxxx-xxxx`，去掉 `bearer` 前缀即为 access_token
 
-然后执行（任选其一，推荐 refresh_token）：
+然后执行（任选其一）：
 ```
 python qdisk.py auth --refresh-token <quectel_refresh_token 的值>
 python qdisk.py auth --token <quectel_token 去掉 bearer 前缀>
 ```
-之后脚本会缓存令牌，access_token 过期前自动用 refresh_token 刷新，长期可用。
 也可通过环境变量覆盖：`QUECTEL_REFRESH_TOKEN`、`QUECTEL_TOKEN`。
+refresh_token 过期后会回退到方式 A（若已用 `--set-cred` 存过凭据）。
 
 ## 常用命令
 ```bash
