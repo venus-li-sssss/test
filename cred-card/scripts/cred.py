@@ -34,11 +34,14 @@ import sys
 import time
 
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 运行期状态一律放用户目录，不放 skill 目录（skill 目录会被同步/上传/打包）
-CRED_DIR = os.path.join(os.path.expanduser("~"), ".cred-card")
+# 运行期状态一律放「当前 Windows 用户」的目录：
+#   同一台机器不同用户、同一用户不同机器，各自一份，互不干扰；
+#   也可用环境变量 CRED_CARD_HOME 指到别处（CI / 便携盘 / 多环境切换）。
+CRED_DIR = os.environ.get("CRED_CARD_HOME") or os.path.join(os.path.expanduser("~"), ".cred-card")
 VAULT_FILE = os.path.join(CRED_DIR, "vault.dpapi.json")
 PLAIN_FILE = os.path.join(CRED_DIR, "accounts.json")
-POLICY_FILE = os.path.join(SKILL_DIR, "policy.json")
+POLICY_FILE = os.path.join(SKILL_DIR, "policy.json")      # 随 skill 分发的默认策略
+USER_POLICY_FILE = os.path.join(CRED_DIR, "policy.json")  # 本机本用户的覆盖（可选）
 ENTROPY = b"cred-card-vault-v1"
 
 DEFAULT_POLICY = {
@@ -50,16 +53,30 @@ DEFAULT_POLICY = {
 # --------------------------------------------------------------------------
 # 策略
 # --------------------------------------------------------------------------
+def _read_policy_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def load_policy():
-    if os.path.exists(POLICY_FILE):
-        try:
-            with open(POLICY_FILE, "r", encoding="utf-8") as f:
-                p = json.load(f)
-            if isinstance(p.get("protected_domains"), list) and p["protected_domains"]:
-                return p
-        except Exception as e:
-            sys.stderr.write("读取 policy.json 失败，使用默认策略: %s\n" % e)
-    return DEFAULT_POLICY
+    """skill 内置默认策略 + 本机本用户覆盖。
+
+    覆盖规则：`~/.cred-card/policy.json` 里如果有 protected_domains，就以它为准；
+    这样不同单位/不同人（域名不一样）不用改 skill 本体，只在自己机器上加一份即可。
+    """
+    p = dict(DEFAULT_POLICY)
+    p["source"] = "default"
+    for path, label in ((POLICY_FILE, "skill"), (USER_POLICY_FILE, "user")):
+        obj = _read_policy_file(path)
+        if isinstance(obj, dict):
+            doms = obj.get("protected_domains")
+            if isinstance(doms, list) and doms:
+                p["protected_domains"] = [str(d).lower().lstrip("@") for d in doms]
+                p["source"] = label
+    return p
 
 
 def classify(username):
@@ -131,15 +148,18 @@ def _write_json(path, obj, private=False):
 # 存储
 # --------------------------------------------------------------------------
 def load_vault():
-    """返回受保护凭据字典；解密失败返回空。"""
+    """返回受保护凭据字典；解密失败（例如凭据来自别的机器/别的 Windows 用户）返回空。"""
     rec = _read_json(VAULT_FILE, None)
     if not rec or not rec.get("enc"):
         return {}
     try:
         raw = _dpapi(base64.b64decode(rec["enc"]), False)
         return json.loads(raw.decode("utf-8"))
-    except Exception as e:
-        sys.stderr.write("受保护凭据解密失败（需重新 set）: %s\n" % e)
+    except Exception:
+        sys.stderr.write(
+            "受保护凭据无法解密：DPAPI 绑定「这台机器 + 当前 Windows 用户」，\n"
+            "这份文件应该是从别的电脑或别的账号拷过来的。\n"
+            "在本机重新执行一次 set 即可（会覆盖成你自己的凭据）。\n")
         return {}
 
 
@@ -287,6 +307,62 @@ def cmd_where(args):
     print(tier)
 
 
+def cmd_doctor(args):
+    """自检：这台机器、这个用户能不能正常用；换机换人时看这里。"""
+    user = os.environ.get("USERNAME") or os.environ.get("USER") or "?"
+    machine = os.environ.get("COMPUTERNAME") or "?"
+    print("当前用户 : %s\\%s" % (machine, user))
+    print("数据目录 : %s%s" % (CRED_DIR, "" if os.path.isdir(CRED_DIR) else "   (尚未创建，首次 set 会自动建)"))
+    if os.environ.get("CRED_CARD_HOME"):
+        print("           （由环境变量 CRED_CARD_HOME 指定）")
+    pol = load_policy()
+    print("策略来源 : %s" % pol["source"])
+    print("受保护   : %s" % ", ".join("@" + d for d in pol["protected_domains"]))
+    # 加密层
+    if os.path.exists(VAULT_FILE):
+        rec = _read_json(VAULT_FILE, {}) or {}
+        try:
+            raw = _dpapi(base64.b64decode(rec.get("enc", "")), False)
+            v = json.loads(raw.decode("utf-8"))
+            print("加密凭据 : 可解密，共 %d 条（本机本用户有效）" % len(v))
+        except Exception:
+            print("加密凭据 : **无法解密** —— 文件来自别的电脑/别的 Windows 用户（DPAPI 绑定机器+用户），本机需重新 set")
+    else:
+        print("加密凭据 : 无（首次使用执行 set 即可）")
+    # 明文层
+    p = _read_json(PLAIN_FILE, {}) or {}
+    print("明文账号 : %d 条" % len(p))
+    print("提示     : 换电脑/换 Windows 用户后，凭据需要各自 set 一次；代码与策略随 skill 共用。")
+
+
+def cmd_policy(args):
+    pol = load_policy()
+    print("当前生效策略来源: %s" % pol["source"])
+    print("受保护域名: %s" % ", ".join("@" + d for d in pol["protected_domains"]))
+    print("skill 默认策略: %s" % POLICY_FILE)
+    print("本机覆盖文件: %s  (%s)" % (USER_POLICY_FILE, "存在" if os.path.exists(USER_POLICY_FILE) else "不存在"))
+    if args.add_domain:
+        # 以「当前生效列表」为基准追加，避免把 skill 默认域名冲掉
+        doms = list(pol["protected_domains"])
+        d = args.add_domain.lower().lstrip("@")
+        if d not in doms:
+            doms.append(d)
+            _write_user_policy(doms)
+        print("已写入本机覆盖策略，当前受保护域名: %s" % ", ".join("@" + x for x in doms))
+    elif args.remove_domain:
+        doms = [x for x in pol["protected_domains"] if x != args.remove_domain.lower().lstrip("@")]
+        d = args.remove_domain.lower().lstrip("@")
+        _write_user_policy(doms)
+        print("已在本地移除 @%s，当前受保护域名: %s" % (d, ", ".join("@" + x for x in doms) or "（空，全部走明文）"))
+
+
+def _write_user_policy(domains):
+    obj = _read_policy_file(USER_POLICY_FILE) or {}
+    obj["protected_domains"] = domains
+    os.makedirs(CRED_DIR, exist_ok=True)
+    _write_json(USER_POLICY_FILE, obj)
+
+
 def build_parser():
     p = argparse.ArgumentParser(description="统一凭据卡片：账号密码集中管理（公司邮箱走 DPAPI，其余明文）")
     sub = p.add_subparsers(dest="cmd")
@@ -320,6 +396,14 @@ def build_parser():
     w = sub.add_parser("where", help="输出某 id 的存储层（protected/plain），不输出密码")
     w.add_argument("--id", required=True)
     w.set_defaults(func=cmd_where)
+
+    d = sub.add_parser("doctor", help="自检：本机本用户能否正常用（换机换人先跑这个）")
+    d.set_defaults(func=cmd_doctor)
+
+    po = sub.add_parser("policy", help="查看/调整本机的受保护域名")
+    po.add_argument("--add-domain", help="在本机增加一个必须加密的域名，如 quecagent.com")
+    po.add_argument("--remove-domain", help="在本机移除一个受保护域名")
+    po.set_defaults(func=cmd_policy)
 
     return p
 
