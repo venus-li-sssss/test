@@ -37,5 +37,5 @@ cp -r <skill目录> ~/.workbuddy/skills/
   - `quectel-attendance/.credentials.json`
   - `quectel-attendance/.shift_default.json`（本地默认班次仅存用户本机；首次使用要问班次+是否设默认，有默认每次仍须确认，平台代码无默认）
   - `quectel-workhours/.credentials.json`、`quectel-workhours/.cache/`、`quectel-workhours/plan/`（运行时数据）
-  - `qdisk-quectel/.token_cache.json`
+  - qdisk-quectel 的令牌/凭据已放 `~/.qdisk-quectel/`（仓库内不再产生；旧版遗留文件首次运行会自动迁移）
 - 建议将本仓库保持为**私有**，并避免提交任何含明文密码或会话 token 的文件。
