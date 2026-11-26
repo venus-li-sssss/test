@@ -37,7 +37,24 @@ python $cred list                                                # 看有哪些�
 python $cred where --id qdisk                                    # 只输出 protected/plain，便于脚本分支
 python $cred remove --id ninebot
 python $cred classify --username venus.li@ikotek.com             # 只判断该账号该不该加密
+python $cred doctor                                              # 自检：本机本用户能不能用（换机换人先跑这个）
+python $cred policy --add-domain partner.com                     # 本机增加必须加密的域名（不改 skill 本体）
 ```
+
+## 多人 / 多机怎么适配（关键）
+
+**代码共用，状态各归各**——同一个人换电脑、同一台电脑换人，都不会互相踩。
+
+| 维度 | 行为 |
+|---|---|
+| 同一台电脑、不同 Windows 用户 | 各自 `%USERPROFILE%\.cred-card\`，天生隔离；A 的凭据 B 看不到也用不了 |
+| 同一个人、另一台电脑 | 目录会新建，凭据为空 → **首次跑 `set` 补一次**即可；老机器那份带不过来（DPAPI 绑定机器+用户，这是安全特性，不是缺陷） |
+| 拷了别人的 vault 到本机 | 解密失败并明确提示“该文件来自别的电脑/账号，请在本机重新 set”，**不会崩、也不会把别人密码当成自己的用** |
+| 单位域名不一样（如换到另一个租户） | `policy --add-domain` / `--remove-domain` 只写 `~/.cred-card/policy.json`，不动 skill 本体；追加时以当前生效列表为基准，不会把默认域名冲掉 |
+| CI / 便携盘 / 多环境切换 | 设 `CRED_CARD_HOME=<目录>` 指到别的位置 |
+| 换人用同一台机器且想彻底清空 | 删掉 `%USERPROFILE%\.cred-card\` 即可，skill 目录无需改动 |
+
+原则：**新机器上没有凭据不是错误，是需要补一次的正常状态**。所有命令在没有凭据时都只给指引、不报崩溃；`set` 会自动建目录，`get --missing-ok` 返回空串给脚本判断。
 
 ## 给其他 skill 的调用约定
 
@@ -71,7 +88,8 @@ python $cred classify --username venus.li@ikotek.com             # 只判断该�
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `受保护凭据解密失败` | 换了机器/换了 Windows 用户，或 vault 被破坏 | 重新 `set` 一次 |
+| `受保护凭据无法解密` | 文件来自别的电脑/别的 Windows 用户（DPAPI 绑定机器+用户），或 vault 被破坏 | 在本机重新 `set` 一次，覆盖即可 |
 | `当前系统不支持 DPAPI` | 非 Windows 环境 | 公司邮箱账号在非 Windows 上不做本地存储 |
 | `get` 返回空但 `list` 里有 | id 拼错 | 用 `list` 核对 id |
 | 公司账号被拒绝明文 | 策略拦截（预期行为） | 去掉 `--plain`，走加密 |
+| 换机后啥都取不到 | 正常：新机器没有本地凭据 | 跑 `doctor` 看状态，再 `set` 补一次 |
