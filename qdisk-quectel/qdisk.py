@@ -40,6 +40,7 @@ import base64
 import getpass
 import hashlib
 import secrets
+import shutil
 import string
 
 SSO_BASE = "https://sso-web.quectel.com"
@@ -148,8 +149,10 @@ def password_login(username, password):
 
 
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
-TOKEN_FILE = os.path.join(SKILL_DIR, ".token_cache.json")
-CRED_FILE = os.path.join(SKILL_DIR, ".cred.dpapi.json")
+# 运行期状态一律放用户目录（skill 目录会被同步/打包/上传，不能放令牌或凭据）
+DATA_DIR = os.path.join(os.path.expanduser("~"), ".qdisk-quectel")
+TOKEN_FILE = os.path.join(DATA_DIR, ".token_cache.json")
+CRED_FILE = os.path.join(DATA_DIR, ".cred.dpapi.json")
 CRED_ENTROPY = b"qdisk-quectel-cred-v1"
 TOKEN_EXPIRY_BUFFER = 300  # 提前 5 分钟刷新
 
@@ -193,6 +196,7 @@ def save_cred(username, password):
     payload = json.dumps({"username": username, "password": password},
                          ensure_ascii=False).encode("utf-8")
     enc = base64.b64encode(_dpapi_transform(payload, True)).decode("ascii")
+    os.makedirs(DATA_DIR, exist_ok=True)
     tmp = CRED_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump({"v": 1, "enc": enc, "saved_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f)
@@ -204,6 +208,14 @@ def save_cred(username, password):
 
 
 def load_cred():
+    legacy = os.path.join(SKILL_DIR, ".cred.dpapi.json")
+    if not os.path.exists(CRED_FILE) and os.path.exists(legacy):
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            shutil.move(legacy, CRED_FILE)
+            sys.stderr.write("已把旧凭据文件迁移到 %s\n" % CRED_FILE)
+        except Exception:
+            pass
     if not os.path.exists(CRED_FILE):
         return None
     try:
@@ -230,6 +242,15 @@ def clear_cred():
 # 令牌管理
 # --------------------------------------------------------------------------
 def load_cache():
+    # 兼容旧版：状态曾在 skill 目录内，首次读取时自动迁移到用户目录
+    legacy = os.path.join(SKILL_DIR, ".token_cache.json")
+    if not os.path.exists(TOKEN_FILE) and os.path.exists(legacy):
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            shutil.move(legacy, TOKEN_FILE)
+            sys.stderr.write("已把旧令牌缓存迁移到 %s\n" % TOKEN_FILE)
+        except Exception:
+            pass
     if os.path.exists(TOKEN_FILE):
         try:
             with open(TOKEN_FILE, "r", encoding="utf-8") as f:
@@ -240,10 +261,15 @@ def load_cache():
 
 
 def save_cache(c):
+    os.makedirs(DATA_DIR, exist_ok=True)
     tmp = TOKEN_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(c, f)
     os.replace(tmp, TOKEN_FILE)
+    try:
+        os.chmod(TOKEN_FILE, 0o600)
+    except Exception:
+        pass
 
 
 def refresh_access_token(refresh_token, fatal=True):
