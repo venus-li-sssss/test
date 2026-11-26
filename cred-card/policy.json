@@ -1,0 +1,8 @@
+{
+  "protected_domains": [
+    "ikotek.com",
+    "quecagent.com",
+    "quectel.com"
+  ],
+  "note": "命中这里的公司邮箱账号必须 DPAPI 加密，禁止明文；其他账号（客户邮箱/测试账号）可直接明文保存。如需精简，删掉对应域名即可。"
+}
