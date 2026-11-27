@@ -149,6 +149,8 @@ def _dump(body):
 def die(status, body, hint=""):
     """Print the server's rejection reason in a copy-pasteable form."""
     msg = body.get("message") or body.get("msg") or body.get("error") or ""
+    if not isinstance(msg, str):
+        msg = json.dumps(msg, ensure_ascii=False)
     print("FAILED %s%s" % (status, (": " + msg) if msg else ""))
     print(_dump(body))
     if hint:

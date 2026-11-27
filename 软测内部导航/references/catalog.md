@@ -1,4 +1,4 @@
-# 导航目录快照（2026-11-25）
+# 导航目录快照（2026-11-27）
 
 > 静态快照，仅供快速了解全貌。**实时状态以 `python scripts/nav.py <关键词>` 为准**；写入（增删改）前用 `cat list` / `link list` 取 id。
 > 图例：✅ 已有 GitHub skill 可自动化；🔗 仅链接（文档/系统，无 skill）；🚧 占位/未实现。
@@ -39,7 +39,7 @@
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
-| QDM562 项目知识 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录执行层：aboot/adownload 命令与「客户信息区 customer_fs/ext_flash 不烧」规则（references/aboot-flash.md）<br>https://github.com/venus-li-sssss/test/tree/main/qdm562-project -- QDM562 项目知识：认串口（哪个 COM 是什么口）、上位机升级压测、查 GNSS 版本号 Build19128/27526、抓日志判活、免锁屏与踩坑清单 |
+| QDM562 项目知识 | ✅ | https://github.com/venus-li-sssss/test/tree/main/flash-tools -- 烧录执行层：aboot/adownload 命令与「客户信息区 customer_fs/ext_flash 不烧」规则（references/aboot-flash.md）<br>https://github.com/venus-li-sssss/test/tree/main/qdm562-project -- QDM562 项目知识：认串口（哪个 COM 是什么口）、DUMP 三连配置与 YMODEM 导出（§1.2）、上位机升级压测、查 GNSS 版本号 Build19128/27526、抓日志判活、免锁屏与踩坑清单<br>https://github.com/venus-li-sssss/test/tree/main/dump-log-export -- DUMP 日志导出（YMODEM 接收端）：自动认 Dump Debug Port（COM 号会变）、一键收 dump 全部 bin 并列出文件；内含 QDM562 实测口径（约 15 个 bin / 4.6MB / 6-7 分钟）与踩坑（PermissionError 不影响文件、占口先杀进程） |
 | 项目信息总表（云盒/中控） | 🔗 | 项目分类多维表格【项目分类】云盒/中控：后续新项目信息统一记录在这里，每个项目一个子页。 |
 
 ## 资源（11 条）
@@ -79,10 +79,11 @@
 | 团队架构 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
 | 物资管理 | ✅ | https://github.com/venus-li-sssss/test/tree/main/feishu-docs -- 飞书云文档/知识库/多维表格读写：读正文、查表、按字段过滤、导 CSV/JSON（机器人身份，免扫码） |
 
-## 公司官网（5 条）
+## 公司官网（6 条）
 
 | 入口 | 状态 | 关联 skill / 说明 |
 |---|---|---|
+| 移远学院 | 🔗 |  |
 | EIP官网 | 🔗 | 公司网页的导航页面 |
 | 绩效系统 | 🔗 | 绩效系统 |
 | 移远社区 | 🔗 | 移远社区，公司内部论坛 |

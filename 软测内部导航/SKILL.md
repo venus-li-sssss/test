@@ -143,6 +143,8 @@ python nav.py link delete <链接id>
 6. **分类下还有链接时不能删**（400）→ 先清空。
 7. **删除只在用户明确要求时执行**；被拒绝时把原因（引用方/非空）如实转述，不要绕过。
 8. `skills[]` 里的 GitHub 树链接中文要 URL 编码（`%E5%81%9A%E5%8C%85`）；服务端会把「引用型条目」展开成实际地址，`description` 可能带 `经「某链接」：` 前缀，属正常现象。
+9. **`description` 上限 500 字符**（超了直接 `400 description must be shorter than or equal to 500 characters`）。写卡片说明得压着写：先 `len(desc)` 量一遍再发；想加内容先删等量的旧话。
+10. **失败原因要看得见**：`nav.py` 的 `die()` 早前遇到服务端把 `message` 返回成 dict 就抛 `TypeError`，真实原因（400/409 的具体字段）被吞掉。已修（非 str 时 `json.dumps`）。再遇到 `FAILED <status>:` 后面空着，先看这段。
 
 ### 新增一个「功能」的标准做法（三件套）
 
@@ -297,6 +299,14 @@ python scripts/audit_cards.py --json       # 机器可读
 
 ## ⑪ 历史快照（只对比趋势，别当现状）
 
+- **2026-11-27**：把「YMODEM 抓 DUMP」经验落到 QDM562 卡片（`c0d63b48-afa9-4b90-95f4-1b77781ec9a8`，分类 项目信息）。
+  ① skill 侧新增 GitHub 目录 `dump-log-export`（本地 `skills/导出DUMP日志` 推上去，`ymodem_recv.py` + `dump_log.json`），SKILL.md 补「QDM562 实测口径」：Dump Debug Port（COM53 会变号，只认名字）/ 115200 YMODEM-CRC / 约 15 个 bin · 4.6MB · 6-7 分钟 · 10-11KB/s / `com_DDR_RW.bin` 3.93MB 内含 ICCID+IMEI；顺序=先起接收脚本再 AT 三连或断电触发；踩坑=结尾 `PermissionError` 不影响文件、占口先杀进程、YMODEM 无续传。
+  ② `qdm562-project` 远端 SKILL.md 补 **§1.2 DUMP 崩溃日志导出**，description 加触发词（dump日志导出 / 抓dump / YMODEM / Dump Debug Port / COM53）。
+  ③ 卡片 desc 加 DUMP 段、`skills[]` 加 `dump-log-export` 条目（原有两条保留）。
+  ④ 顺手修 `nav.py`：`description` 上限 **500 字符**（超发 400）已写进 ⑥；`die()` 遇 dict message 抛 `TypeError` 吞错误，已修。
+
+- **2026-11-25**（终版）：把「回复送测邮件发测试报告」整节重写为可一次过的定稿（`版本系统测试报告生成/SKILL.md`）——①主题是 **【测试报告】** 不是【版本报告】 ②正文用**母版法**（取已发报告邮件 `body.content`，只做段落级替换，禁止按 `<table>/<td>` 正则重建，否则嵌套的路测表被切坏、正文冒出 CSS 残片） ③版式：风险 5 条合成一个 `<p>` 用 `<br/>` + 每行 4 个 `&nbsp;` 缩进、顺序 6 缺陷→7 修改点（只一行 PASS + 附件名，不列明细表）→8 压力、路测没跑整段删、历史bug 组末尾母版占位空行必须删 ④收件人：Graph/Outlook 的 Reply 只回发件人不带 CC，必须重建 To=发件人+原 To 其他人、Cc=原 Cc 全量 ⑤附件：>3MB 走 createUploadSession 分片，但 **Graph 挂的附件 Outlook 本地 `Attachments.Count=0`（用户看不到）**，要改用 Outlook COM `Attachments.Add+Save`；引用块带来的 `image00x.png` 内联图清掉 ⑥自检：hasAttachments/附件数=2/非内联/`$value` 实下载 +  `<table>/<tr>/<td>` 开闭数与母版一致。
+- **2026-11-25**：「版本系统测试报告生成」卡片补录 QDM562 766 实战补丁（写在 skill 的「QDM562 766 实战补丁」一节，8 条）：①**报告文件名不带子版本号**（一份报告=A 版本，`…_01.001.01.001_SystemTestReport_V1.0.xlsx`，不写 `_766`）；②摘要「2.判定」与「原因」行都红字、原因一句话「基础功能存在 bug」不写 JIRA 号；③风险条目只描述问题，不写单号/等级，同类现象合并，未执行项不进风险；④常规压力「测试设备」列逐行填 IMEI，取数顺序 JIRA `[测试环境]` → 挂测 device.yaml/script_log → JIRA 附件 DUMP（`com_DDR_RW.bin` 里 ICCID+NB-4GECU 串+IMEI），**不许拿别的样机顶替**；⑤别整行复制 FAIL 行样式（会把 PASS/备注刷红），写完按结果值重刷并扫红字列；⑥「新增bug/历史bug」表头行 B~J 整行加粗+`FFDAEEF3`，数据行 Bug 号蓝、其余黑，用 Excel COM 逐格比对颜色；⑦体积 97% 是图片，配方=PNG截图转JPEG q88+去重+JPEG长边1000px q82（20.10MB→5.30MB），**rels 用绝对路径 `/xl/media/`，改名后必须同步改写并校验无悬空引用**；⑧openpyxl 每次 save 重写全部 media，体积只能主动压。
 - **2026-11-25**：「测试用例生成」卡片（`2c1405d0-dd4d-4bbc-ad52-0aeccaadc43b`，分类 测试相关）挂上 `test-generation-api`，desc 由「暂无 skill」改成输入→输出。该 skill 把妙搭用例生成 OpenAPI 自动化（模块拆分 → 建任务 → 20s 轮询 → 取用例 → 导 Excel），实测自检任务：2 模块 / 102 秒 / 2 条用例，Excel 32 KB 正常下载。**踩坑**：官方 `aiforce.run` 域根下 `/openapi/...` 返回 404、加应用路径返回 403 `api key not allowed to access preview`（预览未发布），要用 `https://scnrhostplnc.feishuapp.com/app/app_4k5zy309bb5wx`；建任务成功码是 **201**；返回的 `testSteps` 自带 `1.` 前缀，渲染前要剥。
 - **2026-11-20**：18 分类 / 62 链接。新增「压力脚本编写」（`5371d62c-ddd5-4436-8405-6f52169409c0`：pressure-test 总入口 + generator/framework/uiautomator/webui + 引用压测脚本网盘）与「基类编写」（`195e8323-5e29-495c-8fa3-1d547254b2d3`：pressure-test-bases + super-client + api-class-generator + account-login-skill），均在分类 测试相关；「版本自动化测试」补挂 `pressure-test-pytest`（用例集→pytest 伪脚本，`--group-by scene` 按环境场景切分）与版本系统测试报告生成；`pressure-test-pytest` 的 SKILL.md + 生成器同日推 GitHub（078fecf / 005b0af）。
   - 同日新增**云盘写入能力**：`feishu-software-download/scripts/feishu_upload.py`（mkdir/upload，>20MB 分片断点续传；踩坑见该 skill ④）。用它建了 `基础软件存放/手机APP/`（`OfccfrVr5lcFVBd6i58c336QnCc`），并从现网手机 adb 拉取 `九号出行APP_v6.10.12.apk`（`cn.ninebot.ninebot` v6.10.12 / versionCode 610124275，380,713,031 B）上传入库（file_token `NdnkbgElXoPvjExGp4Bc4XYQngc`），挂在「九号平台」卡片的 `skills[]` 资源条目里（下载侧 Content-Length 已校验一致）。GitHub：`97287fae` / `23d9172a`。
