@@ -1,6 +1,6 @@
 ---
 name: qdm562-project
-description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识中枢。用在：QDM562 怎么认串口/哪个 COM 是什么口、**AT 口发 DUMP（`AT+QDUMPCFG=0,0` / `AT+QDUMPCFG=2,0` / `AT+LOG=19,1`）查版本**、上位机升级压测怎么搭和怎么跑、平台开关机找网装置怎么跑（继电器+COM27 debug+COM29 日志+COM25 5A A5 DUMP）、升级后怎么查 GNSS 版本号（Build19128 / Build27526）、ATI 报 764 但实际是 0765 怎么办、debug 日志抓不到/抓取工具没在跑、上位机 5A A5 发了没回帧、差分包该拿哪个、电脑不锁屏怎么设。触发词：QDM562、云盒、中控、上位机升级、查 GNSS、GNSS 版本号、认串口、COM22/COM25/COM27/COM29/COM3/COM184、debug 口、DUMP、AT+QDUMPCFG、AT+LOG、5A A5、0765、0766、Build19128、开关机找网、压测脚本、不锁屏。
+description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识中枢。用在：QDM562 怎么认串口/哪个 COM 是什么口、**AT 口发 DUMP（`AT+QDUMPCFG=0,0` / `AT+QDUMPCFG=2,0` / `AT+LOG=19,1`）查版本**、上位机升级压测怎么搭和怎么跑、平台开关机找网装置怎么跑（继电器+COM27 debug+COM29 日志+COM25 5A A5 DUMP）、升级后怎么查 GNSS 版本号（Build19128 / Build27526）、ATI 报 764 但实际是 0765 怎么办、debug 日志抓不到/抓取工具没在跑、上位机 5A A5 发了没回帧、差分包该拿哪个、电脑不锁屏怎么设、**DUMP 崩溃日志怎么导出（AT 三连触发 + `Dump Debug Port` YMODEM 接收，约 15 个 bin / 4.6 MB / 6-7 分钟）**。触发词：QDM562、云盒、中控、上位机升级、查 GNSS、GNSS 版本号、认串口、COM22/COM25/COM27/COM29/COM3/COM184/COM53、debug 口、DUMP、DUMP日志、dump日志导出、抓dump、YMODEM、Dump Debug Port、AT+QDUMPCFG、AT+LOG、5A A5、0765、0766、Build19128、开关机找网、压测脚本、不锁屏。
 ---
 
 # QDM562 项目测试知识
@@ -59,6 +59,28 @@ description: QDM562（云盒/中控，ASR1602S 九号平台）项目测试知识
 4. 上位机口（`COM184`）判据：往里发 `5A A5 01 3E 09 01 02 02 B2 FF`，**串口日志口立刻出现** `_5AA5 Receive 5AA5 cmd:len:1,src:3e,dst:9,cmd:1,index:2,data:2.` → 这个口就是上位机口。
 
 > 自动自检：`python scripts/port_probe.py`，它会枚举端口、分类、写版本帧、读日志口求证，最后打印建议写进 device.yaml 的值。
+
+### 1.2 DUMP 崩溃日志导出（YMODEM，2026-11 实测）
+
+AT 三连只是**配置/触发**，dump 文件本体要从 `Dump Debug Port` 用 **YMODEM** 收。
+
+| 项 | 实测值 |
+|---|---|
+| 接收口 | `Quectel USB Dump Debug Port`（本机 COM53；**每次重启 USB 重枚举会变号，只认名字不认号**） |
+| 参数 | 115200 8N1，无流控；YMODEM-CRC |
+| 产出 | 约 15 个 `.bin`，合计 ~4.6 MB，耗时 6-7 分钟（有效吞吐 10-11 KB/s） |
+| 主镜像 | `com_DDR_RW.bin` ≈ 3,930,112 B（内含 ICCID / IMEI / NB-4GECU 串，报告要 IMEI 从这里取） |
+
+**顺序（别搞反）**：① 先起接收脚本（它在发 `C` 等握手）→ ② 再 AT 三连（`AT+QDUMPCFG=0,0` / `AT+QDUMPCFG=2,0` / `AT+LOG=19,1`）或断电重上电触发 dump → ③ 等 `Transfer complete!`，脚本自动列文件。
+
+执行：用 `dump-log-export` skill 的接收端（GitHub `venus-li-sssss/test/tree/main/dump-log-export`）：
+`python <skill目录>/scripts/ymodem_recv.py --com COM53 --output D:\QDM562\dump_logs`（`--com` 留空则按名字自动认口）。
+
+踩坑：
+- 结束阶段报 `PermissionError` 是设备发完掉 USB、串口被系统回收，**文件已落盘，别重抓**；
+- 串口打不开 = 有残留进程占口，先杀 python / 关掉占口的串口工具；
+- 传输中不能断线，YMODEM 无断点续传；
+- AT 口和 Dump 口是**两个不同的 COM**，别在一个口上既发 AT 又等文件。
 
 ## 2. 上位机升级压测怎么搭
 
