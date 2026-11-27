@@ -143,12 +143,46 @@ python nav.py link delete <链接id>
 6. **分类下还有链接时不能删**（400）→ 先清空。
 7. **删除只在用户明确要求时执行**；被拒绝时把原因（引用方/非空）如实转述，不要绕过。
 8. `skills[]` 里的 GitHub 树链接中文要 URL 编码（`%E5%81%9A%E5%8C%85`）；服务端会把「引用型条目」展开成实际地址，`description` 可能带 `经「某链接」：` 前缀，属正常现象。
-9. **`description` 上限 500 字符**（超了直接 `400 description must be shorter than or equal to 500 characters`）。写卡片说明得压着写：先 `len(desc)` 量一遍再发；想加内容先删等量的旧话。
+9. **`description` 上限 500 字符**（超了直接 `400 description must be shorter than or equal to 500 characters`）。`nav.py` 现在会**先量再发**：超限直接拒发并报`超了多少字符`，接近上限（剩 <60）时给 `WARN`。长描述用 `--desc-file` 传 UTF-8 文件，别塞进 cmd 参数（中文会被 codepage 搞乱）。
 10. **失败原因要看得见**：`nav.py` 的 `die()` 早前遇到服务端把 `message` 返回成 dict 就抛 `TypeError`，真实原因（400/409 的具体字段）被吞掉。已修（非 str 时 `json.dumps`）。再遇到 `FAILED <status>:` 后面空着，先看这段。
 
-### 新增一个「功能」的标准做法（三件套）
+### 先决定：经验写进卡片 desc，还是做成 skill？（2026-11-27 用户口径）
 
-导航页上**一条链接 = 一个功能**。缺一件都不算做完：
+**默认写 desc，不是默认做 skill。** 卡片 desc 是导航页上**人人可见**的一行字（不装 agent 也能看）；
+skill 只有手里有 agent 的人用得上。所以一条经验先问一句："是不是一句话能说清？"
+
+| 情况 | 落点 | 为什么 |
+|---|---|---|
+| 一条结论 / 口径 / 铁律 / 踩坑 / 关键数值（"烧后必须断电重上电"、"COM 号会变只认名字"） | **直接写卡片 desc** | 一眼能看见；做成 skill 等于把一句话埋进仓库 |
+| 要**跑命令/脚本**、多步流程、要按情况分支（抓日志、做包、烧录） | 做 skill 挂 `skills[]`，desc 只留"输入→输出 + 一句话关键点" | agent 要能直接执行 |
+| 大文件 / 工具 / 固件 / 版本包 | 飞书云盘 + `资源·` 条目 | 仓库装不下 |
+| 纯网页系统 | 只给 `url`（体检里的 `➖ 仅指路`） | 没有可自动化的部分 |
+
+**desc 要"装经验"，别写成一句官话**：踩过什么坑、哪个数值是实测、哪一步不能反，直接压进去。
+QDM562 卡片就是范例——AT 三连 + YMODEM 6-7 分钟 + COM 号会变 + `PermissionError` 不影响文件，
+全在一句 desc 里，没装 agent 的人也看得懂。
+
+**拆不拆 skill 的判据**：desc 逼近 500 字符（脚本会提示 `only N left`）时，
+**先想"哪句能删"，再想"这段是不是该独立成 skill"**。不要因为 desc 写不下就无脑新建 skill：
+
+- 新建 skill 的代价 = 要维护 GitHub 目录、要有人推、卡片上多一条 agent 才看得懂的条目；
+- 而"写进 desc"的代价 = 0，改完立刻全员可见。
+
+**写长 desc 的正确姿势**（别往 cmd 里塞长中文）：
+
+```powershell
+python nav.py link update <id> --desc-file desc.txt --dry-run  # 先量长度，不提交
+python nav.py link update <id> --desc-file desc.txt            # 超 500 直接拒发，并告诉你超了多少
+```
+
+desc 存成 UTF-8 文件用 `--desc-file` 传：cmd 的 codepage 会把一长串中文搞成乱码，命令行长度也有限。
+`--desc-file` 与 `--desc` 二选一，长度检查在发请求**之前**做，不会白跑一次 400。
+
+### 需要做 skill 时，「一个功能」的标准做法（三件套）
+
+> **先看上一节**：用一句 desc 就能说清的经验，**不要**走这套。三件套是给"要执行/要下载"的功能用的。
+
+导航页上**一条链接 = 一个功能**；功能要能被执行时，缺一件都不算做完：
 
 | 步骤 | 放哪儿 | 用什么 | 产物 |
 |---|---|---|---|
@@ -298,6 +332,13 @@ python scripts/audit_cards.py --json       # 机器可读
 换机器时复制 `config.example.json` 填 token 即可。**token 不进仓库**（`config.local.json` 在 `.gitignore`；push 记得 `--exclude`，见 ⑥）。
 
 ## ⑪ 历史快照（只对比趋势，别当现状）
+
+- **2026-11-27（下午）**：定了**「经验先写 desc，别急着做 skill」**的口径，写进 ⑥ 新增的
+  《先决定：经验写进卡片 desc，还是做成 skill？》一节——①一句话能说清的经验（结论/口径/铁律/踩坑/实测数值）
+  直接进卡片 `description`，全员可见、成本 0；②要跑命令/多步流程的才做 skill 挂 `skills[]`；
+  ③desc 逼近 500 时先删句子，别拿"desc 装不下"当新建 skill 的理由。原「三件套」降级为**只在要执行时才用**。
+  同步给 `nav.py` 加了 `--desc-file`（UTF-8 文件读 desc，避开 cmd codepage 乱码）和发请求**前的**长度闸门
+  （超 500 拒发并报超了多少，剩 <60 打 `WARN`）。
 
 - **2026-11-27**：把「YMODEM 抓 DUMP」经验落到 QDM562 卡片（`c0d63b48-afa9-4b90-95f4-1b77781ec9a8`，分类 项目信息）。
   ① skill 侧新增 GitHub 目录 `dump-log-export`（本地 `skills/导出DUMP日志` 推上去，`ymodem_recv.py` + `dump_log.json`），SKILL.md 补「QDM562 实测口径」：Dump Debug Port（COM53 会变号，只认名字）/ 115200 YMODEM-CRC / 约 15 个 bin · 4.6MB · 6-7 分钟 · 10-11KB/s / `com_DDR_RW.bin` 3.93MB 内含 ICCID+IMEI；顺序=先起接收脚本再 AT 三连或断电触发；踩坑=结尾 `PermissionError` 不影响文件、占口先杀进程、YMODEM 无续传。

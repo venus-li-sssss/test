@@ -34,6 +34,14 @@ Write (same Key, same prefix, no extra authorization; nav page updates immediate
   服务端会把引用展开成被引用卡片的各项（描述带 经「某卡片」： 前缀），属正常现象。
   典型用法：需要"下载飞书云盘文件"能力时引用「飞书云盘」，不要手写 feishu-software-download + 云盘根目录两条。
 
+Card description vs skill (先别急着建 skill):
+  经验/口径/铁律/踩坑/数值  -> 直接写进卡片 --desc（所有人都看得到，不用装 agent）
+  要跑命令、要脚本、多步流程、或 desc 装不下 -> 才做成 skill 挂 --skill
+  desc 上限 500 字符（服务端硬限，超了 400）。长描述写文件再用 --desc-file 传，脚本会先量长度：
+    python nav.py link add ... --desc-file desc.txt
+    python nav.py link update <id> --desc-file desc.txt --dry-run
+  超限时脚本直接报「超了多少字符」并提示拆分，不会先把请求打出去再失败。
+
 Server-side constraints (this script just prints the server's reason):
   * category must already exist -> 400, response lists current categories (run `cat list`)
   * same name in same category -> 409, response gives the existing link id (use `link update`)
@@ -231,6 +239,47 @@ def parse_skills(flag_skills, skills_file, skills_json, flag_refs=None, data=Non
     return out or None
 
 
+DESC_MAX = 500          # server-side hard limit for a link description
+DESC_WARN = 60          # warn when fewer than this many chars are left
+
+
+def desc_from(opts):
+    """Description from --desc or --desc-file (UTF-8 first, then GBK).
+
+    Returns (text, source) or (None, None) when neither was passed.
+    Writing a long Chinese desc into cmd.exe argv is fragile (codepage), so
+    --desc-file is the safe path for anything near the limit.
+    """
+    path = opts.get("desc-file")
+    if path:
+        if not os.path.exists(path):
+            sys.exit("ERROR: --desc-file not found: %s" % path)
+        for enc in ("utf-8-sig", "utf-8", "gbk"):
+            try:
+                with open(path, encoding=enc) as f:
+                    return f.read().strip(), path
+            except UnicodeDecodeError:
+                continue
+        sys.exit("ERROR: cannot decode %s (save it as UTF-8)" % path)
+    if opts.get("desc") is not None:
+        return opts["desc"], "argv(--desc)"
+    return None, None
+
+
+def check_desc(text, source):
+    """Fail fast when the description cannot fit on the card."""
+    n = len(text)
+    if n > DESC_MAX:
+        print("ERROR: description too long: %d/%d chars (over by %d) [source: %s]"
+              % (n, DESC_MAX, n - DESC_MAX, source))
+        print("hint: 卡片 desc 装不下 -> 把细节做成 skill 挂 skills[]，desc 只留「输入->输出 + 关键数值/铁律/踩坑」；")
+        print("      非要做长 -> 先删等量的旧内容。改 desc 前用 --dry-run 反复量，不会真的提交。")
+        sys.exit(1)
+    if n > DESC_MAX - DESC_WARN:
+        print("WARN: description %d/%d chars, only %d left -- 再加内容得先删。"
+              % (n, DESC_MAX, DESC_MAX - n))
+
+
 def opt_parser(argv):
     """Tiny flag parser: --k v, --k=v, boolean --dry-run."""
     opts, flags = {}, set()
@@ -306,8 +355,10 @@ def link_add(argv):
                      % (opts["name"], cat_name, it.get("id"), it.get("id")))
 
     payload = {"name": opts["name"].strip(), "url": opts["url"].strip(), "category": cat_name}
-    if opts.get("desc"):
-        payload["description"] = opts["desc"]
+    desc, desc_src = desc_from(opts)
+    if desc:
+        check_desc(desc, desc_src)
+        payload["description"] = desc
     if opts.get("icon"):
         payload["icon"] = opts["icon"]
     if opts.get("sort"):
@@ -341,8 +392,10 @@ def link_update(argv):
         payload["name"] = opts["name"]
     if opts.get("url") is not None:
         payload["url"] = opts["url"]
-    if opts.get("desc") is not None:
-        payload["description"] = opts["desc"]
+    desc, desc_src = desc_from(opts)
+    if desc is not None:
+        check_desc(desc, desc_src)
+        payload["description"] = desc
     if opts.get("icon") is not None:
         payload["icon"] = opts["icon"]
     if opts.get("sort") is not None:
