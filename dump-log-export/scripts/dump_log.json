@@ -1,0 +1,14 @@
+[
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "python \"${args.skill_dir}/scripts/ymodem_recv.py\" --com \"${args.com_port}\" --output \"${args.output_dir}\""
+    }
+  },
+  {
+    "tool_name": "execute_shell_command",
+    "arguments": {
+      "command": "dir \"${args.output_dir}\" /O-D"
+    }
+  }
+]
