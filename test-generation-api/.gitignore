@@ -1,4 +1,3 @@
-scripts/config.local.json
 *.task.json
 out/
 *.xlsx

@@ -30,6 +30,8 @@ DEFAULT_BASE = "https://scnrhostplnc-app_4k5zy309bb5wx-1865305019607353.aiforce.
 # 404 / 403「api key not allowed to access preview」，此时用这个域名 + 应用路径
 PREVIEW_BASE = "https://scnrhostplnc.feishuapp.com/app/app_4k5zy309bb5wx"
 APP_SUFFIX = "/app/app_4k5zy309bb5wx"
+# 内置共享 token：团队公用、随 skill 公开，开箱即用（不需要任何配置就能跑）
+BUILTIN_TOKEN = "1jX01Ur_-RVIoyy7SsQ3nFvtD2KrotIPmO_DRzJjLxk"
 HERE = Path(__file__).resolve().parent
 CFG_FILE = HERE / "config.local.json"
 
@@ -42,7 +44,7 @@ def cfg():
         except Exception as e:
             sys.exit(f"config.local.json 解析失败：{e}")
     base = os.environ.get("TEST_GEN_BASE") or data.get("base_url") or DEFAULT_BASE
-    token = os.environ.get("TEST_GEN_TOKEN") or data.get("token") or ""
+    token = os.environ.get("TEST_GEN_TOKEN") or data.get("token") or BUILTIN_TOKEN
     return base.rstrip("/"), token
 
 
@@ -82,7 +84,7 @@ def _once(method, base, path, token, body, timeout):
 def request(method, path, body=None, raw=False, timeout=180):
     bases, token = _candidates()
     if not token:
-        sys.exit("缺少 token：设置环境变量 TEST_GEN_TOKEN，或写 scripts/config.local.json（参考 config.example.json）")
+        sys.exit("缺少 token：内置 BUILTIN_TOKEN 为空时，设置环境变量 TEST_GEN_TOKEN 或写 scripts/config.local.json")
     tried, last = [], None
     for base in bases:
         code, data = _once(method, base, path, token, body, timeout)
@@ -350,12 +352,39 @@ def _download(url):
         return resp.read()
 
 
+def cmd_framework(a):
+    """下载测试框架（模块结构脑图 .xmind，2026-11-27 平台新增接口）"""
+    try:
+        r = request("GET", f"/openapi/test-generation/tasks/{a.task_id}/framework")
+    except SystemExit as e:
+        if "409" in str(e):
+            sys.exit("任务未完成（HTTP 409），请先用 status --watch 轮询")
+        if "403" in str(e):
+            sys.exit("该环境没有开放 framework 接口（403 request path not allowed），"
+                     "请确认 base_url 指向已发布的部署")
+        raise
+    fn = r.get("fileName") or f"{a.task_id}_framework.xmind"
+    url = r.get("downloadUrl")
+    print(f"[framework] {fn}  {r.get('size')} B  模块 {r.get('moduleCount')} 个  "
+          f"mime={r.get('mimeType')}")
+    if not url:
+        sys.exit("返回里没有 downloadUrl")
+    dest_dir = Path(a.dest or ".")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    out = dest_dir / fn
+    out.write_bytes(_download(url))
+    print(f"[saved] {out.resolve()}")
+    return out
+
+
 def cmd_run(a):
     tid = a.task_id
     if not tid:
         tid = cmd_create(a)
     print(f"--- 轮询任务 {tid}（间隔 {a.interval}s，最长 {a.timeout}s）")
     a.task_id = tid
+    if not hasattr(a, "watch"):
+        a.watch = True          # run 子命令没有 --watch 开关，强制轮询
     cmd_status(a)
     print("--- 取结果")
     cmd_result(a)
@@ -405,10 +434,15 @@ def main():
     sp.add_argument("--pageSize", type=int, default=200)
     sp.set_defaults(func=cmd_cases)
 
-    sp = sub.add_parser("export", help="下载 Excel")
+    sp = sub.add_parser("export", help="下载 Excel 用例表")
     sp.add_argument("task_id")
     sp.add_argument("--dest", help="保存目录，默认当前目录")
     sp.set_defaults(func=cmd_export)
+
+    sp = sub.add_parser("framework", help="下载测试框架（模块结构 .xmind）")
+    sp.add_argument("task_id")
+    sp.add_argument("--dest", help="保存目录，默认当前目录")
+    sp.set_defaults(func=cmd_framework)
 
     sp = sub.add_parser("run", parents=[common_create], help="create+轮询+结果(+Excel)")
     sp.add_argument("--task-id", dest="task_id", help="复用已有 taskId，跳过创建")
